@@ -25,15 +25,23 @@ pub fn check() -> Receiver<String> {
                 .timeout_global(Some(std::time::Duration::from_secs(15)))
                 .build();
             let agent: ureq::Agent = config.into();
-            let release: Release = agent
+            let response = agent
                 .get(&format!(
                     "https://api.github.com/repos/{REPOSITORY}/releases/latest"
                 ))
                 .header("User-Agent", "DramaFactory-v001")
                 .header("Accept", "application/vnd.github+json")
-                .call()?
-                .body_mut()
-                .read_json()?;
+                .call();
+            let mut response = match response {
+                Ok(response) => response,
+                Err(ureq::Error::StatusCode(404)) => {
+                    return Ok(
+                        "No published releases are available yet. Development build: v001.".into(),
+                    );
+                }
+                Err(error) => return Err(error.into()),
+            };
+            let release: Release = response.body_mut().read_json()?;
             let latest = version(&release.tag_name)
                 .ok_or_else(|| anyhow::anyhow!("Release has an invalid version label"))?;
             if release.draft || release.prerelease {
