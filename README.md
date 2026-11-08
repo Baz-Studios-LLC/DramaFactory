@@ -24,8 +24,8 @@ Available tools: `dramafactory_create_series`, `dramafactory_list_series`, `dram
 The current protocol implementation is deliberately small; maintained SDK adoption and full lifecycle validation remain on the roadmap.
 
 ## Releases and updates
-Public release labels are v001, v002, v003, incrementing by whole numbers. Internal Cargo semver is not the user-facing version. GitHub home: https://github.com/bazstudios/DramaFactory.
+Public release labels are v001, v002, v003, incrementing by whole numbers. Internal Cargo semver is not the user-facing version. GitHub home: https://github.com/Baz-Studios-LLC/DramaFactory.
 
-Planned update flow: background GitHub release checks, signature verification using a bundled public key, staged downloads, install after exit with no active render, and recovery on failed replacement. macOS Developer ID/notarization is separate from cryptographic update signing. No updater or release feed is enabled in this foundation. Never publish signing private keys.
+Planned update flow: background GitHub release checks, signature verification using a bundled public key, staged downloads, install after exit with no active render, and recovery on failed replacement. macOS Developer ID/notarization is separate from cryptographic update signing. Background release discovery and a manual check button are implemented. Silent installation remains disabled until a signature verifier and release packaging are implemented. Never publish signing private keys.
 
 See ROADMAP.md and MODEL_COMPATIBILITY.md for remaining work and verified capabilities.

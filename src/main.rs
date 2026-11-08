@@ -1,5 +1,6 @@
 mod mcp;
 mod store;
+mod updates;
 use eframe::egui::{self, Color32, RichText, Vec2};
 use store::Store;
 const GOLD: Color32 = Color32::from_rgb(224, 184, 119);
@@ -16,6 +17,8 @@ struct Studio {
     episode_id: Option<String>,
     prompt: String,
     message: String,
+    update_rx: Option<std::sync::mpsc::Receiver<String>>,
+    update_status: String,
 }
 impl Studio {
     fn new(cc: &eframe::CreationContext<'_>, store: Store) -> Self {
@@ -48,6 +51,8 @@ impl Studio {
             episode_id: None,
             prompt: String::new(),
             message: String::new(),
+            update_rx: Some(updates::check()),
+            update_status: "Checking for releases in the background…".into(),
         }
     }
     fn title(ui: &mut egui::Ui, kicker: &str, title: &str, sub: &str) {
@@ -74,6 +79,12 @@ impl Studio {
 }
 impl eframe::App for Studio {
     fn update(&mut self, ctx: &egui::Context, _: &mut eframe::Frame) {
+        if let Some(rx) = &self.update_rx
+            && let Ok(status) = rx.try_recv()
+        {
+            self.update_status = status;
+            self.update_rx = None;
+        }
         egui::TopBottomPanel::bottom("status")
             .frame(
                 egui::Frame::new()
@@ -82,7 +93,7 @@ impl eframe::App for Studio {
             )
             .show(ctx, |ui| {
                 ui.horizontal(|ui| {
-                    ui.label(RichText::new("●  LOCAL STUDIO").color(GOLD).size(10.));
+                    ui.label(RichText::new("LOCAL STUDIO").color(GOLD).size(10.));
                     ui.separator();
                     ui.label(
                         RichText::new(if self.message.is_empty() {
@@ -160,7 +171,7 @@ impl eframe::App for Studio {
  0=>{Self::title(ui,"YOUR PRODUCTION HOME","Every great drama starts here.","From the first idea to the final frame. One independent studio.");
  let width=ui.available_width();let (rect,_)=ui.allocate_exact_size(Vec2::new(width,220.),egui::Sense::hover());let p=ui.painter();p.rect_filled(rect,16,Color32::from_rgb(33,34,39));for i in 0..36{let x=rect.right()-i as f32*16.;p.line_segment([egui::pos2(x,rect.top()),egui::pos2(x-150.,rect.bottom())],egui::Stroke::new(1_f32,Color32::from_rgba_unmultiplied(224,184,119,18)));}p.text(rect.left_top()+Vec2::new(28.,30.),egui::Align2::LEFT_TOP,"THE DIRECTOR’S CHAIR",egui::FontId::proportional(11.),GOLD);p.text(rect.left_top()+Vec2::new(28.,64.),egui::Align2::LEFT_TOP,"A world waiting\nto be written.",egui::FontId::proportional(34.),Color32::WHITE);p.text(rect.left_bottom()+Vec2::new(28.,-24.),egui::Align2::LEFT_BOTTOM,"YOUR VISION. YOUR CAST. YOUR FINAL CUT.",egui::FontId::proportional(10.),MUTED);
  ui.add_space(22.);ui.horizontal(|ui|{if ui.button(RichText::new("+  Create a series").color(GOLD)).clicked(){self.new_open=true;}
-if ui.button("Open production queue  →").clicked(){self.page=2;}});ui.add_space(24.);
+if ui.button("Open production queue").clicked(){self.page=2;}});ui.add_space(24.);
  let series=self.store.series().unwrap_or_default();let jobs=self.store.jobs().unwrap_or_default();ui.columns(3,|cols|{for (col,(n,label)) in cols.iter_mut().zip([(series.len(),"SERIES IN DEVELOPMENT"),(jobs.iter().filter(|j|j.status=="blocked").count(),"REQUESTS AWAITING SETUP"),(0,"VERIFIED VIDEO MODELS")]){Self::card(col,|ui|{ui.label(RichText::new(n.to_string()).size(32.).color(GOLD));ui.label(RichText::new(label).size(10.).color(MUTED));});}});ui.add_space(28.);ui.heading("Your productions");ui.add_space(8.);if series.is_empty(){Self::card(ui,|ui|{ui.label(RichText::new("The stage is yours.").size(21.));ui.label(RichText::new("Create your first series to develop its premise, episodes, and screenplay.").color(MUTED));});}
 for s in series{Self::card(ui,|ui|{if ui.button(RichText::new(&s.name).size(20.)).clicked(){self.selected=Some(s.id.clone());self.page=1;}ui.label(&s.premise);});ui.add_space(10.);}}
  1=>{Self::title(ui,"DEVELOPMENT","Series & episodes","Build the world. Find the characters. Write the first scene.");if ui.button("+  New series").clicked(){self.new_open=true;}
@@ -171,7 +182,9 @@ if let Some(id)=self.episode_id.clone(){ui.add_space(12.);ui.label(RichText::new
 if !j.error.is_empty(){ui.label(RichText::new(&j.error).color(MUTED));}
 if j.status=="blocked"&&ui.small_button("Cancel request").clicked(){let r=self.store.cancel(&j.id);self.result(r,"Request canceled");}});ui.add_space(10.);}}
  3=>{Self::title(ui,"INFERENCE","Model library","A deliberate selection of local creative tools.");Self::card(ui,|ui|{ui.label(RichText::new("Wan 2.2 · TI2V 5B").size(24.));ui.label(RichText::new("CANDIDATE  /  NOT INSTALLED").color(GOLD).size(11.));ui.add_space(12.);ui.label("Text and image to video, through an isolated MLX worker.");ui.label(RichText::new("Upstream MLX support documented. Performance and memory use on this Mac are not yet verified. A large checkpoint download is required before benchmarking.").color(MUTED));});}
- _=>{Self::title(ui,"STUDIO PREFERENCES","Made to stay yours.","Local storage, release channels, and application identity.");Self::card(ui,|ui|{ui.label(RichText::new("Project storage").size(20.));ui.label(self.store.path.display().to_string());ui.add_space(16.);ui.label(RichText::new("Updates · bazstudios / DramaFactory").size(20.));ui.label("Version v001 · MIT license");ui.label(RichText::new("Automatic updates are pending a signed GitHub release feed. Planned behavior: check quietly, download verified updates, install after exit. Developer ID signing and notarization can follow when your Apple developer account is ready.").color(MUTED));ui.add_space(16.);ui.label("Cloud inference is disabled. No API credentials are stored.");});}
+ _=>{Self::title(ui,"STUDIO PREFERENCES","Made to stay yours.","Local storage, release channels, and application identity.");Self::card(ui,|ui|{ui.label(RichText::new("Project storage").size(20.));ui.label(self.store.path.display().to_string());ui.add_space(16.);ui.label(RichText::new("Updates · Baz-Studios-LLC / DramaFactory").size(20.));ui.label("Version v001 · MIT license");ui.label(&self.update_status);
+if ui.add_enabled(self.update_rx.is_none(), egui::Button::new("Check for updates")).clicked(){self.update_rx=Some(updates::check());self.update_status="Checking for releases…".into();}
+ui.label(RichText::new("Automatic updates are pending a signed GitHub release feed. Planned behavior: check quietly, download verified updates, install after exit. Developer ID signing and notarization can follow when your Apple developer account is ready.").color(MUTED));ui.add_space(16.);ui.label("Cloud inference is disabled. No API credentials are stored.");});}
  }});});
         if self.new_open {
             let mut open = true;
@@ -195,7 +208,7 @@ if j.status=="blocked"&&ui.small_button("Cancel request").clicked(){let r=self.s
                             .hint_text("Who wants what, and what stands in their way?"),
                     );
                     if ui
-                        .button(RichText::new("Create series  →").color(GOLD))
+                        .button(RichText::new("Create series").color(GOLD))
                         .clicked()
                     {
                         match self.store.create_series(&self.name, &self.premise) {

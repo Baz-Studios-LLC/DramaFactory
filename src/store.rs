@@ -129,6 +129,9 @@ impl Store {
     }
 }
 pub fn default_path() -> PathBuf {
+    if let Some(path) = std::env::var_os("DRAMAFACTORY_DATABASE") {
+        return PathBuf::from(path);
+    }
     directories::ProjectDirs::from("studio", "DramaFactory", "DramaFactory")
         .expect("User data directory unavailable")
         .data_dir()

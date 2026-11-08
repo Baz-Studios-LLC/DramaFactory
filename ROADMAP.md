@@ -11,6 +11,7 @@
 - [ ] Isolated model worker, progress events, resource scheduling and recovery
 - [ ] Verified Wan 2.2 five-second generation and benchmark
 - [ ] Asset registry and in-app video preview
+- [x] Background GitHub release discovery and manual check
 - [ ] Signed silent updater, background check, update preferences, rollback
 - [ ] App icon, typography refinement and wider visual QA
 

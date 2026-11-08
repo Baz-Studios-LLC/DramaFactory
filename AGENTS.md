@@ -14,7 +14,7 @@ Rust-native, Mac-first creative production application. Visual quality is a prim
 
 ## Product rules
 - Public versions are whole-number identifiers: v001, v002, v003. Cargo's internal semver is packaging metadata only. macOS build numbers are integers.
-- Repository: bazstudios/DramaFactory. Public source, MIT license.
+- Repository: Baz-Studios-LLC/DramaFactory. Public source, MIT license.
 - macOS initially; keep services platform independent for future Windows/Linux.
 - Silent updates must use signed release artifacts, verify before installation, and defer replacement while rendering. Never trust an unsigned download or execute a command obtained from a feed.
 - No Apple developer account currently. Do not claim notarization. Developer ID signing will be added when available.
