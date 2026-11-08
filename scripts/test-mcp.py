@@ -20,8 +20,8 @@ with tempfile.TemporaryDirectory(prefix="dramafactory-mcp-") as temporary:
         assert response["id"] == sequence
         return response["result"]
 
-    def tool(name, **arguments):
-        response = request("tools/call", dict(name="dramafactory_" + name, arguments=arguments))
+    def tool(tool_name, **arguments):
+        response = request("tools/call", dict(name="dramafactory_" + tool_name, arguments=arguments))
         assert not response["isError"], response
         return json.loads(response["content"][0]["text"])
 
