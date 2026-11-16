@@ -92,6 +92,13 @@ impl Studio {
                 plan.revision
             ));
         });
+        let total_seconds: u32 = plan.segments.iter().map(|segment| segment.duration).sum();
+        ui.label(format!(
+            "Planned episode: {} segments · {}m {:02}s",
+            plan.segments.len(),
+            total_seconds / 60,
+            total_seconds % 60
+        ));
         let draft = &mut plan.segments[*index];
         if let Some(receiver) = &state.pending {
             match receiver.try_recv() {
@@ -110,6 +117,18 @@ impl Studio {
             ui.heading("Prepare a Seedance segment");
             ui.label("Describe the action, dialogue, camera, music and sound in one prompt.");
             Self::field(ui, "SEGMENT PROMPT", &mut draft.prompt, 4);
+            ui.horizontal_wrapped(|ui| {
+                ui.label("Clip length");
+                ui.add(
+                    eframe::egui::DragValue::new(&mut draft.duration)
+                        .range(4..=30)
+                        .suffix(" seconds"),
+                );
+                ui.label("Resolution");
+                ui.selectable_value(&mut draft.resolution, "480p".into(), "480p");
+                ui.selectable_value(&mut draft.resolution, "720p".into(), "720p");
+            });
+            ui.small("Vertical 9:16 with generated audio. Each segment is a separate request; save changes before generating. Live capability validation runs before submission.");
             ui.horizontal_wrapped(|ui| {
                 ui.selectable_value(&mut draft.mode, 0, "Prompt only");
                 ui.selectable_value(&mut draft.mode, 1, "Character & scene references");
@@ -163,9 +182,9 @@ impl Studio {
                         });
                     }
                     if !draft.cast.is_empty() {
-                        ui.label("Local cast images are saved with this plan. Provider upload transport is not connected yet; preview is blocked rather than omit your characters.");
+                        ui.label("These local portrait links are saved, but cannot yet be sent to Seedance. OpenRouter documents public HTTPS image URLs for video references; its Files API does not provide a video-readable upload URL. Generation is blocked while local portraits are linked.");
                     }
-                    ui.label("Additional public HTTPS reference URLs (optional), one per line.");
+                    ui.label("Public HTTPS reference image URLs, one per line (required if no local portraits are linked).");
                     Self::field(ui, "REFERENCES", &mut draft.references, 3);
                 }
                 2 => {
@@ -325,7 +344,7 @@ impl Studio {
                     }
                 }
             }
-            ui.small("Validation preview is free. Generate is a separate paid action. Local-file upload and endpoint-specific media validation are still being connected.");
+            ui.small("Validation preview is free. Generate is a separate paid action. Automatic local-portrait transport is unresolved. Public HTTPS image references and first/last frame URLs are supported; endpoint-specific media validation remains incomplete.");
         });
     }
 }

@@ -150,7 +150,7 @@ impl crate::Studio {
                 }
             }
             ui.small("Catalog checks are public and read-only. They send no project content or API key and do not start generation.");
-            ui.label("Hosted generation is being connected. Existing projects and media remain available; no cloud generation is enabled in this build yet.");
+            ui.label("Generation starts only when you explicitly request it from a workspace. Your original media remains on this Mac.");
         });
     }
 }

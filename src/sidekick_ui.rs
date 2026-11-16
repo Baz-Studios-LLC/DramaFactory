@@ -27,16 +27,16 @@ fn message_bubble(
     ui.with_layout(layout, |ui| {
         let frame = Frame::new()
             .fill(if user {
-                Color32::from_rgb(77, 53, 31)
+                Color32::from_rgb(48, 43, 35)
             } else {
-                Color32::from_rgb(27, 32, 41)
+                Color32::from_rgb(25, 27, 32)
             })
             .stroke(Stroke::new(
                 1_f32,
                 if user {
-                    Color32::from_rgb(112, 78, 43)
+                    Color32::from_rgb(73, 63, 46)
                 } else {
-                    Color32::from_rgb(43, 49, 60)
+                    Color32::from_rgb(40, 43, 49)
                 },
             ))
             .corner_radius(12)
@@ -254,8 +254,12 @@ impl Studio {
                 Err(std::sync::mpsc::TryRecvError::Empty) => {}
             }
         }
-        eframe::egui::SidePanel::right("series-sidekick").resizable(true).default_width(330.).width_range(270. ..=500.).show(ctx,|ui|{
-            ui.add_space(12.);ui.heading("Creative sidekick");ui.small("One conversation across every workspace");
+        if !self.sidekick_visible {
+            return;
+        }
+        eframe::egui::SidePanel::right("series-sidekick").resizable(true).default_width(350.).width_range(290. ..=520.)
+        .frame(eframe::egui::Frame::new().fill(eframe::egui::Color32::from_rgb(21,23,27)).inner_margin(18.)).show(ctx,|ui|{
+            ui.add_space(2.);ui.heading("Creative sidekick");ui.label(eframe::egui::RichText::new("Your story, in good company.").small().color(MUTED));
             let Some(series)=self.selected.clone() else{ui.label("Choose a series to begin brainstorming.");return;};
             let context=match self.page{Page::Synopsis=>"Synopsis",Page::Cast=>"Characters",Page::Locations=>"Locations",Page::Story=>"Overall plot",Page::Series=>"Episode plot",Page::Queue=>"Episode generation",_=>"Studio workspace"}.to_owned();
             ui.label(eframe::egui::RichText::new(format!("Working on: {context}")).color(GOLD));
@@ -311,7 +315,7 @@ impl Studio {
                 input.events.retain(|event|!matches!(event,eframe::egui::Event::Key{key:eframe::egui::Key::Enter,pressed:true,modifiers,..} if *modifiers==eframe::egui::Modifiers::NONE));
                 send
             });
-            ui.add(eframe::egui::TextEdit::multiline(draft).id(composer_id).return_key(eframe::egui::KeyboardShortcut::new(eframe::egui::Modifiers::SHIFT,eframe::egui::Key::Enter)).desired_rows(3).desired_width(ui.available_width()).hint_text("Discuss your series…"));
+            ui.add(eframe::egui::TextEdit::multiline(draft).margin(eframe::egui::vec2(12.,12.)).id(composer_id).return_key(eframe::egui::KeyboardShortcut::new(eframe::egui::Modifiers::SHIFT,eframe::egui::Key::Enter)).desired_rows(3).desired_width(ui.available_width()).hint_text("Discuss your series…"));
             let baseline=self.sidekick.saved_drafts.get_mut(&series).expect("loaded baseline");
             let mut draft_saved=true;
             if draft != baseline {
@@ -322,7 +326,7 @@ impl Studio {
             }
             ui.small(if draft_saved {"Enter to send · Shift+Enter for a new line · draft saved locally"} else {"Enter to send · Shift+Enter for a new line · draft not saved"});
             let can_send=draft_saved&&self.sidekick.pending.is_none()&&!draft.trim().is_empty();
-            let send_clicked=ui.add_enabled(can_send,eframe::egui::Button::new("Send to sidekick")).clicked();
+            let send_clicked=ui.add_enabled(can_send,crate::theme::primary("Send message")).clicked();
             if can_send&&(send_clicked||send_with_enter){
                 let message=Message{id:uuid::Uuid::new_v4().to_string(),role:"user".into(),text:draft.clone(),context:context.clone()};
                 match self.store.append_sidekick_message(&series,&message){Ok(())=>{draft.clear();self.sidekick.error.clear();
@@ -335,7 +339,7 @@ impl Studio {
                         let progress=self.sidekick.progress.clone();
                         self.sidekick.pending=Some((series.clone(),context.clone(),receiver,if self.page==Page::Synopsis{self.synopsis_drafts.get(&series).cloned()}else{None},character_snapshots));std::thread::spawn(move||{let _=sender.send(crate::sidekick::reply(&messages,&project_context,"google/gemini-4-argon",&progress).map_err(|error|error.to_string()));});},Err(error)=>self.sidekick.error=error.to_string()}},Err(error)=>self.sidekick.error=error.to_string()}
             }
-            ui.label(eframe::egui::RichText::new("Send uses your paid OpenRouter account. Synopsis edits can update its unsaved draft with Undo. Character briefs and portrait prompts also support draft edits. New characters can be created with saved briefs and portrait prompts. Other documents and automatic portrait actions are being connected.").small().color(MUTED));
+            ui.label(eframe::egui::RichText::new("Uses your paid OpenRouter account. Review draft edits before saving.").small().color(MUTED));
         });
     }
 }

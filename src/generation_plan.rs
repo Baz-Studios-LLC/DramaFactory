@@ -9,6 +9,10 @@ pub struct SegmentDraft {
     #[serde(default)]
     pub id: String,
     pub prompt: String,
+    #[serde(default = "default_duration")]
+    pub duration: u32,
+    #[serde(default = "default_resolution")]
+    pub resolution: String,
     pub mode: u8,
     pub first: String,
     pub last: String,
@@ -16,11 +20,19 @@ pub struct SegmentDraft {
     #[serde(default)]
     pub cast: Vec<crate::cast_reference::CastReference>,
 }
+fn default_duration() -> u32 {
+    10
+}
+fn default_resolution() -> String {
+    "720p".into()
+}
 impl Default for SegmentDraft {
     fn default() -> Self {
         Self {
             id: uuid::Uuid::new_v4().to_string(),
             prompt: String::new(),
+            duration: default_duration(),
+            resolution: default_resolution(),
             mode: 0,
             first: String::new(),
             last: String::new(),
@@ -38,8 +50,8 @@ impl SegmentDraft {
         Ok(VideoPlan {
             model: "bytedance/seedance-2.5".into(),
             prompt: self.prompt.clone(),
-            duration: 10,
-            resolution: "720p".into(),
+            duration: self.duration,
+            resolution: self.resolution.clone(),
             aspect_ratio: "9:16".into(),
             generate_audio: true,
             inputs: match self.mode {
@@ -108,6 +120,8 @@ impl Store {
             || plan.segments.len() > 120
             || plan.segments.iter().any(|segment| {
                 segment.mode > 2
+                    || !(4..=30).contains(&segment.duration)
+                    || !["480p", "720p"].contains(&segment.resolution.as_str())
                     || segment.prompt.len() > 65536
                     || segment.references.len() > 65536
                     || segment.first.len() > 8192
@@ -178,6 +192,19 @@ impl Store {
 mod tests {
     use super::*;
     #[test]
+    fn legacy_profiles_keep_defaults_and_custom_profiles_reach_the_video_request() {
+        let legacy:SegmentDraft=serde_json::from_value(serde_json::json!({"id":"legacy","prompt":"A person walks and speaks","mode":0,"first":"","last":"","references":""})).unwrap();
+        assert_eq!(legacy.duration, 10);
+        assert_eq!(legacy.resolution, "720p");
+        let mut updated = legacy;
+        updated.duration = 24;
+        updated.resolution = "480p".into();
+        let plan = updated.video_plan().unwrap();
+        assert_eq!(plan.duration, 24);
+        assert_eq!(plan.resolution, "480p");
+        assert!(plan.generate_audio);
+    }
+    #[test]
     fn plans_survive_restart_and_reject_stale_cross_process_edits() {
         let dir = std::env::temp_dir().join(format!("df-plans-{}", uuid::Uuid::new_v4()));
         std::fs::create_dir_all(&dir).unwrap();
@@ -189,6 +216,11 @@ mod tests {
         let mut first = store.generation_plan(&episode.id).unwrap();
         let mut stale = first.clone();
         first.segments[0].prompt = "First saved".into();
+        first.segments[0].duration = 24;
+        first.segments[0].resolution = "480p".into();
+        let mut invalid = first.clone();
+        invalid.segments[0].duration = 31;
+        assert!(store.save_generation_plan(&invalid).is_err());
         let saved = store.save_generation_plan(&first).unwrap();
         assert_eq!(saved.revision, 1);
         assert_eq!(store.save_generation_plan(&first).unwrap().revision, 1);
@@ -204,6 +236,14 @@ mod tests {
         assert_eq!(
             reopened.generation_plan(&episode.id).unwrap().segments[0].prompt,
             "First saved"
+        );
+        assert_eq!(
+            reopened.generation_plan(&episode.id).unwrap().segments[0].duration,
+            24
+        );
+        assert_eq!(
+            reopened.generation_plan(&episode.id).unwrap().segments[0].resolution,
+            "480p"
         );
         drop(reopened);
         std::fs::remove_dir_all(dir).unwrap();

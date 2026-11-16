@@ -176,6 +176,14 @@ with tempfile.TemporaryDirectory(prefix="dramafactory-mcp-") as temporary:
     assert conflict.get('isError'),conflict
     # Hosted cast creation and chat mutation exercise shared services, without AI calls.
     new_series=tool("create_series",name="Hosted cast isolation",premise="Fixture")
+    profile_episode=tool("create_episode",series_id=new_series["id"],title="Profile fixture")
+    profile_plan=tool("get_generation_plan",episode_id=profile_episode["id"])
+    profile_plan["segments"][0]["duration"]=24
+    profile_plan["segments"][0]["resolution"]="480p"
+    tool("save_generation_plan",plan=profile_plan)
+    restored=tool("get_generation_plan",episode_id=profile_episode["id"])
+    assert restored["segments"][0]["duration"]==24
+    assert restored["segments"][0]["resolution"]=="480p"
     character_id=str(uuid.uuid4())
     args=dict(series_id=new_series["id"],character_id=character_id,name="Tamsin fixture",description="Adult village trader",portrait_prompt="Cinematic village portrait")
     tool("create_character_with_prompt",**args)

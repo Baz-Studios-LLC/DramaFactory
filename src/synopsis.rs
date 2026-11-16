@@ -28,14 +28,9 @@ impl Studio {
         Self::title(
             ui,
             "SYNOPSIS",
-            "Start with a story worth following.",
-            "Define the central idea. This synopsis guides the cast, full series plot, and every episode.",
+            "The heart of your story.",
+            "A compelling premise is the beginning of everything.",
         );
-        if ui.button("+ Start a new series").clicked() {
-            self.new_open = true;
-        }
-        ui.small("Editing this synopsis changes the current series. Start a new series for a different story; its cast and episodes begin empty.");
-        ui.add_space(12.);
         let Some(id) = self.selected.clone() else {
             ui.label("Create or choose a series to begin.");
             if ui.button("Create a series").clicked() {
@@ -73,18 +68,31 @@ impl Studio {
             };
         }
         let mut draft = draft.clone();
+        ui.set_width(ui.available_width().min(860.));
         Self::card(ui, |ui| {
-            ui.label("SERIES TITLE");
+            ui.label(
+                eframe::egui::RichText::new("SERIES TITLE")
+                    .size(11.)
+                    .color(crate::MUTED),
+            );
             ui.add(
                 eframe::egui::TextEdit::singleline(&mut draft.title)
+                    .font(eframe::egui::FontId::proportional(24.))
+                    .margin(eframe::egui::vec2(14., 12.))
                     .desired_width(ui.available_width()),
             );
             ui.add_space(12.);
-            ui.label("THE IDEA");
+            ui.label(
+                eframe::egui::RichText::new("PREMISE")
+                    .size(11.)
+                    .color(crate::MUTED),
+            );
             ui.small("Who is at the center? What do they want, what stands in their way, and why will we keep watching?");
             ui.add(
                 eframe::egui::TextEdit::multiline(&mut draft.premise)
-                    .desired_rows(10)
+                    .font(eframe::egui::FontId::proportional(16.))
+                    .margin(eframe::egui::vec2(16., 16.))
+                    .desired_rows(14)
                     .desired_width(ui.available_width()),
             );
             let dirty =
@@ -106,7 +114,7 @@ impl Studio {
                 if ui
                     .add_enabled(
                         dirty && !draft.title.trim().is_empty(),
-                        eframe::egui::Button::new("Save synopsis"),
+                        crate::theme::primary("Save synopsis"),
                     )
                     .clicked()
                 {
@@ -117,20 +125,27 @@ impl Studio {
                     }
                     self.result(result, "Synopsis saved");
                 }
-                if ui.button("Reload saved synopsis").clicked() {
+                if ui.button("Reload saved").clicked() {
                     draft.title = saved.name.clone();
                     draft.premise = saved.premise.clone();
                     draft.expected_title = saved.name.clone();
                     draft.expected_premise = saved.premise.clone();
                 }
                 if ui
-                    .add_enabled(!dirty, eframe::egui::Button::new("Continue to characters"))
+                    .add_enabled(!dirty, eframe::egui::Button::new("Characters & world →"))
                     .clicked()
                 {
                     self.page = Page::Cast;
                 }
             });
-            ui.small("AI development through OpenRouter is being connected. You can write and save your synopsis here now.");
+            ui.add_space(6.);
+            ui.label(
+                eframe::egui::RichText::new(
+                    "Develop ideas with your sidekick. Your draft stays yours until you save.",
+                )
+                .small()
+                .color(crate::MUTED),
+            );
         });
         self.synopsis_drafts.insert(id, draft);
     }

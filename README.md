@@ -1,6 +1,6 @@
-# DramaFactory · v003
+# DramaFactory · v004
 
-A Rust-native, Mac-first studio for developing a coherent short drama series, from synopsis and cast to generated episodes. MIT licensed. **v003 is a work in progress, not a finished production release.**
+A Rust-native, Mac-first studio for developing a coherent short drama series, from synopsis and cast to generated episodes. MIT licensed. **v004 is a work in progress, not a finished production release.**
 
 ## Workflow
 

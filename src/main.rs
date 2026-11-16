@@ -48,6 +48,7 @@ mod store;
 mod story;
 mod story_ui;
 mod synopsis;
+mod theme;
 mod transitions;
 mod updater;
 mod updates;
@@ -61,9 +62,9 @@ use eframe::egui::{self, Color32, RichText, Vec2};
 use production::{ImageRequest, RenderRequest, WorkerConfig};
 use std::path::PathBuf;
 use store::Store;
-const GOLD: Color32 = Color32::from_rgb(235, 177, 87);
-const MUTED: Color32 = Color32::from_rgb(148, 153, 165);
-const BG: Color32 = Color32::from_rgb(15, 17, 22);
+const GOLD: Color32 = Color32::from_rgb(214, 182, 126);
+const MUTED: Color32 = Color32::from_rgb(157, 160, 169);
+const BG: Color32 = Color32::from_rgb(18, 20, 24);
 #[derive(Clone, Copy, PartialEq)]
 enum Page {
     Studio,
@@ -97,6 +98,7 @@ struct Studio {
     page: Page,
     asset_browser: asset_browser::AssetBrowser,
     new_open: bool,
+    sidekick_visible: bool,
     name: String,
     premise: String,
     selected: Option<String>,
@@ -146,26 +148,7 @@ struct Studio {
 impl Studio {
     fn new(cc: &eframe::CreationContext<'_>, store: Store) -> Self {
         egui_extras::install_image_loaders(&cc.egui_ctx);
-        let mut style = (*cc.egui_ctx.style()).clone();
-        style.visuals = egui::Visuals::dark();
-        style.visuals.panel_fill = BG;
-        style.visuals.window_fill = Color32::from_rgb(23, 26, 33);
-        style.visuals.extreme_bg_color = Color32::from_rgb(10, 12, 16);
-        style.visuals.selection.bg_fill = Color32::from_rgb(77, 58, 33);
-        style.visuals.widgets.inactive.bg_fill = Color32::from_rgb(30, 34, 42);
-        style.visuals.widgets.inactive.weak_bg_fill = Color32::from_rgb(24, 27, 34);
-        style.visuals.widgets.hovered.bg_fill = Color32::from_rgb(54, 48, 37);
-        style.visuals.widgets.active.bg_fill = Color32::from_rgb(77, 58, 33);
-        style.visuals.override_text_color = Some(Color32::from_rgb(228, 230, 235));
-        style.spacing.item_spacing = Vec2::new(12., 12.);
-        style.spacing.button_padding = Vec2::new(16., 9.);
-        style
-            .text_styles
-            .insert(egui::TextStyle::Body, egui::FontId::proportional(14.));
-        style
-            .text_styles
-            .insert(egui::TextStyle::Button, egui::FontId::proportional(14.));
-        cc.egui_ctx.set_style(style);
+        theme::install(&cc.egui_ctx);
         let selected = store.current_gui_series().unwrap_or_default();
         let remembered_episode = selected
             .as_deref()
@@ -201,6 +184,7 @@ impl Studio {
             page: Page::Studio,
             asset_browser: Default::default(),
             new_open: false,
+            sidekick_visible: true,
             name: String::new(),
             premise: String::new(),
             selected,
@@ -273,16 +257,16 @@ impl Studio {
     fn title(ui: &mut egui::Ui, kicker: &str, title: &str, sub: &str) {
         ui.label(RichText::new(kicker).size(10.).color(GOLD).strong());
         ui.add_space(4.);
-        ui.label(RichText::new(title).size(32.).strong());
+        ui.label(RichText::new(title).size(28.).strong());
         ui.label(RichText::new(sub).color(MUTED));
-        ui.add_space(22.);
+        ui.add_space(20.);
     }
     fn card(ui: &mut egui::Ui, content: impl FnOnce(&mut egui::Ui)) {
         egui::Frame::new()
-            .fill(Color32::from_rgb(22, 25, 32))
-            .stroke(egui::Stroke::new(1_f32, Color32::from_rgb(40, 44, 53)))
+            .fill(theme::SURFACE)
+            .stroke(egui::Stroke::new(1_f32, theme::BORDER))
             .corner_radius(12)
-            .inner_margin(22.)
+            .inner_margin(20.)
             .show(ui, |ui| {
                 ui.set_width(ui.available_width());
                 content(ui)
@@ -291,10 +275,15 @@ impl Studio {
     fn field(ui: &mut egui::Ui, label: &str, value: &mut String, rows: usize) {
         ui.label(RichText::new(label).size(10.).color(MUTED));
         if rows == 1 {
-            ui.add(egui::TextEdit::singleline(value).desired_width(f32::INFINITY));
+            ui.add(
+                egui::TextEdit::singleline(value)
+                    .margin(Vec2::new(11., 9.))
+                    .desired_width(f32::INFINITY),
+            );
         } else {
             ui.add(
                 egui::TextEdit::multiline(value)
+                    .margin(Vec2::new(12., 11.))
                     .desired_width(f32::INFINITY)
                     .desired_rows(rows),
             );
@@ -415,22 +404,51 @@ impl Studio {
         });
         ui.add_space(18.);
         for entry in entries {
+            let candidate = if entry.reference.is_none() {
+                self.store
+                    .assets()
+                    .unwrap_or_default()
+                    .into_iter()
+                    .find(|asset| {
+                        asset.metadata["provider"] == "openrouter"
+                            && asset.metadata["request"]["library_id"] == entry.id
+                    })
+                    .map(|asset| asset.path)
+            } else {
+                None
+            };
             Self::card(ui, |ui| {
-                ui.horizontal_top(|ui| {
-                    if let Some(p) = &entry.reference {
+                let layout = if ui.available_width() < 620. {
+                    egui::Layout::top_down(egui::Align::LEFT)
+                } else {
+                    egui::Layout::left_to_right(egui::Align::TOP)
+                };
+                ui.with_layout(layout, |ui| {
+                    if let Some(p) = entry.reference.as_ref().or(candidate.as_ref()) {
                         ui.vertical(|ui| {
+                            ui.set_width(220.);
+                            ui.label(
+                                RichText::new(if entry.reference.is_some() {
+                                    "SELECTED REFERENCE"
+                                } else {
+                                    "PORTRAIT OPTION · NOT SELECTED"
+                                })
+                                .size(10.)
+                                .color(MUTED),
+                            );
                             self.reference_preview(
                                 ui,
                                 p,
                                 if kind == "character" {
-                                    Vec2::new(260., 320.)
+                                    Vec2::new(220., 280.)
                                 } else {
-                                    Vec2::new(340., 240.)
+                                    Vec2::new(260., 200.)
                                 },
                             )
                         });
                     }
                     ui.vertical(|ui| {
+                        ui.set_max_width(ui.available_width());
                         let displayed = self.library_drafts.get(&entry.id).cloned();
                         ui.label(
                             RichText::new(
@@ -439,7 +457,8 @@ impl Studio {
                                     .map(|draft| draft.name.as_str())
                                     .unwrap_or(&entry.name),
                             )
-                            .size(21.),
+                            .size(23.)
+                            .strong(),
                         );
                         ui.label(
                             RichText::new(
@@ -495,7 +514,21 @@ impl Studio {
                             .size(10.),
                     );
                 });
-                ui.label(&job.prompt);
+                let summary: String = job.prompt.chars().take(110).collect();
+                ui.label(
+                    RichText::new(format!(
+                        "{summary}{}",
+                        if job.prompt.chars().count() > 110 {
+                            "…"
+                        } else {
+                            ""
+                        }
+                    ))
+                    .strong(),
+                );
+                ui.collapsing("Request details", |ui| {
+                    ui.label(&job.prompt);
+                });
                 if let Ok(timing) = self.store.job_timing(&job.id) {
                     let hosted = timing.kind.starts_with("openrouter_");
                     if let Some(seconds) = timing.attempt_elapsed_seconds {
@@ -895,7 +928,7 @@ impl Studio {
                     }
                 });
             });
-        ui.add_space(22.);
+        ui.add_space(20.);
         self.sound_timeline(ui, &episode, total);
         Self::card(ui, |ui| {
             ui.label(RichText::new("Export profile").size(21.));
@@ -1108,6 +1141,7 @@ impl Studio {
         ui.add_space(18.);
     }
     fn settings(&mut self, ui: &mut egui::Ui) {
+        ui.set_max_width(ui.available_width().min(900.));
         Self::title(
             ui,
             "STUDIO PREFERENCES",
@@ -1128,7 +1162,7 @@ impl Studio {
                 let r = self.store.set_automatic_updates(self.automatic_updates);
                 self.result(r, "Update preference saved");
             }
-            ui.label("v003 · MIT · Baz-Studios-LLC / DramaFactory");
+            ui.label("v004 · MIT · Baz-Studios-LLC / DramaFactory");
             ui.label(&self.update_status);
             if ui
                 .add_enabled(
@@ -1191,11 +1225,11 @@ impl eframe::App for Studio {
             )
             .show(ctx, |ui| {
                 ui.horizontal(|ui| {
-                    ui.label(RichText::new("LOCAL STUDIO").color(GOLD).size(10.));
+                    ui.label(RichText::new("DRAMAFACTORY").color(GOLD).size(10.));
                     ui.separator();
                     ui.label(
                         RichText::new(if self.message.is_empty() {
-                            "Private production. Independent by design."
+                            "Projects saved on this Mac"
                         } else {
                             &self.message
                         })
@@ -1203,12 +1237,12 @@ impl eframe::App for Studio {
                         .size(11.),
                     );
                     ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                        ui.label(RichText::new("v003 / DEVELOPMENT").color(MUTED).size(10.));
+                        ui.label(RichText::new("v004 / DEVELOPMENT").color(MUTED).size(10.));
                     });
                 });
             });
         egui::SidePanel::left("navigation")
-            .exact_width(220.)
+            .exact_width(224.)
             .frame(
                 egui::Frame::new()
                     .fill(Color32::from_rgb(10, 12, 16))
@@ -1218,7 +1252,7 @@ impl eframe::App for Studio {
                 ui.add_space(10.);
                 ui.add(
                     egui::Image::new(egui::include_image!("../branding/icon.png"))
-                        .fit_to_exact_size(Vec2::splat(82.)),
+                        .fit_to_exact_size(Vec2::splat(54.)),
                 );
                 ui.add_space(8.);
                 ui.label(RichText::new("DRAMAFACTORY").size(15.).strong());
@@ -1229,7 +1263,7 @@ impl eframe::App for Studio {
                 );
                 ui.add_space(16.);
                 self.current_series_picker(ui);
-                ui.add_space(18.);
+                ui.add_space(20.);
                 egui::ScrollArea::vertical()
                     .max_height((ui.available_height() - 32.).max(100.))
                     .id_salt("navigation-scroll")
@@ -1244,14 +1278,44 @@ impl eframe::App for Studio {
                     );
                 });
             });
+        egui::TopBottomPanel::top("workspace-toolbar")
+            .frame(
+                egui::Frame::new()
+                    .fill(BG)
+                    .inner_margin(egui::Margin::symmetric(24, 12)),
+            )
+            .show(ctx, |ui| {
+                ui.horizontal(|ui| {
+                    let name = self
+                        .store
+                        .series()
+                        .unwrap_or_default()
+                        .into_iter()
+                        .find(|s| Some(&s.id) == self.selected.as_ref())
+                        .map(|s| s.name)
+                        .unwrap_or("Your studio".into());
+                    ui.label(RichText::new(name).size(13.).strong());
+                    ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                        if ui
+                            .selectable_label(self.sidekick_visible, "Creative sidekick")
+                            .on_hover_text("Show or hide the series conversation")
+                            .clicked()
+                        {
+                            self.sidekick_visible = !self.sidekick_visible;
+                        }
+                    });
+                });
+            });
+        // Process pending replies even while the conversation is collapsed.
         self.sidekick_panel(ctx);
         egui::CentralPanel::default()
-            .frame(egui::Frame::new().fill(BG).inner_margin(30.))
+            .frame(egui::Frame::new().fill(BG).inner_margin(28.))
             .show(ctx, |ui| {
                 egui::ScrollArea::vertical()
                     .id_salt(("studio-page", self.page as u8))
                     .show(ui, |ui| {
-                        ui.set_min_width(ui.available_width());
+                        let width = ui.available_width().min(1120.);
+                        ui.set_width(width);
                         self.workflow_location(ui);
                         match self.page {
                             Page::Studio => self.dashboard(ui),
@@ -1494,7 +1558,7 @@ fn run() -> anyhow::Result<()> {
     let args: Vec<String> = std::env::args().collect();
     if args.get(1).is_some_and(|x| x == "--help") {
         println!(
-            "DramaFactory v003\n\n(no arguments) Launch studio\n--mcp Start local stdio MCP\n--worker Drain durable queue\n--worker-once Drain if no other worker owns the queue\n--data-path Print database path\n--configure-worker PYTHON WAN_MODEL FFMPEG KOKORO_MODEL\n--configure-images PYTHON FLUX_MODEL\n--configure-lipsync PYTHON MUSETALK_MODEL\n--configure-performance PYTHON LTX_MODEL ENCODER\n--version Print public version"
+            "DramaFactory v004\n\n(no arguments) Launch studio\n--mcp Start local stdio MCP\n--worker Drain durable queue\n--worker-once Drain if no other worker owns the queue\n--data-path Print database path\n--configure-worker PYTHON WAN_MODEL FFMPEG KOKORO_MODEL\n--configure-images PYTHON FLUX_MODEL\n--configure-lipsync PYTHON MUSETALK_MODEL\n--configure-performance PYTHON LTX_MODEL ENCODER\n--version Print public version"
         );
         return Ok(());
     }
@@ -1517,7 +1581,7 @@ fn run() -> anyhow::Result<()> {
         anyhow::bail!("Unknown option '{flag}'. Use --help");
     }
     if args.get(1).is_some_and(|x| x == "--version") {
-        println!("v003");
+        println!("v004");
         return Ok(());
     }
     if args.get(1).is_some_and(|x| x == "--install-staged-update") {
@@ -1597,7 +1661,7 @@ fn run() -> anyhow::Result<()> {
         return mcp::run(store);
     }
     let viewport = egui::ViewportBuilder::default()
-        .with_title("DramaFactory · v003")
+        .with_title("DramaFactory · v004")
         .with_inner_size([1380., 900.])
         .with_min_inner_size([1100., 740.]);
     // macOS resolves the system-rendered Icon Composer asset from the bundle.

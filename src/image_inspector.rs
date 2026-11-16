@@ -11,6 +11,7 @@ impl Studio {
             .add(
                 egui::Image::from_uri(format!("file://{}", path.display()))
                     .fit_to_exact_size(size)
+                    .corner_radius(8)
                     .sense(egui::Sense::click()),
             )
             .on_hover_text("Click to inspect the full reference image")

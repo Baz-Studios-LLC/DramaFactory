@@ -38,7 +38,7 @@ pub const STAGES: [Stage; 5] = [
         heading: "04 · EPISODE PLOT",
         title: "Write the episode plot",
         description: "Develop this episode from the series outline, then prepare its screenplay and visual beats.",
-        outcome: "An episode script and generation plan. OpenRouter writing is being connected.",
+        outcome: "A screenplay and visual plan, ready for production.",
         actions: &[
             (Page::Series, "Episode plot"),
             (Page::Scenes, "Visual plan"),
@@ -65,9 +65,9 @@ impl Studio {
             MUTED
         }))
         .selected(active)
-        .frame(!sidebar || active);
+        .frame(active);
         let response = if sidebar {
-            ui.add_sized([182., 30.], button)
+            ui.add_sized([ui.available_width(), 36.], button)
         } else {
             ui.add(button)
         };
@@ -79,34 +79,67 @@ impl Studio {
         }
     }
     pub(crate) fn workflow_navigation(&mut self, ui: &mut egui::Ui) {
-        self.workflow_link(ui, Page::Studio, "Start / workflow", true);
-        for stage in &STAGES {
-            ui.add_space(10.);
-            ui.label(RichText::new(stage.heading).size(10.).color(GOLD));
-            if let Some(&(page, label)) = stage.actions.first() {
-                self.workflow_link(ui, page, label, true);
+        self.workflow_link(ui, Page::Studio, "Studio overview", true);
+        ui.add_space(20.);
+        ui.label(RichText::new("WORKSPACE").size(10.).color(MUTED));
+        ui.add_space(4.);
+        for (index, stage) in STAGES.iter().enumerate() {
+            let active = stage.actions.iter().any(|(page, _)| *page == self.page);
+            let (rect, response) =
+                ui.allocate_exact_size(egui::vec2(ui.available_width(), 44.), egui::Sense::click());
+            if active || response.hovered() {
+                ui.painter().rect_filled(
+                    rect,
+                    7.,
+                    if active {
+                        egui::Color32::from_rgb(46, 41, 33)
+                    } else {
+                        crate::theme::SURFACE
+                    },
+                );
+            }
+            if active {
+                ui.painter().rect_filled(
+                    egui::Rect::from_min_size(
+                        rect.left_top() + egui::vec2(0., 12.),
+                        egui::vec2(3., 20.),
+                    ),
+                    2.,
+                    GOLD,
+                );
+            }
+            ui.painter().text(
+                rect.left_center() + egui::vec2(14., 0.),
+                egui::Align2::LEFT_CENTER,
+                format!("{:02}", index + 1),
+                egui::FontId::proportional(11.),
+                if active { GOLD } else { MUTED },
+            );
+            let label = if index == 1 {
+                "Characters & world"
+            } else {
+                stage.actions[0].1
+            };
+            ui.painter().text(
+                rect.left_center() + egui::vec2(42., 0.),
+                egui::Align2::LEFT_CENTER,
+                label,
+                egui::FontId::proportional(13.),
+                if active { crate::theme::TEXT } else { MUTED },
+            );
+            response.widget_info(|| {
+                egui::WidgetInfo::selected(egui::WidgetType::SelectableLabel, true, active, label)
+            });
+            if response.clicked() {
+                self.stop_playback();
+                self.page = stage.actions[0].0;
             }
         }
-        ui.add_space(12.);
-        ui.label(RichText::new("APPLICATION").size(10.).color(GOLD));
+        ui.add_space(24.);
+        ui.separator();
         self.workflow_link(ui, Page::Settings, "Settings", true);
     }
     pub(crate) fn workflow_location(&mut self, ui: &mut egui::Ui) {
-        if self.page == Page::Studio {
-            return;
-        }
-        ui.horizontal_wrapped(|ui| {
-            if let Some(stage) = STAGES
-                .iter()
-                .find(|stage| stage.actions.iter().any(|(page, _)| *page == self.page))
-            {
-                ui.label(RichText::new(stage.heading).color(GOLD).size(11.));
-            }
-            if ui.small_button("Workflow guide").clicked() {
-                self.stop_playback();
-                self.page = Page::Studio;
-            }
-        });
         if let Some(stage) = STAGES
             .iter()
             .find(|stage| stage.actions.iter().any(|(page, _)| *page == self.page))
@@ -117,33 +150,21 @@ impl Studio {
                     self.workflow_link(ui, page, label, false);
                 }
             });
+            ui.add_space(18.);
         }
-        ui.add_space(12.);
     }
     pub(crate) fn workflow_home(&mut self, ui: &mut egui::Ui) {
         Self::title(
             ui,
             "MAKE A SHOW",
-            "From idea to finished episode.",
-            "Follow these five stages. Return to any stage as the story and performances develop.",
+            "Your next story starts here.",
+            "A home for your characters, your stories, and every episode to come.",
         );
-        Self::card(ui, |ui| {
-            ui.horizontal_wrapped(|ui| {
-                if ui
-                    .button(RichText::new("+ Create a series").color(GOLD))
-                    .clicked()
-                {
-                    self.new_open = true;
-                }
-                ui.label("Or continue an existing project below.");
-            });
-            ui.add_space(8.);
-            ui.small("The Current series selector in the sidebar applies to every workspace.");
-            if self.selected.is_none() {
-                ui.label(RichText::new("First: create a series or choose one in the sidebar. Then open Series plan to develop its plot and ending.").color(GOLD));
-            } else {
-                ui.small("These links open the working tools for your selected project. They do not generate or approve anything automatically.");
+        ui.horizontal(|ui| {
+            if ui.add(crate::theme::primary("+ Create a series")).clicked() {
+                self.new_open = true;
             }
+            ui.label(RichText::new("Make something worth watching.").color(MUTED));
         });
         ui.add_space(16.);
         let columns = if ui.available_width() >= 800. { 2 } else { 1 };
@@ -151,9 +172,9 @@ impl Studio {
             ui.columns(row.len(), |cols| {
                 for (col, stage) in cols.iter_mut().zip(row) {
                     Self::card(col, |ui| {
-                        ui.set_min_height(164.);
+                        ui.set_min_height(160.);
                         ui.label(RichText::new(stage.heading).size(10.).color(GOLD));
-                        ui.label(RichText::new(stage.title).size(23.));
+                        ui.label(RichText::new(stage.title).size(20.).strong());
                         ui.add_space(6.);
                         ui.label(stage.description);
                         ui.add_space(8.);
@@ -170,10 +191,7 @@ impl Studio {
             ui.add_space(14.);
         }
         ui.add_space(6.);
-        ui.add(
-            egui::Image::new(egui::include_image!("../branding/word_mark.png"))
-                .max_size(egui::vec2(270., 90.)),
-        );
+
         ui.heading("Your series");
         for series in self.load(self.store.series()) {
             Self::card(ui, |ui| {

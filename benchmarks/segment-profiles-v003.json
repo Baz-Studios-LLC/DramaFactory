@@ -1,0 +1,23 @@
+{
+  "version": "v003",
+  "supported_choices_verified": "Read-only OpenRouter /api/v1/videos/models Seedance2.5: durations4\u201330, resolutions480p/720p",
+  "implemented": [
+    "per-segment duration and resolution",
+    "planned episode duration total",
+    "legacy defaults preserved",
+    "revisioned profile persistence and request propagation"
+  ],
+  "verification": [
+    "50 tests passed",
+    "Clippy warnings denied",
+    "Mac bundle built",
+    "real MCP saved/read 24s480p profile",
+    "real FFmpeg hosted assembly regression passed"
+  ],
+  "limits": [
+    "New controls not yet visually accepted in packaged app",
+    "No paid provider request",
+    "Vertical9:16 and native audio remain fixed",
+    "Local reference transport still incomplete"
+  ]
+}

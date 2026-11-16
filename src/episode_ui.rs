@@ -50,7 +50,7 @@ impl Studio {
         Self::title(
             ui,
             "EPISODES & SCRIPTS",
-            "Write one episode at a time.",
+            "Every episode moves the story.",
             "Find an episode on the left. Write its screenplay, save it, then plan its shots.",
         );
         let Some(series) = self.selected.clone() else {
@@ -65,12 +65,12 @@ impl Studio {
    ui.allocate_ui_with_layout(Vec2::new(browser_width,550.),egui::Layout::top_down(egui::Align::LEFT),|ui|{
     ui.set_max_width(browser_width);
     Self::card(ui,|ui|{
-     ui.label(RichText::new("EPISODE BROWSER").color(GOLD).size(11.));
-     ui.add(egui::TextEdit::singleline(&mut self.episode_search).hint_text("Search title or number").desired_width(ui.available_width()));
+     ui.label(RichText::new("EPISODES").color(GOLD).size(11.));
+     ui.add(egui::TextEdit::singleline(&mut self.episode_search).margin(egui::vec2(10.,9.)).hint_text("Search title or number").desired_width(ui.available_width()));
      let term=self.episode_search.trim().to_lowercase();let matches:Vec<_>=episodes.iter().enumerate().filter(|(i,episode)|term.is_empty()||episode.title.to_lowercase().contains(&term)||format!("{:02}",i+1).contains(&term)).collect();
      ui.small(format!("{} of {} episodes",matches.len(),episodes.len()));
      egui::ScrollArea::vertical().id_salt("episode-browser").max_height(440.).auto_shrink([false,false]).show(ui,|ui|{
-      if matches.is_empty(){ui.label("No matching episodes. Clear the search to see the full list.");}
+      if matches.is_empty(){ui.label(if episodes.is_empty(){"Your first episode starts here. Add an episode below."}else{"No matching episodes. Try another title or number."});}
       for (index,episode) in matches {let active=Some(&episode.id)==self.episode_id.as_ref();let label=format!("{:02}  {}\n{}",index+1,episode.title,if episode.screenplay.trim().is_empty(){"No screenplay yet"}else{"Screenplay saved"});
        if ui.add_sized([ui.available_width(),58.],egui::Button::new(RichText::new(label).color(if active{GOLD}else{egui::Color32::from_rgb(228,230,235)})).selected(active).wrap()).clicked(){self.select_episode(&episode.id);}
       }
@@ -91,11 +91,11 @@ impl Studio {
       ui.horizontal_wrapped(|ui|{
        let dirty=self.script!=self.script_baseline;ui.label(RichText::new(if dirty{"Unsaved changes"}else{"Saved"}).color(if dirty{GOLD}else{MUTED}));
        ui.small(format!("{} words",self.script.split_whitespace().count()));
-       if ui.button("Save screenplay").clicked() && self.save_script(){self.message="Screenplay saved".into();}
+       if ui.add(crate::theme::primary("Save screenplay")).clicked() && self.save_script(){self.message="Screenplay saved".into();}
        if ui.button("Reload saved screenplay").clicked(){match self.store.get_episode(&episode.id){Ok(saved)=>{self.script=saved.screenplay;self.script_baseline=self.script.clone();},Err(error)=>self.message=error.to_string()}}
        if ui.button(RichText::new("Plan shots").color(GOLD)).clicked() && self.save_script(){self.page=Page::Scenes;}
       });
-      ui.add_space(8.);egui::ScrollArea::vertical().id_salt(("screenplay",&episode.id)).max_height(540.).auto_shrink([false,false]).show(ui,|ui|{ui.add(egui::TextEdit::multiline(&mut self.script).desired_rows(26).desired_width(ui.available_width()).hint_text("Write the scene, action and dialogue here…"));});
+      ui.add_space(8.);egui::ScrollArea::vertical().id_salt(("screenplay",&episode.id)).max_height(540.).auto_shrink([false,false]).show(ui,|ui|{ui.add(egui::TextEdit::multiline(&mut self.script).font(egui::FontId::monospace(14.)).margin(egui::vec2(18.,16.)).desired_rows(26).desired_width(ui.available_width()).hint_text("Write the scene, action and dialogue here…"));});
      }else{ui.heading("Choose an episode");ui.label("Select a title in the episode browser to begin. Your selection carries into shots, dialogue and editing.");}
     });
    });
