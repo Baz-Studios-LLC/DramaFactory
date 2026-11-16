@@ -1,6 +1,6 @@
-# DramaFactory · v004
+# DramaFactory · v005
 
-A Rust-native, Mac-first studio for developing a coherent short drama series, from synopsis and cast to generated episodes. MIT licensed. **v004 is a work in progress, not a finished production release.**
+A Rust-native, Mac-first studio for developing a coherent short drama series, from synopsis and cast to generated episodes. MIT licensed. **v005 is a work in progress, not a finished production release.**
 
 ## Workflow
 
@@ -20,9 +20,13 @@ Sidekick conversation persists per series. Synopsis, character briefs and portra
 
 Hosted image/video transport has fixture-based integration coverage. Local episode assembly has been exercised through the real MCP server and FFmpeg, preserving source picture order and audio. This does not establish live provider acting, identity or dialogue quality. No completed generated series is claimed.
 
+Character cards include a **Character profile** form with optional physical traits, personality, background, relationships, and episode-specific continuity. **Full character brief** previews the combined text; **Save profile** stays visible when the card sections are collapsed and saves the form and production brief together. Existing biographies stay in Story notes, and approved portraits stay selected. Sidekick profile edits remain drafts with Undo. Image generation uses the entire saved profile alongside additional portrait direction and the selected visual style. Save form changes first; **Full prompt for next image** shows the combined request. Choose **Photorealistic**, **Cinematic**, **3D / CGI**, **Animated film**, **Cartoon**, **Cel-shaded**, or **Illustrated** on **Synopsis**. The series style is automatically used by every character for the next image; existing portraits remain unchanged.
+
+Use **Delete character…** on a card to remove it from the active cast. Confirm deletion, then restore it anytime from **Deleted characters** at the bottom of the cast page. Original images and saved details are retained. Saved story/shot/generation-plan links and active generation jobs must be resolved before deletion.
+
 ## Run on macOS
 
-Install Rust and Xcode Command Line Tools, then double-click **Launch DramaFactory.command**. It builds changed sources and opens the app. Quit and reopen an already-running app to load rebuilt code.
+Install Rust and Xcode Command Line Tools, then double-click **Launch DramaFactory.app** in the repository folder. Keep this launcher in the repository; you can make a Finder alias to it elsewhere. It builds changed sources in the background and opens the app without a Terminal window. Build output goes to `~/Library/Logs/DramaFactory/launcher.log`; failures show a dialog. Quit and reopen an already-running app to load rebuilt code.
 
 ```sh
 cargo run
@@ -50,3 +54,17 @@ The MCP server uses stdio and shares application services with the desktop. The 
 Signed update verification and staging exist, with an external private signing key. The current updater targets the developer bundle; complete signed/notarized bundle updates are required before production distribution. A GitHub source update does not publish an app release or an update artifact.
 
 Portraits support per-character Photo, Cinematic, Animation and Illustration styles. The chosen style is saved and captured in each generation request; existing images remain unchanged. Style prompts guide the provider but do not guarantee photographic realism.
+
+Sidekick latency diagnostics are saved under `diagnostics/sidekick/` beside the application database. Each normal request records elapsed credential, HTTP-header and full-response times, request size, provider generation ID and reported token counts (including reasoning/cache counts when supplied). These files contain no prompts, replies or credentials. Header time is not time to first generated token; the non-streaming request waits for the complete JSON reply. Character conflict snapshots remain local instead of being repeated in the model context.
+
+Overall plot separates Story & ending, Acts & storylines, searchable Episode outline, and Continuity & canon. Acts use editable episode ranges; ongoing storylines are separate from episode-linked setups/payoffs. Sidekick plot patches update the current series draft with before/after section review, guarded Undo and explicit Save plot. Draft or saved-revision changes during a request reject the proposal instead of overwriting newer work. Episode outline edits require existing episode IDs; act ranges do not create episodes or screenplays. Develop plot with sidekick prepares a message for you to send, without starting generation automatically.
+
+Episode plot now contains Story beats, Screenplay and Continuity workspaces, with searchable episode browsing, previous/next navigation and the planned handoff from adjacent episodes. Save episode atomically saves its outline and screenplay, preserving unrelated unsaved Overall plot edits. Reload preserves the current episode and shared story draft in a recovery file. Sidekick edits target one exact episode snapshot, have before/after review and guarded Undo, and never save or generate media automatically. Prepare generation saves the episode and opens the hosted segment planner. Word counts and planned handoffs do not certify runtime, performed dialogue or reviewed canon.
+
+Save project replaces Studio overview in the sidebar; the overview is available in Settings. It saves pending current-series synopsis, profiles, location briefs, portrait prompts, shared story outlines, screenplay, generation plans, chat drafts and supported editing controls through their existing conflict checks. It preserves a recovery snapshot before saving, reports failures without discarding drafts, and never queues generation. Unfinished creation forms and legacy shot forms without safe save baselines are retained as recovery drafts and explicitly reported rather than silently committed.
+
+Sidekick can create and fill one episode by default, or a requested batch of up to five, from Episode plot or Overall plot. The app assigns IDs, validates complete beats and screenplay, rejects duplicate titles/stale plot revisions, and atomically saves new episodes and outline links. Request receipts prevent duplicate replay. Existing episode edits still remain unsaved drafts with Undo. Creating episodes never generates video.
+
+Episode generation is organized into Prepare, Takes, and Finished episode. Prepare checks the live OpenRouter catalog for Seedance 2.5 durations and resolutions (currently up to 1080p), supports ordered segments and separate reference/frame modes, and requires saved edits before generation. Takes provides original playback, approval/rejection and selection; Finished episode assembles selected, approved takes with their original sound. Local portrait transport, automatic ending-frame handoff, audio/video reference inputs, and segment trims remain incomplete. No paid generation was used to verify this UI update.
+
+The Sidekick can prepare the selected episode’s complete Seedance segment plan from screenplay and series context in either Visual plan or Episode generation. These destinations share one draft, with guarded application and Undo. Generate episode saves and atomically queues missing segment requests; identical existing requests are never automatically retried. Preparation alone does not generate video. Local portrait delivery and automatic frame handoff still require integration.

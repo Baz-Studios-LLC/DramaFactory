@@ -9,6 +9,24 @@ use std::collections::{BTreeMap, BTreeSet};
 
 #[derive(Clone, Default, Serialize, Deserialize)]
 #[serde(default, deny_unknown_fields)]
+pub struct PlotAct {
+    pub title: String,
+    pub start_episode: u32,
+    pub end_episode: u32,
+    pub opening: String,
+    pub escalation: String,
+    pub turning_point: String,
+    pub consequence: String,
+}
+#[derive(Clone, Default, Serialize, Deserialize)]
+#[serde(default, deny_unknown_fields)]
+pub struct Storyline {
+    pub title: String,
+    pub throughline: String,
+    pub resolution: String,
+}
+#[derive(Clone, Default, Serialize, Deserialize)]
+#[serde(default, deny_unknown_fields)]
 pub struct CharacterArc {
     pub character_id: String,
     pub desire: String,
@@ -57,6 +75,9 @@ pub struct SeriesPlan {
     pub audience: String,
     pub genre: String,
     pub theme: String,
+    pub series_arc: String,
+    pub acts: Vec<PlotAct>,
+    pub storylines: Vec<Storyline>,
     pub central_question: String,
     pub ending: String,
     pub creative: crate::directing::CreativeProfile,
@@ -106,6 +127,11 @@ impl Store {
     }
     pub fn save_series_plan(&self, draft: &SeriesPlan) -> Result<SeriesPlan> {
         let tx = self.conn.unchecked_transaction()?;
+        let saved = self.save_series_plan_in_transaction(draft)?;
+        tx.commit()?;
+        Ok(saved)
+    }
+    pub(crate) fn save_series_plan_in_transaction(&self, draft: &SeriesPlan) -> Result<SeriesPlan> {
         let current = self.series_plan(&draft.series_id)?;
         draft.creative.validate()?;
         if current.revision != draft.revision {
@@ -150,7 +176,6 @@ impl Store {
             "INSERT INTO story_history(series_id,revision,data) VALUES(?1,?2,?3)",
             params![saved.series_id, saved.revision, data],
         )?;
-        tx.commit()?;
         Ok(saved)
     }
     fn episode_fingerprint(&self, series: &str, episode: &str) -> Result<String> {

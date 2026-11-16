@@ -32,6 +32,16 @@ impl Store {
         plan: &VideoPlan,
         binding: Option<(&str, u64, &crate::generation_plan::SegmentDraft)>,
     ) -> Result<crate::store::Job> {
+        let tx = self.conn.unchecked_transaction()?;
+        let job = self.enqueue_seedance_in_transaction(plan, binding)?;
+        tx.commit()?;
+        Ok(job)
+    }
+    fn enqueue_seedance_in_transaction(
+        &self,
+        plan: &VideoPlan,
+        binding: Option<(&str, u64, &crate::generation_plan::SegmentDraft)>,
+    ) -> Result<crate::store::Job> {
         if plan.model != "bytedance/seedance-2.5" || plan.prompt.trim().is_empty() {
             bail!("Choose Seedance 2.5 and provide a prompt");
         }
@@ -39,7 +49,7 @@ impl Store {
             bail!("Video request exceeds the 128 KiB authoring limit");
         }
         let id = uuid::Uuid::new_v4().to_string();
-        let tx = self.conn.unchecked_transaction()?;
+        let tx = &self.conn;
         if let Some((episode, revision, segment)) = binding {
             let current: u64 = tx
                 .query_row(
@@ -54,7 +64,6 @@ impl Store {
             use rusqlite::OptionalExtension;
             let existing:Option<String>=tx.query_row("SELECT j.id FROM segment_generations g JOIN jobs j ON j.id=g.job_id WHERE g.episode_id=?1 AND g.segment_id=?2 AND g.plan_revision=?3 AND j.status!='completed' ORDER BY j.rowid DESC LIMIT 1",params![episode,segment.id,revision],|row|row.get(0)).optional()?;
             if let Some(existing) = existing {
-                tx.commit()?;
                 return self.job(&existing);
             }
             tx.execute("INSERT INTO segment_generations(job_id,episode_id,segment_id,plan_revision,snapshot) VALUES(?1,?2,?3,?4,?5)",params![id,episode,segment.id,revision,serde_json::to_string(segment)?])?;
@@ -64,8 +73,37 @@ impl Store {
             "INSERT INTO remote_video_jobs(job_id,state) VALUES(?1,'prepared')",
             [&id],
         )?;
-        tx.commit()?;
         self.job(&id)
+    }
+    /// Explicit paid batch action. Save and queue atomically; never retry an existing request.
+    pub(crate) fn enqueue_generation_plan(
+        &self,
+        draft: &crate::generation_plan::SavedPlan,
+        catalog: &crate::openrouter::Catalog,
+    ) -> Result<(crate::generation_plan::SavedPlan, usize)> {
+        use rusqlite::OptionalExtension;
+        for segment in &draft.segments {
+            segment.video_plan()?.preview(catalog)?;
+        }
+        let tx = rusqlite::Transaction::new_unchecked(
+            &self.conn,
+            rusqlite::TransactionBehavior::Immediate,
+        )?;
+        let saved = self.save_generation_plan_in_transaction(draft)?;
+        let mut queued = 0;
+        for segment in &saved.segments {
+            let snapshot = serde_json::to_string(segment)?;
+            let existing: Option<String> = self.conn.query_row("SELECT job_id FROM segment_generations WHERE episode_id=?1 AND segment_id=?2 AND snapshot=?3 LIMIT 1", params![saved.episode_id, segment.id, snapshot], |row| row.get(0)).optional()?;
+            if existing.is_none() {
+                self.enqueue_seedance_in_transaction(
+                    &segment.video_plan()?,
+                    Some((&saved.episode_id, saved.revision, segment)),
+                )?;
+                queued += 1;
+            }
+        }
+        tx.commit()?;
+        Ok((saved, queued))
     }
     pub fn segment_generation_jobs(&self, episode: &str, segment: &str) -> Result<Vec<Value>> {
         self.get_episode(episode)?;

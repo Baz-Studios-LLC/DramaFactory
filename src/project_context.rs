@@ -1,5 +1,5 @@
 //! The desktop has one current series, persisted independently of episode drafts.
-use crate::{Studio, store::Store};
+use crate::{Page, Studio, store::Store, synopsis::SynopsisDraft};
 use anyhow::{Result, bail};
 use rusqlite::OptionalExtension;
 impl Store {
@@ -60,10 +60,7 @@ impl Store {
     }
 }
 impl Studio {
-    pub(crate) fn select_series(&mut self, id: &str) -> bool {
-        if self.selected.as_deref() == Some(id) {
-            return true;
-        }
+    fn preserve_series_work(&mut self) -> bool {
         if !self.save_script() {
             return false;
         }
@@ -74,6 +71,47 @@ impl Studio {
             self.message = format!("Could not preserve unfinished work: {error}");
             return false;
         }
+        true
+    }
+    pub(crate) fn start_new_series(&mut self) {
+        if !self.preserve_series_work() {
+            return;
+        }
+        // Give the conversation a durable series identity immediately, while
+        // leaving the actual synopsis blank for explicit authoring and saving.
+        let series = match self.store.create_series("Untitled series", "") {
+            Ok(series) => series,
+            Err(error) => {
+                self.message = error.to_string();
+                return;
+            }
+        };
+        if !self.activate_series(&series.id) {
+            return;
+        }
+        self.synopsis_drafts.insert(
+            series.id.clone(),
+            SynopsisDraft {
+                id: series.id,
+                title: String::new(),
+                premise: String::new(),
+                expected_title: series.name,
+                expected_premise: series.premise,
+            },
+        );
+        self.page = Page::Synopsis;
+        self.message.clear();
+    }
+    pub(crate) fn select_series(&mut self, id: &str) -> bool {
+        if self.selected.as_deref() == Some(id) {
+            return true;
+        }
+        if !self.preserve_series_work() {
+            return false;
+        }
+        self.activate_series(id)
+    }
+    fn activate_series(&mut self, id: &str) -> bool {
         if let Err(error) = self.store.remember_gui_series(id) {
             self.message = error.to_string();
             return false;
@@ -82,6 +120,8 @@ impl Studio {
         self.stop_playback();
         self.image_inspector = None;
         self.selected = Some(id.into());
+        self.delete_character = None;
+        self.sidekick.reset_context();
         self.episode_id = None;
         self.edit_shot = None;
         self.shot_workspace = Default::default();
@@ -188,7 +228,7 @@ impl Studio {
             )
             .clicked()
         {
-            self.new_open = true;
+            self.start_new_series();
         }
     }
 }

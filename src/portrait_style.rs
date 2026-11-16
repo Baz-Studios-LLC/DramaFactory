@@ -8,22 +8,48 @@ pub enum PortraitStyle {
     #[default]
     Photo,
     Cinematic,
+    Cgi,
     Animation,
+    Cartoon,
+    CelShaded,
     Illustration,
 }
 impl PortraitStyle {
-    pub const ALL: [Self; 4] = [
+    pub const ALL: [Self; 7] = [
         Self::Photo,
         Self::Cinematic,
+        Self::Cgi,
         Self::Animation,
+        Self::Cartoon,
+        Self::CelShaded,
         Self::Illustration,
     ];
     pub fn label(self) -> &'static str {
         match self {
-            Self::Photo => "Photo",
+            Self::Photo => "Photorealistic",
             Self::Cinematic => "Cinematic",
-            Self::Animation => "Animation",
-            Self::Illustration => "Illustration",
+            Self::Cgi => "3D / CGI",
+            Self::Animation => "Animated film",
+            Self::Cartoon => "Cartoon",
+            Self::CelShaded => "Cel-shaded",
+            Self::Illustration => "Illustrated",
+        }
+    }
+    pub fn description(self) -> &'static str {
+        match self {
+            Self::Photo => "A natural camera photograph with realistic skin and materials.",
+            Self::Cinematic => "A live-action film still with dramatic, motivated lighting.",
+            Self::Cgi => {
+                "A polished computer-generated 3D render with sculpted forms and rendered materials."
+            }
+            Self::Animation => {
+                "An expressive animated-film design with stylized shapes and lighting."
+            }
+            Self::Cartoon => "A 2D cartoon with clean outlines, simplified shapes and flat colors.",
+            Self::CelShaded => {
+                "Crisp contours and flat color areas with distinct, hard-edged shadow bands."
+            }
+            Self::Illustration => "Drawn or painted artwork with visible artistic texture.",
         }
     }
     pub fn prompt(self, subject: &str) -> String {
@@ -37,6 +63,15 @@ impl PortraitStyle {
             Self::Animation => {
                 "An expressive polished animated-film character design. Stylized shapes, appealing silhouettes, deliberate materials and lighting. Non-human characters, including fruit, may have expressive faces and personalities when described. Preserve the subject's requested design; do not force human anatomy or photographic skin."
             }
+            Self::Cgi => {
+                "A polished 3D computer-graphics render of the described subject. Deliberately sculpted forms, modeled geometry, physically based materials, controlled studio illumination and rendered depth. Clearly intentional CGI rather than a camera photograph or a painted illustration. Preserve the described anatomy, proportions, recognizable features and material colors."
+            }
+            Self::Cartoon => {
+                "A 2D cartoon character design with confident clean outlines, expressive simplified shapes, flat colors and restrained graphic shading. Use drawn, readable silhouettes rather than photographic texture or a volumetric 3D-render finish. Stylize while preserving specified age, body type, distinctive features, hair and eye colors, wardrobe and personality."
+            }
+            Self::CelShaded => {
+                "Cel-shaded character artwork with crisp contours, flat color fills and sharply separated two- or three-tone shadow bands. Hard-edged graphic shadows and deliberate highlight shapes; avoid smooth airbrushed gradients, painterly blending, photographic skin texture and physically shaded CGI lighting. Preserve specified anatomy, age, proportions, colors, distinctive features and wardrobe within this stylized treatment."
+            }
             Self::Illustration => {
                 "A polished illustrated character portrait with intentional drawing and painterly texture. Expressive composition, harmonious color and readable shapes. Preserve the described subject, including non-human subjects; do not force photographic realism."
             }
@@ -47,9 +82,69 @@ impl PortraitStyle {
         )
     }
 }
+pub(crate) fn picker(ui: &mut eframe::egui::Ui, style: &mut PortraitStyle) -> bool {
+    let before = *style;
+    ui.label("IMAGE STYLE");
+    ui.horizontal_wrapped(|ui| {
+        for option in PortraitStyle::ALL {
+            if ui
+                .selectable_label(*style == option, option.label())
+                .on_hover_text(option.description())
+                .clicked()
+            {
+                *style = option;
+            }
+        }
+    });
+    ui.small(style.description());
+    *style != before
+}
 impl Store {
+    pub(crate) fn series_portrait_style(&self, series: &str) -> Result<Option<PortraitStyle>> {
+        use rusqlite::OptionalExtension;
+        let value: Option<String> = self
+            .conn
+            .query_row(
+                "SELECT value FROM settings WHERE key=?1",
+                [format!("series:portrait-style:{series}")],
+                |r| r.get(0),
+            )
+            .optional()?;
+        value
+            .map(|v| serde_json::from_str(&v).map_err(Into::into))
+            .transpose()
+    }
+    pub(crate) fn save_series_portrait_style(
+        &self,
+        series: &str,
+        style: PortraitStyle,
+    ) -> Result<()> {
+        if !self.conn.query_row(
+            "SELECT EXISTS(SELECT 1 FROM series WHERE id=?1)",
+            [series],
+            |r| r.get::<_, bool>(0),
+        )? {
+            bail!("Series no longer exists");
+        }
+        self.conn.execute("INSERT INTO settings(key,value) VALUES(?1,?2) ON CONFLICT(key) DO UPDATE SET value=excluded.value", rusqlite::params![format!("series:portrait-style:{series}"), serde_json::to_string(&style)?])?;
+        Ok(())
+    }
+
     pub(crate) fn portrait_style(&self, entry: &str) -> Result<PortraitStyle> {
         use rusqlite::OptionalExtension;
+        let series: Option<String> = self
+            .conn
+            .query_row(
+                "SELECT series_id FROM library WHERE id=?1 AND kind='character'",
+                [entry],
+                |r| r.get(0),
+            )
+            .optional()?;
+        if let Some(series) = series
+            && let Some(style) = self.series_portrait_style(&series)?
+        {
+            return Ok(style);
+        }
         let saved: Option<String> = self
             .conn
             .query_row(
@@ -78,6 +173,34 @@ impl Store {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn series_style_is_durable_and_rejects_missing_series() {
+        let root = std::env::temp_dir().join(format!("df-series-style-{}", uuid::Uuid::new_v4()));
+        std::fs::create_dir_all(&root).unwrap();
+        let path = root.join("test.sqlite");
+        let store = Store::open(path.clone()).unwrap();
+        store
+            .conn
+            .execute(
+                "INSERT INTO series(id,name,premise) VALUES('s','Style test','')",
+                [],
+            )
+            .unwrap();
+        assert!(store.series_portrait_style("s").unwrap().is_none());
+        store
+            .save_series_portrait_style("s", PortraitStyle::CelShaded)
+            .unwrap();
+        drop(store);
+        let store = Store::open(path.clone()).unwrap();
+        assert!(store.series_portrait_style("s").unwrap() == Some(PortraitStyle::CelShaded));
+        assert!(
+            store
+                .save_series_portrait_style("missing", PortraitStyle::Photo)
+                .is_err()
+        );
+        drop(store);
+        std::fs::remove_dir_all(root).unwrap();
+    }
     #[test]
     fn styles_persist_per_character_and_queued_requests_keep_their_original_style() {
         let root = std::env::temp_dir().join(format!("df-styles-{}", uuid::Uuid::new_v4()));

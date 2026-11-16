@@ -1,31 +1,32 @@
 #!/bin/bash
-# Double-click in Finder to build changed sources and open the local Mac app.
+# Finder launches this bundle directly, without opening Terminal.
 set -euo pipefail
-cd -- "$(dirname -- "$0")"
 export PATH="$HOME/.cargo/bin:/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin:$PATH"
 
 on_error() {
     result=$?
-    printf '\nDramaFactory could not start. The error is shown above.\n'
-    if [ -t 0 ]; then
-        printf 'Press Return to close this window. '
-        read -r _ || true
-    fi
+    trap - ERR
+    /usr/bin/osascript -e 'display alert "DramaFactory could not start" message "See ~/Library/Logs/DramaFactory/launcher.log for details. If this is your first build, install Rust and Xcode Command Line Tools, then try again." as critical' || true
     exit "$result"
 }
 trap on_error ERR
+
+log_directory="$HOME/Library/Logs/DramaFactory"
+mkdir -p "$log_directory"
+exec >> "$log_directory/launcher.log" 2>&1
+printf '\n--- DramaFactory launch: %s ---\n' "$(date)"
+cd -- "$(dirname -- "$0")/../../.."
 
 app="$PWD/target/DramaFactory.app"
 executable="$app/Contents/MacOS/DramaFactory"
 if [ ! -x "$executable" ] || [ "${1:-}" = "--build" ] ||
     [ -n "$(find src workers branding scripts/bundle-macos.sh Cargo.toml Cargo.lock -type f -newer "$executable" -print -quit 2>/dev/null)" ]; then
-    printf 'Building DramaFactory v002…\n'
+    printf 'Building DramaFactory…\n'
     if ! command -v cargo >/dev/null 2>&1; then
         printf 'Rust is required to build. Install it from https://rustup.rs and try again.\n' >&2
         false
     fi
     ./scripts/bundle-macos.sh
 fi
-printf '\nOpening DramaFactory v002.\n'
-printf 'If it is already running, quit and reopen it to load a rebuilt version.\n'
+printf 'Opening DramaFactory.\n'
 /usr/bin/open "$app"

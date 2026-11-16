@@ -32,7 +32,7 @@ impl Default for SegmentDraft {
             id: uuid::Uuid::new_v4().to_string(),
             prompt: String::new(),
             duration: default_duration(),
-            resolution: default_resolution(),
+            resolution: "480p".into(),
             mode: 0,
             first: String::new(),
             last: String::new(),
@@ -116,12 +116,25 @@ impl Store {
         Ok(plan)
     }
     pub fn save_generation_plan(&self, plan: &SavedPlan) -> Result<SavedPlan> {
+        let tx = rusqlite::Transaction::new_unchecked(
+            &self.conn,
+            rusqlite::TransactionBehavior::Immediate,
+        )?;
+        let saved = self.save_generation_plan_in_transaction(plan)?;
+        tx.commit()?;
+        Ok(saved)
+    }
+    pub(crate) fn save_generation_plan_in_transaction(
+        &self,
+        plan: &SavedPlan,
+    ) -> Result<SavedPlan> {
+        let tx = &self.conn;
         if plan.segments.is_empty()
             || plan.segments.len() > 120
             || plan.segments.iter().any(|segment| {
                 segment.mode > 2
                     || !(4..=30).contains(&segment.duration)
-                    || !["480p", "720p"].contains(&segment.resolution.as_str())
+                    || !["480p", "720p", "1080p"].contains(&segment.resolution.as_str())
                     || segment.prompt.len() > 65536
                     || segment.references.len() > 65536
                     || segment.first.len() > 8192
@@ -146,7 +159,6 @@ impl Store {
                 self.validate_cast_reference(&plan.episode_id, reference)?;
             }
         }
-        let tx = self.conn.unchecked_transaction()?;
         tx.query_row(
             "SELECT id FROM episodes WHERE id=?1",
             [&plan.episode_id],
@@ -181,7 +193,6 @@ impl Store {
             .checked_add(1)
             .context("Plan revision limit reached")?;
         tx.execute("INSERT INTO generation_plans(episode_id,revision,data) VALUES(?1,?2,?3) ON CONFLICT(episode_id) DO UPDATE SET revision=excluded.revision,data=excluded.data",params![plan.episode_id,revision,data])?;
-        tx.commit()?;
         Ok(SavedPlan {
             revision,
             ..plan.clone()
@@ -193,6 +204,9 @@ mod tests {
     use super::*;
     #[test]
     fn legacy_profiles_keep_defaults_and_custom_profiles_reach_the_video_request() {
+        let new = SegmentDraft::default().video_plan().unwrap();
+        assert_eq!(new.resolution, "480p");
+        assert_eq!(new.aspect_ratio, "9:16");
         let legacy:SegmentDraft=serde_json::from_value(serde_json::json!({"id":"legacy","prompt":"A person walks and speaks","mode":0,"first":"","last":"","references":""})).unwrap();
         assert_eq!(legacy.duration, 10);
         assert_eq!(legacy.resolution, "720p");
@@ -217,7 +231,7 @@ mod tests {
         let mut stale = first.clone();
         first.segments[0].prompt = "First saved".into();
         first.segments[0].duration = 24;
-        first.segments[0].resolution = "480p".into();
+        first.segments[0].resolution = "1080p".into();
         let mut invalid = first.clone();
         invalid.segments[0].duration = 31;
         assert!(store.save_generation_plan(&invalid).is_err());
@@ -243,7 +257,7 @@ mod tests {
         );
         assert_eq!(
             reopened.generation_plan(&episode.id).unwrap().segments[0].resolution,
-            "480p"
+            "1080p"
         );
         drop(reopened);
         std::fs::remove_dir_all(dir).unwrap();

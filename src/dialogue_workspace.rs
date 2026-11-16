@@ -114,7 +114,7 @@ impl Studio {
    ui.allocate_ui_with_layout(Vec2::new(browser_width,550.),egui::Layout::top_down(egui::Align::LEFT),|ui|{
     ui.set_max_width(browser_width);Self::card(ui,|ui|{
      ui.label(RichText::new(if self.dialogue_workspace.adding{"CHOOSE A SHOT FOR THE NEW LINE"}else{"EPISODE LINES"}).size(11.).color(GOLD));
-     ui.add(egui::TextEdit::singleline(&mut self.dialogue_workspace.search).hint_text(if self.dialogue_workspace.adding{"Search shots"}else{"Search words, shot or voice"}).desired_width(ui.available_width()));
+     ui.add(egui::TextEdit::singleline(&mut self.dialogue_workspace.search).hint_text(crate::theme::placeholder(if self.dialogue_workspace.adding{"Search shots"}else{"Search words, shot or voice"})).desired_width(ui.available_width()));
      let search=self.dialogue_workspace.search.trim().to_lowercase();let mut matches=0;
      egui::ScrollArea::vertical().id_salt("dialogue-browser").max_height(520.).auto_shrink([false,false]).show(ui,|ui|{
       if self.dialogue_workspace.adding{

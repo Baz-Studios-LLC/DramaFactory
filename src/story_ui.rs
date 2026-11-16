@@ -5,20 +5,24 @@ use eframe::egui::{self, RichText};
 pub(crate) enum StorySection {
     #[default]
     Bible,
+    Roadmap,
     Episodes,
     Continuity,
 }
 
-fn facts(ui: &mut egui::Ui, values: &mut Vec<Fact>) {
+pub(crate) fn facts(ui: &mut egui::Ui, values: &mut Vec<Fact>) {
     let mut remove = None;
     for (index, fact) in values.iter_mut().enumerate() {
         ui.push_id(index, |ui| {
             ui.horizontal(|ui| {
                 ui.add(
                     egui::TextEdit::singleline(&mut fact.key)
-                        .hint_text("Fact, e.g. Mara knows the code"),
+                        .hint_text(crate::theme::placeholder("Fact, e.g. Mara knows the code")),
                 );
-                ui.add(egui::TextEdit::singleline(&mut fact.value).hint_text("Value, e.g. no"));
+                ui.add(
+                    egui::TextEdit::singleline(&mut fact.value)
+                        .hint_text(crate::theme::placeholder("Value, e.g. no")),
+                );
                 if ui.small_button("Remove").clicked() {
                     remove = Some(index);
                 }
@@ -32,12 +36,45 @@ fn facts(ui: &mut egui::Ui, values: &mut Vec<Fact>) {
         values.push(Fact::default());
     }
 }
+fn plot_review_value(
+    ui: &mut egui::Ui,
+    value: &serde_json::Value,
+    names: &std::collections::HashMap<String, String>,
+) {
+    match value {
+        serde_json::Value::Array(items) => {
+            if items.is_empty() {
+                ui.small("None");
+            }
+            for (index, item) in items.iter().enumerate() {
+                ui.label(RichText::new(format!("{}.", index + 1)).strong());
+                plot_review_value(ui, item, names);
+                ui.separator();
+            }
+        }
+        serde_json::Value::Object(fields) => {
+            for (key, value) in fields {
+                ui.label(RichText::new(key.replace('_', " ")).small().color(MUTED));
+                plot_review_value(ui, value, names);
+            }
+        }
+        serde_json::Value::String(text) => {
+            ui.label(names.get(text).unwrap_or(text));
+        }
+        serde_json::Value::Null => {
+            ui.small("None");
+        }
+        value => {
+            ui.label(value.to_string());
+        }
+    }
+}
 impl Studio {
     pub(crate) fn story_development(&mut self, ui: &mut egui::Ui) {
         Self::title(
             ui,
-            "THE WRITERS’ ROOM",
-            "A story worth continuing.",
+            "OVERALL PLOT",
+            "The whole story, before the episodes.",
             "Plan the ending. Develop the characters. Carry every consequence forward.",
         );
         let Some(series) = self.selected.clone() else {
@@ -79,12 +116,13 @@ impl Studio {
                 .unwrap_or("Choose episode")
         };
         ui.horizontal(|ui| {
-            ui.label(RichText::new(format!("DEVELOPMENT REVISION {}", plan.revision)).color(GOLD));
-            if ui.button("Save series plan").clicked() {
+            ui.label(RichText::new(format!("Revision {}", plan.revision)).color(GOLD));
+            if ui.button("Save plot").clicked() {
                 match self.store.save_series_plan(&plan) {
                     Ok(saved) => {
                         plan = saved;
                         self.story_reports.remove(&series);
+                        self.sidekick.plot_undo.remove(&series);
                         self.message =
                             "Series plan saved. Previous continuity approvals require review."
                                 .into();
@@ -118,12 +156,86 @@ impl Studio {
                 }
             }
         });
-        ui.label(RichText::new("Drafts stay separate from canon. Save before checking continuity or committing an episode.").color(MUTED));
+        if let Some((before, after)) = self.sidekick.plot_undo.get(&series).cloned() {
+            ui.horizontal_wrapped(|ui| {
+                ui.colored_label(GOLD, "Sidekick plot draft · review before saving");
+                if ui.button("Undo sidekick edit").clicked() {
+                    match crate::sidekick_plot::undo(&plan, &before, &after) {
+                        Ok(restored) => {
+                            plan = restored;
+                            self.sidekick.plot_undo.remove(&series);
+                        }
+                        Err(error) => self.message = error.to_string(),
+                    }
+                }
+            });
+            ui.collapsing("Review changed sections", |ui| {
+                let old = serde_json::to_value(&before).unwrap_or_default();
+                let new = serde_json::to_value(&after).unwrap_or_default();
+                for (key, label) in [
+                    ("audience", "Audience"),
+                    ("genre", "Genre & tone"),
+                    ("theme", "Theme"),
+                    ("central_question", "Central question"),
+                    ("series_arc", "Series arc"),
+                    ("ending", "Ending"),
+                    ("acts", "Act roadmap"),
+                    ("storylines", "Storylines"),
+                    ("characters", "Character journeys"),
+                    ("initial_facts", "Starting facts"),
+                    ("episodes", "Episode outlines"),
+                    ("threads", "Setups & payoffs"),
+                    ("creative", "Format & direction"),
+                ] {
+                    if old[key] != new[key] {
+                        ui.label(egui::RichText::new(label).strong());
+                        if let (Some(a), Some(b)) = (old[key].as_str(), new[key].as_str()) {
+                            ui.label(egui::RichText::new(format!("Before: {a}")).color(MUTED));
+                            ui.label(format!("After: {b}"));
+                        } else {
+                            let names: std::collections::HashMap<_, _> = cast
+                                .iter()
+                                .map(|c| (c.id.clone(), c.name.clone()))
+                                .chain(episodes.iter().map(|e| (e.id.clone(), e.title.clone())))
+                                .collect();
+                            ui.push_id(key, |ui| {
+                                ui.collapsing("Before", |ui| {
+                                    plot_review_value(ui, &old[key], &names)
+                                });
+                                ui.collapsing("After", |ui| {
+                                    plot_review_value(ui, &new[key], &names)
+                                });
+                            });
+                        }
+                    }
+                }
+            });
+        }
+        ui.horizontal_wrapped(|ui| {
+            ui.label("Format");
+            ui.add(
+                egui::DragValue::new(&mut plan.creative.target_episodes)
+                    .range(1..=150)
+                    .suffix(" episodes"),
+            );
+            ui.add(
+                egui::DragValue::new(&mut plan.creative.episode_seconds)
+                    .range(15. ..=600.)
+                    .suffix(" sec each"),
+            );
+            if ui.button("Develop plot with sidekick").clicked() {
+                self.prepare_plot_discussion(&series);
+            }
+            if ui.button("Open episode plot →").clicked() {
+                self.page = crate::Page::Series;
+            }
+        });
         ui.add_space(12.);
         ui.horizontal(|ui| {
             for (section, label) in [
-                (StorySection::Bible, "Series bible"),
-                (StorySection::Episodes, "Episode arc"),
+                (StorySection::Bible, "Story & ending"),
+                (StorySection::Roadmap, "Acts & storylines"),
+                (StorySection::Episodes, "Episode outline"),
                 (StorySection::Continuity, "Continuity & canon"),
             ] {
                 ui.selectable_value(&mut self.story_section, section, label);
@@ -132,7 +244,7 @@ impl Studio {
         ui.add_space(14.);
         if self.story_section == StorySection::Bible {
             Self::card(ui, |ui| {
-                ui.heading("Series bible");
+                ui.heading("Story foundations");
                 ui.collapsing("Casting, genre & cut rhythm", |ui| {
                 egui::ComboBox::from_id_salt("creative-style").selected_text(plan.creative.style.replace('_'," ")).show_ui(ui, |ui| {
                     for style in ["character_drama","slice_of_life","romance","thriller","melodrama","custom"] { ui.selectable_value(&mut plan.creative.style,style.into(),style.replace('_'," ")); }
@@ -151,6 +263,11 @@ impl Studio {
                     ("THEME", &mut plan.theme, 2),
                     ("CENTRAL DRAMATIC QUESTION", &mut plan.central_question, 2),
                     (
+                        "SERIES ARC — BEGINNING, ESCALATION & RESOLUTION",
+                        &mut plan.series_arc,
+                        5,
+                    ),
+                    (
                         "THE ENDING — WHAT THE STORY ULTIMATELY RESOLVES",
                         &mut plan.ending,
                         3,
@@ -167,7 +284,7 @@ impl Studio {
                 ui.heading("Character journeys");
                 ui.label(
                     RichText::new(
-                        "Link each arc to the same cast identity and voice used in production.",
+                        "What each character wants, what challenges them, and how they change.",
                     )
                     .color(MUTED),
                 );
@@ -214,27 +331,124 @@ impl Studio {
             });
             ui.add_space(14.);
         }
+        if self.story_section == StorySection::Roadmap {
+            Self::card(ui, |ui| {
+                ui.heading("Act roadmap");
+                ui.small("Major phases of the story. Episode ranges are planning targets, not written episodes.");
+                let mut remove = None;
+                for (index, act) in plan.acts.iter_mut().enumerate() {
+                    egui::CollapsingHeader::new(format!(
+                        "Act {} · {} · Episodes {}–{}",
+                        index + 1,
+                        act.title,
+                        act.start_episode,
+                        act.end_episode
+                    ))
+                    .id_salt(("act", index))
+                    .default_open(true)
+                    .show(ui, |ui| {
+                        Self::field(ui, "ACT TITLE", &mut act.title, 1);
+                        ui.horizontal(|ui| {
+                            ui.label("Episodes");
+                            ui.add(egui::DragValue::new(&mut act.start_episode).range(1..=150));
+                            ui.label("through");
+                            ui.add(egui::DragValue::new(&mut act.end_episode).range(1..=150));
+                            if ui.small_button("Remove act").clicked() {
+                                remove = Some(index);
+                            }
+                        });
+                        for (label, text) in [
+                            ("OPENING SITUATION & STAKES", &mut act.opening),
+                            ("ESCALATION & RELATIONSHIP MOVEMENT", &mut act.escalation),
+                            ("TURNING POINT / CLIMAX", &mut act.turning_point),
+                            (
+                                "CONSEQUENCE — WHAT DRIVES THE NEXT ACT",
+                                &mut act.consequence,
+                            ),
+                        ] {
+                            Self::field(ui, label, text, 3);
+                        }
+                    });
+                }
+                if let Some(index) = remove {
+                    plan.acts.remove(index);
+                }
+                if ui.button("+ Act").clicked() {
+                    plan.acts.push(PlotAct {
+                        start_episode: 1,
+                        end_episode: plan.creative.target_episodes,
+                        ..Default::default()
+                    });
+                }
+            });
+            Self::card(ui, |ui| {
+                ui.heading("Ongoing storylines");
+                ui.small("Track the main conflict and supporting romance, family, business or mystery strands.");
+                let mut remove = None;
+                for (index, line) in plan.storylines.iter_mut().enumerate() {
+                    ui.push_id(("storyline", index), |ui| {
+                        Self::field(ui, "STORYLINE", &mut line.title, 1);
+                        Self::field(
+                            ui,
+                            "HOW IT DEVELOPS THROUGH THE SERIES",
+                            &mut line.throughline,
+                            3,
+                        );
+                        Self::field(
+                            ui,
+                            "RESOLUTION & CONNECTION TO THE ENDING",
+                            &mut line.resolution,
+                            2,
+                        );
+                        if ui.small_button("Remove storyline").clicked() {
+                            remove = Some(index);
+                        }
+                        ui.separator();
+                    });
+                }
+                if let Some(index) = remove {
+                    plan.storylines.remove(index);
+                }
+                if ui.button("+ Storyline").clicked() {
+                    plan.storylines.push(Storyline::default());
+                }
+            });
+        }
         if self.story_section == StorySection::Episodes {
             Self::card(ui, |ui| {
                 ui.heading("The episode arc");
-                ui.horizontal_wrapped(|ui| {
-                    ui.label("Series target");
-                    ui.add(
-                        egui::DragValue::new(&mut plan.creative.target_episodes)
-                            .range(1..=150)
-                            .suffix(" episodes"),
-                    );
-                    ui.label(format!("{} outlines planned", plan.episodes.len()));
-                    ui.label(format!(
-                        "{:.0} minutes at the target length",
-                        plan.creative.episode_seconds * plan.creative.target_episodes as f64 / 60.
-                    ));
-                });
-                ui.label(RichText::new("Working format: around 55–75 episodes, usually 1–2 minutes each. Targets are editable for each series.").color(MUTED));
-                ui.label(RichText::new("Each episode must change the situation, deliver a payoff, and create a reason to continue. The last episode resolves the central question.").color(MUTED));
+                ui.small(format!(
+                    "{} outlines · {} episode target · screenplays are written in Episode plot",
+                    plan.episodes.len(),
+                    plan.creative.target_episodes
+                ));
+                ui.add(
+                    egui::TextEdit::singleline(&mut self.story_search)
+                        .hint_text(crate::theme::placeholder(
+                            "Search episode number, title or story beat",
+                        ))
+                        .desired_width(ui.available_width()),
+                );
+                let search = self.story_search.trim().to_lowercase();
                 let mut action = None;
                 let count = plan.episodes.len();
                 for (index, outline) in plan.episodes.iter_mut().enumerate() {
+                    if !search.is_empty()
+                        && !format!(
+                            "{} {} {} {} {} {} {}",
+                            index + 1,
+                            episode_name(&outline.episode_id),
+                            outline.goal,
+                            outline.conflict,
+                            outline.turn,
+                            outline.payoff,
+                            outline.hook
+                        )
+                        .to_lowercase()
+                        .contains(&search)
+                    {
+                        continue;
+                    }
                     egui::CollapsingHeader::new(format!(
                         "{:02}  {}",
                         index + 1,
@@ -287,8 +501,9 @@ impl Studio {
                                 ui.push_id(i, |ui| {
                                     ui.separator();
                                     ui.add(
-                                        egui::TextEdit::singleline(&mut change.key)
-                                            .hint_text("Fact that changes"),
+                                        egui::TextEdit::singleline(&mut change.key).hint_text(
+                                            crate::theme::placeholder("Fact that changes"),
+                                        ),
                                     );
                                     let mut new = change.from.is_none();
                                     if ui.checkbox(&mut new, "New fact introduced here").changed() {
@@ -333,7 +548,7 @@ impl Studio {
                 }
                 if episodes.is_empty() {
                     ui.label(
-                        "Create episodes in Series & episodes, then arrange the complete arc here.",
+                        "Create episode records in Episode plot, then outline them here. Start with the act roadmap above.",
                     );
                 }
             });

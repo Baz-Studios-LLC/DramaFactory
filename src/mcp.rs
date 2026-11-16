@@ -197,6 +197,36 @@ fn definitions() -> Vec<Tool> {
         vec!["line"],
     );
     add(
+        "delete_character",
+        "Recoverably remove a character from active cast using its complete expected entry from list_characters. Retains portraits, profiles and history. Rejects stale entries, saved story/episode links and active jobs.",
+        json!({"expected":{"type":"object"}}),
+        vec!["expected"],
+    );
+    add(
+        "list_deleted_characters",
+        "List recoverably deleted characters in a series",
+        json!({"series_id":string()}),
+        vec!["series_id"],
+    );
+    add(
+        "restore_character",
+        "Restore the same deleted character and its retained profile and portrait to the active cast",
+        json!({"series_id":string(),"character_id":string()}),
+        vec!["series_id", "character_id"],
+    );
+    add(
+        "get_character_profile",
+        "Read structured character details and expected saved baselines. Blank fields are unspecified; existing prose is preserved as summary.",
+        json!({"character_id":string()}),
+        vec!["character_id"],
+    );
+    add(
+        "save_character_profile",
+        "Save a complete character profile draft and compose its production brief atomically. Supply the baselines from get_character_profile. Preserves approved images and portrait prompts; no generation.",
+        json!({"draft":{"type":"object"}}),
+        vec!["draft"],
+    );
+    add(
         "update_library_entry",
         "Update a stable cast/location entry name and brief, preserving its reference and voice. Supply expected saved name/description for conflict protection; identical retries are idempotent. Existing coverage and canon require review after brief changes.",
         json!({"edit":{"type":"object","additionalProperties":false,"properties":{"id":string(),"name":string(),"description":string(),"expected_name":string(),"expected_description":string()},"required":["id","name","description","expected_name","expected_description"]}}),
@@ -332,7 +362,7 @@ fn definitions() -> Vec<Tool> {
     add(
         "save_portrait_style",
         "Set Photo, Cinematic, Animation or Illustration for future images; existing images and queued requests are unchanged",
-        json!({"library_id":string(),"style":{"type":"string","enum":["photo","cinematic","animation","illustration"]}}),
+        json!({"library_id":string(),"style":{"type":"string","enum":crate::portrait_style::PortraitStyle::ALL}}),
         vec!["library_id", "style"],
     );
     add(
@@ -349,14 +379,14 @@ fn definitions() -> Vec<Tool> {
     );
     add(
         "generate_grok_portrait",
-        "PAID: explicitly queue one Grok portrait via OpenRouter. No automatic reference replacement. Requires user spending authorization.",
+        "PAID: queue one Grok portrait via OpenRouter using the complete saved character profile plus the supplied portrait direction and selected style. Save form changes first; profile traits take priority over conflicting prompt traits. No automatic reference replacement. Requires user spending authorization.",
         json!({"library_id":string(),"prompt":string()}),
         vec!["library_id", "prompt"],
     );
     add(
         "create_character_with_prompt",
         "Create a saved character brief and portrait prompt atomically. No image generation or provider call. Caller-generated character_id makes exact replay idempotent.",
-        json!({"series_id":string(),"character_id":string(),"name":string(),"description":string(),"portrait_prompt":string()}),
+        json!({"series_id":string(),"character_id":string(),"name":string(),"description":string(),"portrait_prompt":string(),"profile":{"type":"object"},"style":{"type":"string","enum":crate::portrait_style::PortraitStyle::ALL}}),
         vec![
             "series_id",
             "character_id",
@@ -903,6 +933,21 @@ fn dispatch(path: PathBuf, name: String, a: Value) -> Result<Value> {
         "dramafactory_check_model_runtime" => {
             json!(crate::runtime::check(&s.config()?, req("model_id")?)?)
         }
+        "dramafactory_delete_character" => {
+            s.delete_character(&serde_json::from_value(
+                a.get("expected").cloned().context("expected is required")?,
+            )?)?;
+            json!({"deleted":true,"recoverable":true,"media_preserved":true})
+        }
+        "dramafactory_list_deleted_characters" => json!(s.deleted_characters(req("series_id")?)?),
+        "dramafactory_restore_character" => {
+            s.restore_character(req("series_id")?, req("character_id")?)?;
+            json!({"restored":true})
+        }
+        "dramafactory_get_character_profile" => json!(s.character_profile(req("character_id")?)?),
+        "dramafactory_save_character_profile" => json!(s.save_character_profile(
+            &serde_json::from_value(a.get("draft").cloned().context("draft is required")?)?
+        )?),
         "dramafactory_save_synopsis" => {
             s.save_synopsis(&serde_json::from_value(
                 a.get("draft").cloned().context("draft is required")?,
@@ -950,6 +995,16 @@ fn dispatch(path: PathBuf, name: String, a: Value) -> Result<Value> {
         }
         "dramafactory_create_character_with_prompt" => {
             let proposal = crate::character_edit::NewCharacter {
+                style: a
+                    .get("style")
+                    .cloned()
+                    .map(serde_json::from_value)
+                    .transpose()?,
+                profile: a
+                    .get("profile")
+                    .cloned()
+                    .map(serde_json::from_value)
+                    .transpose()?,
                 name: req("name")?.into(),
                 description: req("description")?.into(),
                 portrait_prompt: req("portrait_prompt")?.into(),
@@ -1036,7 +1091,7 @@ struct Server {
 impl ServerHandler for Server {
     fn get_info(&self) -> ServerConfig {
         ServerConfig::new(ServerCapabilities::builder().enable_tools().build())
-            .with_server_info(Implementation::new("DramaFactory", "v004"))
+            .with_server_info(Implementation::new("DramaFactory", "v005"))
     }
     fn get_tool(&self, name: &str) -> Option<Tool> {
         definitions().into_iter().find(|t| t.name == name)

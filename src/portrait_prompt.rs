@@ -18,7 +18,17 @@ impl Store {
                 |row| row.get(0),
             )
             .optional()?;
-        Ok(PromptDraft{id:entry.id.clone(),prompt:saved.clone().unwrap_or_else(||format!("Photorealistic cinematic casting portrait of {}. {}. Natural lighting, realistic skin, expressive face, no text.",entry.name,entry.description.trim_end_matches('.'))),expected:saved})
+        Ok(PromptDraft {
+            id: entry.id.clone(),
+            prompt: saved.clone().unwrap_or_else(|| {
+                if entry.kind == "character" {
+                    format!("Casting portrait of {}. Expressive face and clear character presentation, no text.", entry.name)
+                } else {
+                    format!("Photorealistic cinematic casting portrait of {}. {}. Natural lighting, realistic skin, expressive face, no text.", entry.name, entry.description.trim_end_matches('.'))
+                }
+            }),
+            expected: saved,
+        })
     }
     pub fn save_portrait_prompt(&self, draft: &PromptDraft) -> Result<PromptDraft> {
         if draft.prompt.trim().is_empty() || draft.prompt.len() > 65536 {

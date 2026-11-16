@@ -83,3 +83,8 @@ pub fn primary(label: &str) -> egui::Button<'_> {
     .fill(crate::GOLD)
     .stroke(Stroke::NONE)
 }
+
+/// Explicit color keeps placeholders subdued even with the global text override.
+pub fn placeholder(text: impl Into<String>) -> egui::RichText {
+    egui::RichText::new(text.into()).color(Color32::from_rgb(125, 128, 138))
+}

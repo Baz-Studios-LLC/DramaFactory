@@ -148,7 +148,7 @@ pub(crate) fn asset_row(row: &rusqlite::Row<'_>) -> rusqlite::Result<Asset> {
         review: row.get(8)?,
     })
 }
-#[derive(Clone, Serialize, Deserialize)]
+#[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub struct LibraryEntry {
     pub id: String,
     pub series_id: String,
@@ -160,6 +160,8 @@ pub struct LibraryEntry {
 }
 impl Store {
     pub(crate) fn migrate_production(&self) -> Result<()> {
+        self.conn.execute_batch("CREATE TABLE IF NOT EXISTS deleted_characters(library_id TEXT PRIMARY KEY REFERENCES library(id),deleted_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP);")?;
+        self.conn.execute_batch("CREATE TABLE IF NOT EXISTS character_profiles(library_id TEXT PRIMARY KEY REFERENCES library(id),document TEXT NOT NULL);")?;
         self.conn.execute_batch("CREATE TABLE IF NOT EXISTS segment_takes(episode_id TEXT NOT NULL REFERENCES episodes(id),segment_id TEXT NOT NULL,asset_id TEXT NOT NULL REFERENCES assets(id),PRIMARY KEY(episode_id,segment_id));")?;
         self.conn.execute_batch("CREATE TABLE IF NOT EXISTS segment_generations(job_id TEXT PRIMARY KEY REFERENCES jobs(id) DEFERRABLE INITIALLY DEFERRED,episode_id TEXT NOT NULL REFERENCES episodes(id),segment_id TEXT NOT NULL,plan_revision INTEGER NOT NULL,snapshot TEXT NOT NULL);")?;
         self.conn.execute_batch("CREATE TABLE IF NOT EXISTS job_timing(job_id TEXT PRIMARY KEY REFERENCES jobs(id),started_unix INTEGER NOT NULL,finished_unix INTEGER);")?;
@@ -482,7 +484,18 @@ impl Store {
     }
 
     pub fn library(&self, series: &str, kind: &str) -> Result<Vec<LibraryEntry>> {
-        Ok(self.conn.prepare("SELECT id,series_id,kind,name,description,reference,voice FROM library WHERE series_id=?1 AND kind=?2 ORDER BY rowid")?.query_map(params![series,kind],|r|Ok(LibraryEntry{id:r.get(0)?,series_id:r.get(1)?,kind:r.get(2)?,name:r.get(3)?,description:r.get(4)?,reference:r.get::<_,Option<String>>(5)?.map(PathBuf::from),voice:r.get(6)?}))?.collect::<std::result::Result<_,_>>()?)
+        self.library_by_deletion_state(series, kind, false)
+    }
+    pub fn deleted_characters(&self, series: &str) -> Result<Vec<LibraryEntry>> {
+        self.library_by_deletion_state(series, "character", true)
+    }
+    fn library_by_deletion_state(
+        &self,
+        series: &str,
+        kind: &str,
+        deleted: bool,
+    ) -> Result<Vec<LibraryEntry>> {
+        Ok(self.conn.prepare("SELECT id,series_id,kind,name,description,reference,voice FROM library WHERE series_id=?1 AND kind=?2 AND EXISTS(SELECT 1 FROM deleted_characters d WHERE d.library_id=library.id)=?3 ORDER BY rowid")?.query_map(params![series,kind,deleted],|r|Ok(LibraryEntry{id:r.get(0)?,series_id:r.get(1)?,kind:r.get(2)?,name:r.get(3)?,description:r.get(4)?,reference:r.get::<_,Option<String>>(5)?.map(PathBuf::from),voice:r.get(6)?}))?.collect::<std::result::Result<_,_>>()?)
     }
     pub fn add_library(
         &self,
@@ -1092,6 +1105,7 @@ impl Store {
         r.validate()?;
         r.library_context_before = serde_json::Value::Null;
         if let Some(id) = &r.library_id {
+            self.ensure_character_not_deleted(id)?;
             let reference: Option<String> = self
                 .conn
                 .query_row("SELECT reference FROM library WHERE id=?1", [id], |row| {

@@ -34,7 +34,7 @@ impl Studio {
         let Some(id) = self.selected.clone() else {
             ui.label("Create or choose a series to begin.");
             if ui.button("Create a series").clicked() {
-                self.new_open = true;
+                self.start_new_series();
             }
             return;
         };
@@ -46,6 +46,25 @@ impl Studio {
             ui.label("This series is no longer available.");
             return;
         };
+        match self.store.series_portrait_style(&id) {
+            Ok(saved_style) => {
+                let mut style = saved_style.unwrap_or_default();
+                Self::card(ui, |ui| {
+                    let changed = crate::portrait_style::picker(ui, &mut style);
+                    if changed
+                        || (saved_style.is_none()
+                            && ui.button("Apply style to all characters").clicked())
+                    {
+                        let result = self.store.save_series_portrait_style(&id, style);
+                        self.result(result, "Series image style saved");
+                    }
+                    ui.small("Saved automatically when changed. All characters use this style for their next image; existing portraits stay unchanged.");
+                });
+            }
+            Err(error) => {
+                ui.label(error.to_string());
+            }
+        }
         let draft = self
             .synopsis_drafts
             .entry(id.clone())
@@ -77,6 +96,8 @@ impl Studio {
             );
             ui.add(
                 eframe::egui::TextEdit::singleline(&mut draft.title)
+                    .id_salt(("synopsis-title", &id))
+                    .hint_text(crate::theme::placeholder("Give your series a title"))
                     .font(eframe::egui::FontId::proportional(24.))
                     .margin(eframe::egui::vec2(14., 12.))
                     .desired_width(ui.available_width()),
@@ -90,6 +111,8 @@ impl Studio {
             ui.small("Who is at the center? What do they want, what stands in their way, and why will we keep watching?");
             ui.add(
                 eframe::egui::TextEdit::multiline(&mut draft.premise)
+                    .id_salt(("synopsis-premise", &id))
+                    .hint_text(crate::theme::placeholder("Start with an idea…"))
                     .font(eframe::egui::FontId::proportional(16.))
                     .margin(eframe::egui::vec2(16., 16.))
                     .desired_rows(14)

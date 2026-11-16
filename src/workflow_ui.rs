@@ -79,7 +79,17 @@ impl Studio {
         }
     }
     pub(crate) fn workflow_navigation(&mut self, ui: &mut egui::Ui) {
-        self.workflow_link(ui, Page::Studio, "Studio overview", true);
+        if ui
+            .add_enabled(
+                self.selected.is_some(),
+                crate::theme::primary("Save project")
+                    .min_size(egui::vec2(ui.available_width(), 38.)),
+            )
+            .on_hover_text("Save edits across every workspace in the current series")
+            .clicked()
+        {
+            self.save_project();
+        }
         ui.add_space(20.);
         ui.label(RichText::new("WORKSPACE").size(10.).color(MUTED));
         ui.add_space(4.);
@@ -140,6 +150,9 @@ impl Studio {
         self.workflow_link(ui, Page::Settings, "Settings", true);
     }
     pub(crate) fn workflow_location(&mut self, ui: &mut egui::Ui) {
+        if self.page == Page::Queue {
+            return;
+        }
         if let Some(stage) = STAGES
             .iter()
             .find(|stage| stage.actions.iter().any(|(page, _)| *page == self.page))
@@ -162,7 +175,7 @@ impl Studio {
         );
         ui.horizontal(|ui| {
             if ui.add(crate::theme::primary("+ Create a series")).clicked() {
-                self.new_open = true;
+                self.start_new_series();
             }
             ui.label(RichText::new("Make something worth watching.").color(MUTED));
         });

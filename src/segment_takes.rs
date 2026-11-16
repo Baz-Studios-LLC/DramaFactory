@@ -115,8 +115,36 @@ impl Store {
             cues: Vec::new(),
             captions: Vec::new(),
             burn_captions: false,
-            width: 720,
-            height: 1280,
+            width: if plan
+                .segments
+                .iter()
+                .any(|segment| segment.resolution == "1080p")
+            {
+                1080
+            } else if plan
+                .segments
+                .iter()
+                .any(|segment| segment.resolution == "720p")
+            {
+                720
+            } else {
+                480
+            },
+            height: if plan
+                .segments
+                .iter()
+                .any(|segment| segment.resolution == "1080p")
+            {
+                1920
+            } else if plan
+                .segments
+                .iter()
+                .any(|segment| segment.resolution == "720p")
+            {
+                1280
+            } else {
+                854
+            },
             fps: 24,
         })
     }

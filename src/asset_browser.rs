@@ -38,7 +38,7 @@ impl crate::Studio {
             ui.label("Search");
             ui.add(
                 eframe::egui::TextEdit::singleline(&mut self.asset_browser.query.text)
-                    .hint_text("Labels, prompts or review notes")
+                    .hint_text(crate::theme::placeholder("Labels, prompts or review notes"))
                     .desired_width(280.),
             );
             eframe::egui::ComboBox::from_id_salt("media-filter")

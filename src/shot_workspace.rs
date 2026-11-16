@@ -81,7 +81,7 @@ impl Studio {
         ui.horizontal_top(|ui|{
    ui.allocate_ui_with_layout(Vec2::new(width,550.),egui::Layout::top_down(egui::Align::LEFT),|ui|{
     ui.set_max_width(width);Self::card(ui,|ui|{
-     ui.label(RichText::new("SHOT LIST").color(GOLD).size(11.));ui.add(egui::TextEdit::singleline(&mut self.shot_workspace.search).hint_text("Search shots").desired_width(ui.available_width()));
+     ui.label(RichText::new("SHOT LIST").color(GOLD).size(11.));ui.add(egui::TextEdit::singleline(&mut self.shot_workspace.search).hint_text(crate::theme::placeholder("Search shots")).desired_width(ui.available_width()));
      let search=self.shot_workspace.search.trim().to_lowercase();
      egui::ScrollArea::vertical().id_salt("shot-list").max_height(520.).auto_shrink([false,false]).show(ui,|ui|{
       let mut found=false;

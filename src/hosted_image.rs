@@ -11,6 +11,8 @@ pub struct PortraitRequest {
     pub source_prompt: Option<String>,
     #[serde(default)]
     pub style: Option<crate::portrait_style::PortraitStyle>,
+    #[serde(default)]
+    pub character_profile: Option<crate::character_profile::CharacterProfile>,
     pub library_id: String,
     pub library_reference_before: Option<String>,
     pub library_context_before: Value,
@@ -24,31 +26,94 @@ impl Store {
         ids.iter().map(|id| self.job(id)).collect()
     }
     pub fn enqueue_grok_portrait(&self, entry: &str, prompt: &str) -> Result<crate::store::Job> {
+        self.enqueue_grok_portrait_with_profile(entry, prompt, None)
+    }
+    pub(crate) fn enqueue_grok_portrait_with_profile(
+        &self,
+        entry: &str,
+        prompt: &str,
+        expected: Option<&crate::character_profile::ProfileDraft>,
+    ) -> Result<crate::store::Job> {
+        let tx = rusqlite::Transaction::new_unchecked(
+            &self.conn,
+            rusqlite::TransactionBehavior::Immediate,
+        )?;
+        if let Some(expected) = expected
+            && (expected.dirty() || expected != &self.character_profile(entry)?)
+        {
+            bail!(
+                "Save or reload the character profile before generating an image. Your draft is preserved."
+            );
+        }
+        let request = self.prepare_grok_portrait(entry, prompt)?;
+        let id = uuid::Uuid::new_v4().to_string();
+        self.conn.execute("INSERT INTO jobs(id,prompt,status,error,request,kind,created_at,updated_at) VALUES(?1,?2,'queued','',?3,'openrouter_image',datetime('now'),datetime('now'))",rusqlite::params![id,prompt,serde_json::to_string(&request)?])?;
+        tx.commit()?;
+        self.job(&id)
+    }
+    /// Read-only preview using the same composition as the immutable queued request.
+    pub(crate) fn grok_portrait_request(
+        &self,
+        entry: &str,
+        prompt: &str,
+    ) -> Result<PortraitRequest> {
+        let tx = self.conn.unchecked_transaction()?;
+        let request = self.prepare_grok_portrait(entry, prompt)?;
+        tx.commit()?;
+        Ok(request)
+    }
+    fn prepare_grok_portrait(&self, entry: &str, prompt: &str) -> Result<PortraitRequest> {
+        self.ensure_character_not_deleted(entry)?;
         if prompt.trim().is_empty() || prompt.len() > 65536 {
             bail!("Portrait prompt must contain 1–65536 bytes");
         }
-        let (name, description, reference): (String, String, Option<String>) =
+        let (name, description, reference, kind): (String, String, Option<String>, String) =
             self.conn.query_row(
-                "SELECT name,description,reference FROM library WHERE id=?1",
+                "SELECT name,description,reference,kind FROM library WHERE id=?1",
                 [entry],
-                |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)),
+                |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?, row.get(3)?)),
             )?;
+        let character_profile = if kind == "character" {
+            self.saved_character_profile(entry)?
+        } else {
+            None
+        };
+        if let Some(profile) = &character_profile {
+            profile.validate()?;
+            if profile.brief() != description {
+                bail!(
+                    "The character form and saved brief differ. Reconcile and save Character profile before generating an image."
+                );
+            }
+        }
         let hash = reference
             .as_ref()
             .map(|path| crate::worker::hash_file(std::path::Path::new(path)))
             .transpose()?;
         let style = self.portrait_style(entry)?;
+        let subject = if kind == "character" {
+            format!(
+                "ADDITIONAL PORTRAIT DIRECTION:\n{prompt}\n\nCOMPLETE SAVED PROFILE — {name}:\n{description}\n\nUse the entire saved profile as context for this subject. Its specified identity, age, measurements, build, facial features, hair, eyes, wardrobe and other traits take precedence over conflicting details in the additional portrait direction. Convey personality, background, goals and relationships through appropriate expression, posture, styling and setting; do not add other people or written labels to illustrate them. Episode-specific exceptions apply only when the portrait direction explicitly requests that episode or scene; do not combine conflicting episode outfits or states. Unspecified traits remain open creative choices."
+            )
+        } else {
+            prompt.to_owned()
+        };
+        let full_prompt = style.prompt(&subject);
+        if full_prompt.len() > 65536 {
+            bail!(
+                "The combined profile and portrait direction exceed 65536 bytes. Shorten the portrait direction; no profile details were truncated."
+            );
+        }
         let request = PortraitRequest {
-            prompt: style.prompt(prompt),
+            prompt: full_prompt,
             source_prompt: Some(prompt.into()),
             style: Some(style),
+            character_profile,
             library_id: entry.into(),
             library_reference_before: reference,
             library_context_before: json!({"name":name,"description":description,"reference_hash":hash}),
         };
-        let id = uuid::Uuid::new_v4().to_string();
-        self.conn.execute("INSERT INTO jobs(id,prompt,status,error,request,kind,created_at,updated_at) VALUES(?1,?2,'queued','',?3,'openrouter_image',datetime('now'),datetime('now'))",rusqlite::params![id,prompt,serde_json::to_string(&request)?])?;
-        self.job(&id)
+        Ok(request)
     }
 }
 fn decode(value: &Value) -> Result<(Vec<u8>, u32, u32, &'static str)> {
@@ -186,6 +251,80 @@ mod tests {
         assert_eq!(original, *bytes.get_ref());
         assert_eq!((w, h, ext), (8, 12, "png"));
     }
+    #[test]
+    fn queued_profiles_are_frozen_and_dirty_stale_or_divergent_forms_cannot_queue() {
+        let root =
+            std::env::temp_dir().join(format!("df-portrait-profile-{}", uuid::Uuid::new_v4()));
+        let path = root.join("studio.sqlite");
+        let store = Store::open(path.clone()).unwrap();
+        let series = store.create_series("Fixture", "").unwrap();
+        let profile = crate::character_profile::CharacterProfile {
+            summary: "A shy herbalist".into(),
+            fields: std::collections::BTreeMap::from([
+                ("hair_color".into(), "Auburn".into()),
+                ("weight".into(), "64 kg".into()),
+            ]),
+        };
+        let entry = store
+            .create_profile_character(&series.id, "Ari", &profile, None, Default::default())
+            .unwrap();
+        let saved = store.character_profile(&entry.id).unwrap();
+        let mut dirty = saved.clone();
+        dirty.profile.fields.insert("weight".into(), "70 kg".into());
+        assert!(
+            store
+                .enqueue_grok_portrait_with_profile(&entry.id, "Portrait", Some(&dirty))
+                .is_err()
+        );
+        assert!(store.jobs().unwrap().is_empty());
+        let job = store
+            .enqueue_grok_portrait_with_profile(
+                &entry.id,
+                "Old direction: black hair",
+                Some(&saved),
+            )
+            .unwrap();
+        let current = store.save_character_profile(&dirty).unwrap();
+        assert!(
+            store
+                .enqueue_grok_portrait_with_profile(&entry.id, "Portrait", Some(&saved))
+                .is_err()
+        );
+        let next = store.grok_portrait_request(&entry.id, "Portrait").unwrap();
+        assert!(next.prompt.contains("Weight: 70 kg"));
+        drop(store);
+        let store = Store::open(path).unwrap();
+        let raw: String = store
+            .conn
+            .query_row("SELECT request FROM jobs WHERE id=?1", [&job.id], |row| {
+                row.get(0)
+            })
+            .unwrap();
+        let request: PortraitRequest = serde_json::from_str(&raw).unwrap();
+        assert_eq!(request.character_profile, Some(profile));
+        assert!(request.prompt.contains("Weight: 64 kg"));
+        assert!(!request.prompt.contains("Weight: 70 kg"));
+        assert!(
+            request
+                .prompt
+                .contains("take precedence over conflicting details")
+        );
+        assert_eq!(
+            request.source_prompt.as_deref(),
+            Some("Old direction: black hair")
+        );
+        // Plain-text edits cannot silently bypass the structured form's newer traits.
+        let mut edit = current.brief;
+        edit.description = "Changed outside the form".into();
+        store.update_library_entry(&edit).unwrap();
+        assert!(store.enqueue_grok_portrait(&entry.id, "Portrait").is_err());
+        let legacy = serde_json::json!({"prompt":"An old immutable prompt","library_id":entry.id,"library_reference_before":null,"library_context_before":{}});
+        let legacy: PortraitRequest = serde_json::from_value(legacy).unwrap();
+        assert!(legacy.character_profile.is_none());
+        assert_eq!(legacy.prompt, "An old immutable prompt");
+        drop(store);
+        std::fs::remove_dir_all(root).unwrap();
+    }
     fn fixture_server(body: String, status: &str) -> (String, std::thread::JoinHandle<String>) {
         use std::io::{Read, Write};
         let listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
@@ -239,6 +378,19 @@ mod tests {
                 None,
             )
             .unwrap();
+        let mut profile = store.character_profile(&entry.id).unwrap();
+        for section in crate::character_profile::SECTIONS {
+            for (key, _, _) in section.fields {
+                profile
+                    .profile
+                    .fields
+                    .insert((*key).into(), format!("fixture-value-{key}"));
+            }
+        }
+        store.save_character_profile(&profile).unwrap();
+        let preview = store
+            .grok_portrait_request(&entry.id, "Explicit local HTTP fixture")
+            .unwrap();
         let image = image::RgbaImage::new(8, 12);
         let mut bytes = std::io::Cursor::new(Vec::new());
         image.write_to(&mut bytes, image::ImageFormat::Png).unwrap();
@@ -263,6 +415,14 @@ mod tests {
             assert!(sent.starts_with("POST /images "));
             assert!(sent.contains("local-fixture-key"));
             assert!(sent.contains("x-ai/grok-imagine-image-2.0"));
+            let payload: Value =
+                serde_json::from_str(sent.split_once("\r\n\r\n").unwrap().1).unwrap();
+            assert_eq!(payload["prompt"], preview.prompt);
+            let submitted = payload["prompt"].as_str().unwrap();
+            assert!(submitted.contains(&profile.profile.summary));
+            for value in profile.profile.fields.values() {
+                assert!(submitted.contains(value));
+            }
             let saved = store.job(&job.id).unwrap();
             assert_eq!(
                 saved.status,
@@ -275,6 +435,10 @@ mod tests {
                 .unwrap();
             assert_eq!(std::fs::read(&asset.path).unwrap(), *bytes.get_ref());
             assert_eq!(asset.review, "unreviewed");
+            assert_eq!(
+                asset.metadata["request"]["character_profile"],
+                serde_json::to_value(&profile.profile).unwrap()
+            );
             assert!(
                 store.library(&series.id, "character").unwrap()[0]
                     .reference

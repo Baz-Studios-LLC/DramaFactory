@@ -2,7 +2,9 @@ mod asset_browser;
 mod asset_catalog;
 mod captions;
 mod cast_reference;
+mod character_deletion;
 mod character_edit;
+mod character_profile;
 mod completion;
 mod credentials;
 mod dialogue_direction;
@@ -33,6 +35,7 @@ mod portrait_ui;
 mod preview;
 mod production;
 mod project_context;
+mod project_save;
 mod provider_settings;
 mod readiness;
 mod rehearsal;
@@ -42,6 +45,9 @@ mod segment_takes;
 mod shot_workspace;
 mod sidekick;
 mod sidekick_edit;
+mod sidekick_episode;
+mod sidekick_generation;
+mod sidekick_plot;
 mod sidekick_ui;
 mod sound;
 mod store;
@@ -83,12 +89,17 @@ enum Page {
 }
 struct Studio {
     store: Store,
+    delete_character: Option<production::LibraryEntry>,
+    profile_drafts: std::collections::HashMap<String, character_profile::ProfileDraft>,
+    new_character_profile: character_profile::CharacterProfile,
+    new_portrait_style: portrait_style::PortraitStyle,
     portrait_prompts: std::collections::HashMap<String, portrait_prompt::PromptDraft>,
     sidekick: sidekick_ui::Sidekick,
     synopsis_drafts: std::collections::HashMap<String, synopsis::SynopsisDraft>,
     shot_directions: std::collections::BTreeMap<String, directing::ShotDirection>,
     camera_drafts: std::collections::BTreeMap<String, directing::CameraSetup>,
     story_section: story_ui::StorySection,
+    story_search: String,
     story_drafts: std::collections::BTreeMap<String, story::SeriesPlan>,
     story_exports: std::collections::BTreeMap<String, String>,
     story_reports: std::collections::BTreeMap<String, Result<story::StoryReport, String>>,
@@ -97,14 +108,12 @@ struct Studio {
     video_planner: video_plan_ui::VideoPlanner,
     page: Page,
     asset_browser: asset_browser::AssetBrowser,
-    new_open: bool,
     sidekick_visible: bool,
-    name: String,
-    premise: String,
     selected: Option<String>,
     episode_id: Option<String>,
     episode_title: String,
     episode_search: String,
+    episode_section: episode_ui::EpisodeSection,
     script: String,
     script_baseline: String,
     last_sync: std::time::Instant,
@@ -121,6 +130,7 @@ struct Studio {
     library_description: String,
     library_reference: Option<PathBuf>,
     message: String,
+    project_save_notice: Option<(bool, String, std::time::Instant)>,
     config: WorkerConfig,
     update_rx: Option<std::sync::mpsc::Receiver<updates::UpdateStatus>>,
     update_status: String,
@@ -149,6 +159,15 @@ impl Studio {
     fn new(cc: &eframe::CreationContext<'_>, store: Store) -> Self {
         egui_extras::install_image_loaders(&cc.egui_ctx);
         theme::install(&cc.egui_ctx);
+        let mut app = Self::from_store(store);
+        app.update_rx = Some(updates::check(app.store.root(), app.automatic_updates));
+        app.message = worker::spawn_detached(&app.store.path)
+            .err()
+            .map(|e| e.to_string())
+            .unwrap_or_default();
+        app
+    }
+    fn from_store(store: Store) -> Self {
         let selected = store.current_gui_series().unwrap_or_default();
         let remembered_episode = selected
             .as_deref()
@@ -162,35 +181,33 @@ impl Studio {
             .unwrap_or_default();
         let config = store.config().unwrap_or_default();
         let automatic_updates = store.automatic_updates().unwrap_or(true);
-        let update_rx = Some(updates::check(store.root(), automatic_updates));
-        let message = worker::spawn_detached(&store.path)
-            .err()
-            .map(|e| e.to_string())
-            .unwrap_or_default();
         Self {
             store,
+            delete_character: None,
+            profile_drafts: Default::default(),
+            new_character_profile: Default::default(),
+            new_portrait_style: Default::default(),
             portrait_prompts: Default::default(),
             sidekick: Default::default(),
             synopsis_drafts: Default::default(),
             shot_directions: Default::default(),
             camera_drafts: Default::default(),
             story_section: Default::default(),
+            story_search: String::new(),
             story_drafts: Default::default(),
             story_exports: Default::default(),
             story_reports: Default::default(),
             story_check: None,
             provider_settings: Default::default(),
             video_planner: Default::default(),
-            page: Page::Studio,
+            page: Page::Synopsis,
             asset_browser: Default::default(),
-            new_open: false,
             sidekick_visible: true,
-            name: String::new(),
-            premise: String::new(),
             selected,
             episode_id,
             episode_title: String::new(),
             episode_search: String::new(),
+            episode_section: Default::default(),
             script_baseline: script.clone(),
             script,
             last_sync: std::time::Instant::now(),
@@ -206,9 +223,10 @@ impl Studio {
             library_name: String::new(),
             library_description: String::new(),
             library_reference: None,
-            message,
+            message: String::new(),
+            project_save_notice: None,
             config,
-            update_rx,
+            update_rx: None,
             automatic_updates,
             dialogue_workspace: Default::default(),
             new_dialogue_drafts: Default::default(),
@@ -356,6 +374,17 @@ impl Studio {
                     &mut self.library_description,
                     3,
                 );
+                if kind == "character" {
+                    self.new_character_profile.summary = self.library_description.clone();
+                    ui.collapsing("Character details (optional)", |ui| {
+                        character_profile::fields_ui(ui, "new-character", &mut self.new_character_profile);
+                        ui.collapsing("Full character brief", |ui| {
+                            ui.label(self.new_character_profile.brief());
+                        });
+                    });
+                    self.new_portrait_style = self.store.series_portrait_style(&series).unwrap_or_default().unwrap_or_default();
+                    ui.small(format!("Image style: {} · set on Synopsis", self.new_portrait_style.label()));
+                }
                 ui.horizontal(|ui| {
                     if ui.button("Choose reference image").clicked() {
                         self.library_reference = rfd::FileDialog::new()
@@ -366,13 +395,14 @@ impl Studio {
                         ui.label(p.file_name().unwrap_or_default().to_string_lossy());
                     }
                     if kind == "character" && ui.add_enabled(
-                        !self.library_name.trim().is_empty() && !self.library_description.trim().is_empty(),
+                        !self.library_name.trim().is_empty() && !self.new_character_profile.brief().trim().is_empty(),
                         egui::Button::new("Create character & generate image · paid"),
                     ).clicked() {
-                        let result=self.store.add_library(&series,kind,&self.library_name,&self.library_description,self.library_reference.as_deref());
+                        let result=self.store.create_profile_character(&series,&self.library_name,&self.new_character_profile,self.library_reference.as_deref(),self.new_portrait_style);
                         match result {
                             Ok(entry)=>{
                                 self.library_name.clear();self.library_description.clear();self.library_reference=None;
+                                self.new_character_profile=Default::default();
                                 let result=self.store.portrait_prompt(&entry).and_then(|draft|self.store.enqueue_grok_portrait(&entry.id,&draft.prompt));
                                 match result {
                                     Ok(_)=>{let start=crate::worker::spawn_detached(&self.store.path);self.result(start,"Character created and portrait queued; review before choosing it");},
@@ -385,17 +415,20 @@ impl Studio {
                         .button(RichText::new("Add to library").color(GOLD))
                         .clicked()
                     {
-                        let r = self.store.add_library(
+                        let r = if kind == "character" {
+                            self.store.create_profile_character(&series,&self.library_name,&self.new_character_profile,self.library_reference.as_deref(),self.new_portrait_style)
+                        } else { self.store.add_library(
                             &series,
                             kind,
                             &self.library_name,
                             &self.library_description,
                             self.library_reference.as_deref(),
-                        );
+                        ) };
                         if r.is_ok() {
                             self.library_name.clear();
                             self.library_description.clear();
                             self.library_reference = None;
+                            self.new_character_profile = Default::default();
                         }
                         self.result(r, "Library entry created");
                     }
@@ -413,10 +446,13 @@ impl Studio {
                         asset.metadata["provider"] == "openrouter"
                             && asset.metadata["request"]["library_id"] == entry.id
                     })
-                    .map(|asset| asset.path)
             } else {
                 None
             };
+            let displayed_portrait = entry
+                .reference
+                .as_deref()
+                .or_else(|| candidate.as_ref().map(|asset| asset.path.as_path()));
             Self::card(ui, |ui| {
                 let layout = if ui.available_width() < 620. {
                     egui::Layout::top_down(egui::Align::LEFT)
@@ -424,7 +460,7 @@ impl Studio {
                     egui::Layout::left_to_right(egui::Align::TOP)
                 };
                 ui.with_layout(layout, |ui| {
-                    if let Some(p) = entry.reference.as_ref().or(candidate.as_ref()) {
+                    if let Some(p) = displayed_portrait {
                         ui.vertical(|ui| {
                             ui.set_width(220.);
                             ui.label(
@@ -444,12 +480,33 @@ impl Studio {
                                 } else {
                                     Vec2::new(260., 200.)
                                 },
-                            )
+                            );
+                            if let Some(candidate) = &candidate
+                                && ui.button("Use this portrait").clicked()
+                            {
+                                let result = self.store.review(&candidate.id, "approved");
+                                self.result(result, "Character portrait selected");
+                            }
                         });
                     }
                     ui.vertical(|ui| {
                         ui.set_max_width(ui.available_width());
-                        let displayed = self.library_drafts.get(&entry.id).cloned();
+                        let profile = self
+                            .profile_drafts
+                            .get(&entry.id)
+                            .map(|draft| draft.profile.clone())
+                            .or_else(|| {
+                                self.store
+                                    .saved_character_profile(&entry.id)
+                                    .ok()
+                                    .flatten()
+                                    .filter(|profile| profile.brief() == entry.description)
+                            });
+                        let displayed = self
+                            .profile_drafts
+                            .get(&entry.id)
+                            .map(|draft| draft.brief.clone())
+                            .or_else(|| self.library_drafts.get(&entry.id).cloned());
                         ui.label(
                             RichText::new(
                                 displayed
@@ -462,45 +519,106 @@ impl Studio {
                         );
                         ui.label(
                             RichText::new(
-                                displayed
+                                profile
                                     .as_ref()
-                                    .map(|draft| draft.description.as_str())
+                                    .map(|profile| profile.summary.as_str())
+                                    .or_else(|| {
+                                        displayed.as_ref().map(|draft| draft.description.as_str())
+                                    })
                                     .unwrap_or(&entry.description),
                             )
                             .color(MUTED),
                         );
-                        if displayed.as_ref().is_some_and(|draft| {
-                            draft.name != entry.name || draft.description != entry.description
-                        }) {
+                        if let Some(profile) = &profile {
+                            let details: Vec<_> = [
+                                ("age", "Age"),
+                                ("height", "Height"),
+                                ("weight", "Weight"),
+                                ("hair_color", "Hair"),
+                                ("eye_color", "Eyes"),
+                            ]
+                            .iter()
+                            .filter_map(|(key, label)| {
+                                profile
+                                    .fields
+                                    .get(*key)
+                                    .filter(|value| !value.trim().is_empty())
+                                    .map(|value| format!("{label}: {value}"))
+                            })
+                            .collect();
+                            if !details.is_empty() {
+                                ui.small(details.join(" · "));
+                            }
+                        }
+                        if kind != "character"
+                            && displayed.as_ref().is_some_and(|draft| {
+                                draft.name != entry.name || draft.description != entry.description
+                            })
+                        {
                             ui.label(
                                 RichText::new("Unsaved draft · open Edit name and brief to save")
                                     .color(GOLD),
                             );
                         }
-                        self.library_brief_editor(ui, &entry);
-                        self.grok_portrait_controls(ui, &entry);
+                        if kind == "character" {
+                            self.character_profile_editor(ui, &entry);
+                        } else {
+                            self.library_brief_editor(ui, &entry);
+                        }
+                        self.grok_portrait_controls(ui, &entry, displayed_portrait);
+                        if kind == "character" {
+                            self.character_delete_controls(ui, &entry);
+                        }
                     });
                 });
             });
             ui.add_space(12.);
         }
+        if kind == "character" {
+            self.deleted_character_list(ui, &series);
+        }
     }
     fn scenes(&mut self, ui: &mut egui::Ui) {
-        self.shot_workspace(ui);
+        self.queue(ui);
+        if self
+            .episode_id
+            .as_ref()
+            .is_some_and(|id| self.store.shots(id).is_ok_and(|shots| !shots.is_empty()))
+        {
+            ui.collapsing("Earlier shot plans", |ui| self.shot_workspace(ui));
+        }
     }
     fn queue(&mut self, ui: &mut egui::Ui) {
         Self::title(
             ui,
             "PRODUCTION",
-            "Create picture and sound together.",
-            "Prepare a Seedance segment through OpenRouter, then review its request before generation. Recent work for this series and episode appears below.",
+            "Bring the episode to life.",
+            "Direct each segment with Seedance 2.5, choose the performances, then assemble the finished episode.",
         );
         self.hosted_video_planner(ui);
-        ui.add_space(24.);
+        if self.video_planner.section == 0 || self.episode_id.is_none() {
+            return;
+        }
+        ui.add_space(16.);
+        ui.heading("Production activity");
         for job in self.load(self.store.workspace_jobs(
             self.selected.as_deref().unwrap_or(""),
             self.episode_id.as_deref(),
         )) {
+            let kind = self
+                .store
+                .job_timing(&job.id)
+                .ok()
+                .map(|timing| timing.kind);
+            if kind.as_deref()
+                != Some(if self.video_planner.section == 1 {
+                    "openrouter_video"
+                } else {
+                    "export"
+                })
+            {
+                continue;
+            }
             Self::card(ui, |ui| {
                 ui.horizontal(|ui| {
                     ui.label(
@@ -574,6 +692,21 @@ impl Studio {
                             .retry(&job.id)
                             .and_then(|_| worker::spawn_detached(&self.store.path));
                         self.result(r, "Retry queued");
+                    }
+                    if let Some(id) = &job.output_id
+                        && ui.small_button("Play original").clicked()
+                        && let Ok(assets) = self.store.assets()
+                        && let Some(asset) = assets.iter().find(|asset| &asset.id == id)
+                    {
+                        #[cfg(target_os = "macos")]
+                        {
+                            let result = std::process::Command::new("/usr/bin/open")
+                                .arg(&asset.path)
+                                .spawn()
+                                .map(|_| ())
+                                .map_err(anyhow::Error::from);
+                            self.result(result, "Opened original video");
+                        }
                     }
                     if job.output_id.is_some() && ui.small_button("View asset").clicked() {
                         self.preview_asset = job.output_id.clone();
@@ -1148,6 +1281,9 @@ impl Studio {
             "Made to stay yours.",
             "OpenRouter connection, application updates, and project storage.",
         );
+        if ui.button("Studio overview").clicked() {
+            self.page = Page::Studio;
+        }
         self.provider_settings_panel(ui);
         ui.add_space(18.);
         Self::card(ui, |ui| {
@@ -1162,7 +1298,7 @@ impl Studio {
                 let r = self.store.set_automatic_updates(self.automatic_updates);
                 self.result(r, "Update preference saved");
             }
-            ui.label("v004 · MIT · Baz-Studios-LLC / DramaFactory");
+            ui.label("v005 · MIT · Baz-Studios-LLC / DramaFactory");
             ui.label(&self.update_status);
             if ui
                 .add_enabled(
@@ -1237,7 +1373,7 @@ impl eframe::App for Studio {
                         .size(11.),
                     );
                     ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                        ui.label(RichText::new("v004 / DEVELOPMENT").color(MUTED).size(10.));
+                        ui.label(RichText::new("v005 / DEVELOPMENT").color(MUTED).size(10.));
                     });
                 });
             });
@@ -1335,43 +1471,24 @@ impl eframe::App for Studio {
                     });
             });
         self.image_inspector_window(ctx);
-        if self.new_open {
-            let mut open = true;
-            egui::Window::new("Create a new series")
-                .open(&mut open)
-                .collapsible(false)
-                .resizable(false)
-                .default_width(460.)
-                .show(ctx, |ui| {
-                    Self::field(ui, "SERIES TITLE", &mut self.name, 1);
-                    Self::field(ui, "THE PREMISE", &mut self.premise, 4);
-                    if ui
-                        .button(RichText::new("Create series").color(GOLD))
-                        .clicked()
-                    {
-                        if !self.save_script() {
-                            return;
-                        }
-                        match self.store.create_series(&self.name, &self.premise) {
-                            Ok(s) => {
-                                self.select_series(&s.id);
-                                self.page = Page::Synopsis;
-                                self.new_open = false;
-                                self.name.clear();
-                                self.premise.clear();
-                                self.message = "Series created".into();
-                            }
-                            Err(e) => self.message = e.to_string(),
-                        }
-                    }
-                });
-            self.new_open &= open;
-        }
+        self.project_save_confirmation(ctx);
         ctx.request_repaint_after(std::time::Duration::from_millis(500));
     }
     fn on_exit(&mut self, _: Option<&eframe::glow::Context>) {
         let directory = self.store.root().join("drafts");
         if std::fs::create_dir_all(&directory).is_ok() {
+            for draft in self.profile_drafts.values().filter(|draft| draft.dirty()) {
+                if let Ok(bytes) = serde_json::to_vec_pretty(draft) {
+                    let _ = std::fs::write(
+                        directory.join(format!(
+                            "character-profile-{}-{}.json",
+                            draft.brief.id,
+                            uuid::Uuid::new_v4()
+                        )),
+                        bytes,
+                    );
+                }
+            }
             for draft in self.portrait_prompts.values() {
                 if let Ok(bytes) = serde_json::to_vec_pretty(draft) {
                     let _ = std::fs::write(
@@ -1558,7 +1675,7 @@ fn run() -> anyhow::Result<()> {
     let args: Vec<String> = std::env::args().collect();
     if args.get(1).is_some_and(|x| x == "--help") {
         println!(
-            "DramaFactory v004\n\n(no arguments) Launch studio\n--mcp Start local stdio MCP\n--worker Drain durable queue\n--worker-once Drain if no other worker owns the queue\n--data-path Print database path\n--configure-worker PYTHON WAN_MODEL FFMPEG KOKORO_MODEL\n--configure-images PYTHON FLUX_MODEL\n--configure-lipsync PYTHON MUSETALK_MODEL\n--configure-performance PYTHON LTX_MODEL ENCODER\n--version Print public version"
+            "DramaFactory v005\n\n(no arguments) Launch studio\n--mcp Start local stdio MCP\n--worker Drain durable queue\n--worker-once Drain if no other worker owns the queue\n--data-path Print database path\n--configure-worker PYTHON WAN_MODEL FFMPEG KOKORO_MODEL\n--configure-images PYTHON FLUX_MODEL\n--configure-lipsync PYTHON MUSETALK_MODEL\n--configure-performance PYTHON LTX_MODEL ENCODER\n--version Print public version"
         );
         return Ok(());
     }
@@ -1581,7 +1698,7 @@ fn run() -> anyhow::Result<()> {
         anyhow::bail!("Unknown option '{flag}'. Use --help");
     }
     if args.get(1).is_some_and(|x| x == "--version") {
-        println!("v004");
+        println!("v005");
         return Ok(());
     }
     if args.get(1).is_some_and(|x| x == "--install-staged-update") {
@@ -1661,7 +1778,7 @@ fn run() -> anyhow::Result<()> {
         return mcp::run(store);
     }
     let viewport = egui::ViewportBuilder::default()
-        .with_title("DramaFactory · v004")
+        .with_title("DramaFactory · v005")
         .with_inner_size([1380., 900.])
         .with_min_inner_size([1100., 740.]);
     // macOS resolves the system-rendered Icon Composer asset from the bundle.

@@ -41,7 +41,7 @@ Finished episode assembles chosen segments in story order, lets the user trim/re
 
 ## Seedance input design
 
-Verified against OpenRouter's public video catalog and documentation on 2026-11-16; re-fetch capabilities before enabling controls. Model default proposal: bytedance/seedance-2.5. Current catalog: 4–30 seconds, 480p/720p, portrait 9:16 supported, native audio, first/last frame roles. Never equate limits of ByteDance's direct product with those exposed by OpenRouter.
+Verified against OpenRouter's public video catalog and documentation on 2026-11-16; re-fetch capabilities before enabling controls. Model default: bytedance/seedance-2.5. New segments default to portrait 9:16 at 480p; existing saved settings stay intact. Current catalog: 4–30 seconds, 480p/720p/1080p (live catalog rechecked), portrait 9:16 supported, native audio, first/last frame roles. Never equate limits of ByteDance's direct product with those exposed by OpenRouter.
 
 Generation mode is explicit:
 - Prompt: no supplied frames/references.
@@ -89,3 +89,7 @@ Primary actions: Send message, Update synopsis from discussion, Undo draft edit,
 Research sources: https://arena.ai/leaderboard/chat/text/creative-writing ; https://openrouter.ai/google/gemini-4-argon ; https://openrouter.ai/anthropic/claude-opus-5.5 . EQ-Bench creative-writing v3 is LLM-judged; its ranking table was not exposed by the fetched page, so do not invent scores from it.
 
 Latest clarification: discussion belongs on every page, not only Synopsis. One conversation per series spans all tabs; workspace/episode context changes without creating a new thread. Sidekick must edit the current content, including character briefs and Grok portrait prompts; image results require selection before replacing approved identity.
+
+## Connected episode preparation
+
+The episode screenplay is the source of truth. Sidekick generation proposals use current series, cast, locations, image style, plot and screenplay context to author a complete ordered segment plan. Visual plan and Episode generation share this plan. Each prompt carries relevant context and explicit dialogue; several shots may belong to one generated segment. Proposals remain drafts with source/context conflict checks and Undo. Generate episode is the explicit paid action: it saves the draft and atomically queues missing requests, preserving existing identical requests without retrying them. No automatic portrait transport, voice identity guarantee or ending-frame handoff is implied.

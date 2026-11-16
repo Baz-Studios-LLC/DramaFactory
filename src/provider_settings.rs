@@ -59,7 +59,7 @@ impl crate::Studio {
             ui.add(
                 eframe::egui::TextEdit::singleline(&mut self.provider_settings.key_input)
                     .password(true)
-                    .hint_text("Paste your OpenRouter key")
+                    .hint_text(crate::theme::placeholder("Paste your OpenRouter key"))
                     .desired_width(ui.available_width().min(560.)),
             );
             ui.horizontal_wrapped(|ui| {

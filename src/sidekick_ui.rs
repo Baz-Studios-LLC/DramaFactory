@@ -44,11 +44,54 @@ fn message_bubble(
             .show(ui, |ui| {
                 ui.set_max_width(width - 24.);
                 ui.with_layout(Layout::top_down(Align::LEFT), |ui| {
-                    ui.label(
-                        RichText::new(if user { "You" } else { "Sidekick" })
-                            .small()
-                            .color(if user { GOLD } else { MUTED }),
-                    );
+                    ui.scope(|ui| {
+                        // Header controls share the speaker row rather than reserving
+                        // an invisible, full-height action row below every message.
+                        ui.spacing_mut().interact_size.y =
+                            ui.text_style_height(&eframe::egui::TextStyle::Small);
+                        ui.spacing_mut().button_padding.x = 6.;
+                        ui.horizontal(|ui| {
+                            ui.label(
+                                RichText::new(if user { "You" } else { "Sidekick" })
+                                    .small()
+                                    .color(if user { GOLD } else { MUTED }),
+                            );
+                            if user
+                                && editing
+                                    .as_ref()
+                                    .is_none_or(|(original, _)| original.id != message.id)
+                            {
+                                ui.scope_builder(
+                                    if hover {
+                                        eframe::egui::UiBuilder::new()
+                                    } else {
+                                        eframe::egui::UiBuilder::new().invisible()
+                                    }
+                                    .layout(Layout::right_to_left(Align::Center)),
+                                    |ui| {
+                                        if ui
+                                            .add_enabled(
+                                                enabled,
+                                                eframe::egui::Button::new("Delete").small(),
+                                            )
+                                            .clicked()
+                                        {
+                                            action = Some(MessageAction::Delete(message.clone()));
+                                        }
+                                        if ui
+                                            .add_enabled(
+                                                enabled,
+                                                eframe::egui::Button::new("Edit").small(),
+                                            )
+                                            .clicked()
+                                        {
+                                            action = Some(MessageAction::Edit(message.clone()));
+                                        }
+                                    },
+                                );
+                            }
+                        });
+                    });
                     if let Some((original, text)) = editing
                         .as_mut()
                         .filter(|(original, _)| original.id == message.id)
@@ -82,37 +125,6 @@ fn message_bubble(
                             .wrap()
                             .selectable(true),
                         );
-                        if user {
-                            ui.scope_builder(
-                                if hover {
-                                    eframe::egui::UiBuilder::new()
-                                } else {
-                                    eframe::egui::UiBuilder::new().invisible()
-                                },
-                                |ui| {
-                                    ui.horizontal(|ui| {
-                                        if ui
-                                            .add_enabled(
-                                                enabled,
-                                                eframe::egui::Button::new("Edit").small(),
-                                            )
-                                            .clicked()
-                                        {
-                                            action = Some(MessageAction::Edit(message.clone()));
-                                        }
-                                        if ui
-                                            .add_enabled(
-                                                enabled,
-                                                eframe::egui::Button::new("Delete").small(),
-                                            )
-                                            .clicked()
-                                        {
-                                            action = Some(MessageAction::Delete(message.clone()));
-                                        }
-                                    });
-                                },
-                            );
-                        }
                     }
                 });
             });
@@ -137,6 +149,26 @@ pub struct Sidekick {
     request_started: Option<std::time::Instant>,
     pending: Option<PendingReply>,
     error: String,
+    plot_request: Option<(String, crate::story::SeriesPlan)>,
+    episode_request: Option<crate::sidekick_episode::EpisodeDraft>,
+    generation_request: Option<crate::sidekick_generation::Snapshot>,
+    pub(crate) generation_undo: std::collections::HashMap<
+        String,
+        (
+            crate::sidekick_generation::Snapshot,
+            crate::sidekick_generation::Snapshot,
+        ),
+    >,
+    episode_creation_request: Option<(String, String, crate::story::SeriesPlan)>,
+    pub(crate) episode_undo: std::collections::HashMap<
+        String,
+        (
+            crate::sidekick_episode::EpisodeDraft,
+            crate::sidekick_episode::EpisodeDraft,
+        ),
+    >,
+    pub(crate) plot_undo:
+        std::collections::HashMap<String, (crate::story::SeriesPlan, crate::story::SeriesPlan)>,
     pub(crate) character_undo: std::collections::HashMap<
         String,
         (
@@ -152,7 +184,70 @@ pub struct Sidekick {
         ),
     >,
 }
+impl Sidekick {
+    pub(crate) fn reset_context(&mut self) {
+        self.editing_message = None;
+        self.error.clear();
+        // Keep per-series drafts and in-flight replies attached to their origin.
+    }
+}
 impl Studio {
+    pub(crate) fn save_project_chat(&mut self, series: &str) -> anyhow::Result<()> {
+        if let Some(draft) = self.sidekick.drafts.get(series) {
+            let expected = self
+                .sidekick
+                .saved_drafts
+                .get(series)
+                .cloned()
+                .unwrap_or(self.store.sidekick_draft(series)?);
+            self.store.save_sidekick_draft(series, &expected, draft)?;
+            self.sidekick
+                .saved_drafts
+                .insert(series.into(), draft.clone());
+        }
+        if let Some((message, text)) = &self.sidekick.editing_message {
+            self.store
+                .change_user_message(series, message, Some(text))?;
+            self.sidekick.editing_message = None;
+        }
+        Ok(())
+    }
+    pub(crate) fn prepare_episode_discussion(&mut self) {
+        self.sidekick_visible = true;
+        let Some(series) = self.selected.clone() else {
+            return;
+        };
+        let saved = self.store.sidekick_draft(&series).unwrap_or_default();
+        let draft = self
+            .sidekick
+            .drafts
+            .entry(series.clone())
+            .or_insert(saved.clone());
+        self.sidekick.saved_drafts.entry(series).or_insert(saved);
+        if draft.trim().is_empty() {
+            *draft=if self.episode_id.is_none() {
+                "Create and fill the first episode from the overall plot and cast. Give it a title, purpose, conflict, emotional turn, payoff, hook, continuity consequences and a complete screenplay for the target duration. Create the record directly; do not ask me to create a blank episode. Do not generate video."
+            } else {
+                "Develop this selected episode from the overall plot, cast and adjacent episode outlines. Fill its purpose, conflict, emotional turn, payoff, hook and continuity consequences, then write a complete performable screenplay with natural dialogue for the target duration. Preserve established facts and flag contradictions. Update the episode draft directly; do not generate media."
+            }.into();
+        }
+    }
+    pub(crate) fn prepare_plot_discussion(&mut self, series: &str) {
+        self.sidekick_visible = true;
+        let saved = self.store.sidekick_draft(series).unwrap_or_default();
+        let draft = self
+            .sidekick
+            .drafts
+            .entry(series.into())
+            .or_insert(saved.clone());
+        self.sidekick
+            .saved_drafts
+            .entry(series.into())
+            .or_insert(saved);
+        if draft.trim().is_empty() {
+            *draft = "Develop the Overall plot draft from our synopsis, cast and prior plot discussion. Organize the series arc, act roadmap, ongoing storylines, character journeys and ending. Keep the current episode target unless we explicitly agreed otherwise. Identify conflicting story decisions before resolving them. Update the form directly; do not write screenplay drafts or generate media.".into();
+        }
+    }
     pub(crate) fn sidekick_panel(&mut self, ctx: &eframe::egui::Context) {
         let received = self.sidekick.pending.as_ref().map(
             |(series, context, receiver, snapshot, characters)| {
@@ -171,6 +266,149 @@ impl Studio {
                     match result {
                         Ok(reply) => {
                             let mut text = reply.message;
+                            if let Some(proposals) = reply.new_episodes {
+                                let result = (|| -> anyhow::Result<Vec<String>> {
+                                    let (request_id, origin, expected) = self
+                                        .sidekick
+                                        .episode_creation_request
+                                        .as_ref()
+                                        .ok_or_else(|| {
+                                            anyhow::anyhow!(
+                                                "No episode-creation workspace was supplied"
+                                            )
+                                        })?;
+                                    if origin != &series {
+                                        anyhow::bail!("Episode creation belongs to another series");
+                                    }
+                                    let current = self
+                                        .story_drafts
+                                        .get(&series)
+                                        .cloned()
+                                        .unwrap_or(self.store.series_plan(&series)?);
+                                    if !crate::sidekick_plot::same(&current, expected) {
+                                        anyhow::bail!(
+                                            "Your overall plot draft changed while the sidekick was replying; episode proposals retained"
+                                        );
+                                    }
+                                    let ids = self.store.create_sidekick_episodes(
+                                        &series,
+                                        request_id,
+                                        expected.revision,
+                                        &proposals,
+                                    )?;
+                                    let saved = self.store.series_plan(&series)?;
+                                    let mut draft = current;
+                                    for id in &ids {
+                                        if let Some(outline) =
+                                            saved.episodes.iter().find(|o| &o.episode_id == id)
+                                        {
+                                            crate::sidekick_episode::replace_outline(
+                                                &mut draft,
+                                                id,
+                                                Some(outline.clone()),
+                                            );
+                                        }
+                                    }
+                                    draft.revision = saved.revision;
+                                    self.story_drafts.insert(series.clone(), draft);
+                                    self.story_reports.remove(&series);
+                                    if self.selected.as_ref() == Some(&series)
+                                        && self.episode_id.is_none()
+                                        && let Some(first) = ids.first()
+                                    {
+                                        self.select_episode(first);
+                                    }
+                                    Ok(ids)
+                                })();
+                                match result {Ok(ids)=>text.push_str(&format!("\n\nCreated and saved {} episode(s), including story beats and screenplays. Open Episode plot to review them. No video was generated.",ids.len())),Err(error)=>text.push_str(&format!("\n\n{error}\nEpisode creation proposals retained:\n{}",serde_json::to_string_pretty(&proposals).unwrap_or_default()))}
+                            }
+                            if let Some(edit) = reply.generation {
+                                let result = (|| -> anyhow::Result<()> {
+                                    let expected = self
+                                        .sidekick
+                                        .generation_request
+                                        .clone()
+                                        .ok_or_else(|| {
+                                            anyhow::anyhow!(
+                                                "No generation plan was supplied to this request"
+                                            )
+                                        })?;
+                                    let current = self.generation_snapshot()?;
+                                    let plan = crate::sidekick_generation::apply(
+                                        &current, &expected, &edit,
+                                    )?;
+                                    let id = plan.episode_id.clone();
+                                    self.video_planner.drafts.insert(id.clone(), plan);
+                                    let after = self.generation_snapshot()?;
+                                    self.sidekick.generation_undo.insert(id, (current, after));
+                                    self.video_planner.section = 0;
+                                    Ok(())
+                                })();
+                                match result {
+                                    Ok(()) => text.push_str("\n\nGeneration plan prepared. Review the segments, then Generate episode when ready; that button saves the plan and starts paid generation. You can also Save episode plan without generating. Undo is available. No video was generated."),
+                                    Err(error) => text.push_str(&format!("\n\n{error}\nGeneration proposal retained:\n{}", serde_json::to_string_pretty(&edit).unwrap_or_default())),
+                                }
+                            }
+                            if let Some(edit) = reply.episode {
+                                let result = (|| -> anyhow::Result<()> {
+                                    let expected =
+                                        self.sidekick.episode_request.as_ref().ok_or_else(
+                                            || {
+                                                anyhow::anyhow!(
+                                                    "No episode draft was supplied to this request"
+                                                )
+                                            },
+                                        )?;
+                                    let current = self.episode_snapshot()?;
+                                    let after = crate::sidekick_episode::apply(
+                                        &self.store,
+                                        &current,
+                                        expected,
+                                        &edit,
+                                    )?;
+                                    self.sidekick
+                                        .episode_undo
+                                        .insert(after.episode_id.clone(), (current, after.clone()));
+                                    self.put_episode_draft(after);
+                                    Ok(())
+                                })();
+                                match result {Ok(())=>text.push_str("\n\nEpisode draft updated. Review the story beats and screenplay, then Save episode. Undo is available."),Err(error)=>text.push_str(&format!("\n\n{error}\nEpisode proposal retained:\n{}",serde_json::to_string_pretty(&edit).unwrap_or_default()))}
+                            }
+                            if let Some(edit) = reply.plot {
+                                let result = (|| -> anyhow::Result<()> {
+                                    let (request_series, expected) =
+                                        self.sidekick.plot_request.as_ref().ok_or_else(|| {
+                                            anyhow::anyhow!(
+                                                "No Overall plot draft was supplied to this request"
+                                            )
+                                        })?;
+                                    if request_series != &series {
+                                        anyhow::bail!(
+                                            "Plot proposal belongs to a different series"
+                                        );
+                                    }
+                                    let current = self
+                                        .story_drafts
+                                        .get(&series)
+                                        .cloned()
+                                        .unwrap_or(self.store.series_plan(&series)?);
+                                    let after = crate::sidekick_plot::apply(
+                                        &self.store,
+                                        &current,
+                                        expected,
+                                        &edit,
+                                    )?;
+                                    self.sidekick
+                                        .plot_undo
+                                        .insert(series.clone(), (current, after.clone()));
+                                    self.story_drafts.insert(series.clone(), after);
+                                    Ok(())
+                                })();
+                                match result {
+                                    Ok(()) => text.push_str("\n\nOverall plot draft updated. Review it, then Save plot. Undo is available."),
+                                    Err(error) => text.push_str(&format!("\n\n{error}\nPlot proposal retained:\n{}", serde_json::to_string_pretty(&edit).unwrap_or_default())),
+                                }
+                            }
                             if let Some(edit) = reply.synopsis {
                                 let proposal =
                                     serde_json::to_string_pretty(&edit).unwrap_or_default();
@@ -210,7 +448,7 @@ impl Studio {
                                     self.put_character_draft(after);
                                     Ok(())
                                 })();
-                                match result {Ok(())=>text.push_str("\n\nCharacter brief and portrait prompt drafts updated. Save each when ready; Undo is available in the portrait section. No image was generated."),Err(error)=>text.push_str(&format!("\n\n{error}\nProposal retained:\n{}",serde_json::to_string_pretty(&edit).unwrap_or_default()))}
+                                match result {Ok(())=>text.push_str("\n\nCharacter profile and portrait prompt drafts updated. Save the character in Character profile and the prompt in Manage portrait when ready. Undo is available in Character profile. No image was generated."),Err(error)=>text.push_str(&format!("\n\n{error}\nProposal retained:\n{}",serde_json::to_string_pretty(&edit).unwrap_or_default()))}
                             }
                             if let Some(proposal) = reply.new_character {
                                 let id = uuid::Uuid::new_v4().to_string();
@@ -245,11 +483,19 @@ impl Studio {
                         Err(error) => self.sidekick.error = error,
                     };
                     self.sidekick.pending = None;
+                    self.sidekick.plot_request = None;
+                    self.sidekick.episode_request = None;
+                    self.sidekick.generation_request = None;
+                    self.sidekick.episode_creation_request = None;
                 }
                 Err(std::sync::mpsc::TryRecvError::Disconnected) => {
                     self.sidekick.error =
                         "Reply task stopped. Message retained; no automatic retry.".into();
                     self.sidekick.pending = None;
+                    self.sidekick.plot_request = None;
+                    self.sidekick.episode_request = None;
+                    self.sidekick.generation_request = None;
+                    self.sidekick.episode_creation_request = None;
                 }
                 Err(std::sync::mpsc::TryRecvError::Empty) => {}
             }
@@ -261,41 +507,31 @@ impl Studio {
         .frame(eframe::egui::Frame::new().fill(eframe::egui::Color32::from_rgb(21,23,27)).inner_margin(18.)).show(ctx,|ui|{
             ui.add_space(2.);ui.heading("Creative sidekick");ui.label(eframe::egui::RichText::new("Your story, in good company.").small().color(MUTED));
             let Some(series)=self.selected.clone() else{ui.label("Choose a series to begin brainstorming.");return;};
-            let context=match self.page{Page::Synopsis=>"Synopsis",Page::Cast=>"Characters",Page::Locations=>"Locations",Page::Story=>"Overall plot",Page::Series=>"Episode plot",Page::Queue=>"Episode generation",_=>"Studio workspace"}.to_owned();
+            let context=match self.page{Page::Synopsis=>"Synopsis",Page::Cast=>"Characters",Page::Locations=>"Locations",Page::Story=>"Overall plot",Page::Series=>"Episode plot",Page::Queue|Page::Scenes=>"Episode generation",_=>"Studio workspace"}.to_owned();
             ui.label(eframe::egui::RichText::new(format!("Working on: {context}")).color(GOLD));
             ui.small("Gemini 4 Argon · via OpenRouter");
             ui.separator();
             let messages=match self.store.sidekick_messages(&series){Ok(messages)=>messages,Err(error)=>{ui.label(error.to_string());return;}};
-            eframe::egui::ScrollArea::vertical().id_salt(("sidekick-history",&series)).stick_to_bottom(true).max_height((ui.available_height()-230.).max(100.)).show(ui,|ui|{
-                if messages.is_empty(){ui.label("Tell me the kind of show you want to make, or an idea you want to explore.");}
-                for message in &messages {
-                    if let Some(action)=message_bubble(ui,message,&mut self.sidekick.editing_message,self.sidekick.pending.is_none()) {
-                        match action {
-                            MessageAction::Edit(message)=>self.sidekick.editing_message=Some((message.clone(),message.text.clone())),
-                            MessageAction::Cancel=>self.sidekick.editing_message=None,
-                            MessageAction::Save(original,text)=>match self.store.change_user_message(&series,&original,Some(&text)) {
-                                Ok(())=>{self.sidekick.editing_message=None;self.sidekick.error.clear();},Err(error)=>self.sidekick.error=error.to_string()
-                            },
-                            MessageAction::Delete(original)=>match self.store.change_user_message(&series,&original,None) {
-                                Ok(())=>{self.sidekick.editing_message=None;self.sidekick.error.clear();},Err(error)=>self.sidekick.error=error.to_string()
-                            }
-                        }
-                    }
-                }
-            });
-            if self.sidekick.pending.as_ref().is_some_and(|(id,_,_,_,_)|id==&series){let stage=match self.sidekick.progress.load(std::sync::atomic::Ordering::Relaxed) {1=>"Waiting for Keychain authorization",2=>"Waiting for OpenRouter reply",3=>"Reading OpenRouter response",_=>"Preparing message"};
-                let elapsed=self.sidekick.request_started.map(|started|started.elapsed().as_secs()).unwrap_or(0);
-                ui.horizontal(|ui|{ui.spinner();ui.label(format!("{stage} · {elapsed}s"));});
-                ui.ctx().request_repaint_after(std::time::Duration::from_secs(1));}
+            // Size the footer from its actual content and anchor it to the bottom.
+            // The history receives all remaining space, without a fixed reservation.
+            eframe::egui::TopBottomPanel::bottom(eframe::egui::Id::new(("sidekick-footer", &series)))
+                .resizable(false).default_height(90.).min_height(0.)
+                .show_separator_line(false).frame(eframe::egui::Frame::NONE)
+                .show_inside(ui, |ui| {
             if !self.sidekick.error.is_empty(){ui.label(&self.sidekick.error);}
             let character_snapshots=self.character_drafts(&series).unwrap_or_default();
+            let generation_snapshot=if matches!(self.page,Page::Queue|Page::Scenes) {self.generation_snapshot().ok()}else{None};
+            let episode_snapshot=if self.page==Page::Series{self.episode_snapshot().ok()}else{None};
             let project_context = serde_json::json!({
                 "workspace":context,
-                "character_drafts":character_snapshots,
+                "generation_draft":generation_snapshot.as_ref().map(|snapshot|serde_json::json!({"plan":snapshot.plan,"saved_episode":snapshot.context["saved_episode"],"image_style":snapshot.context["image_style"]})),
+                "character_drafts":character_snapshots.iter().map(crate::character_edit::CharacterDraft::model_context).collect::<Vec<_>>(),
                 "series":self.store.series().ok().and_then(|items|items.into_iter().find(|item|item.id==series)),
-                "characters":self.store.library(&series,"character").unwrap_or_default().iter().map(|entry|serde_json::json!({"id":entry.id,"name":entry.name,"description":entry.description})).collect::<Vec<_>>(),
-                "series_plot":self.store.series_plan(&series).ok(),
+                                "series_plot_draft":self.story_drafts.get(&series).cloned().or_else(||self.store.series_plan(&series).ok()),
+                "available_episodes":self.store.episodes(&series).unwrap_or_default().iter().map(|episode|serde_json::json!({"id":episode.id,"title":episode.title})).collect::<Vec<_>>(),
+                "locations":self.store.library(&series,"location").unwrap_or_default().iter().map(|entry|serde_json::json!({"id":entry.id,"name":entry.name,"description":entry.description})).collect::<Vec<_>>(),
                 "episode_id":self.episode_id,
+                "episode_draft":episode_snapshot.as_ref().map(|d|serde_json::json!({"episode_id":d.episode_id,"screenplay":d.screenplay,"outline":d.plan.episodes.iter().find(|o|o.episode_id==d.episode_id)})),
                 "current_screenplay_draft":self.script,
                 "synopsis_draft":self.synopsis_drafts.get(&series),
             }).to_string();
@@ -315,7 +551,11 @@ impl Studio {
                 input.events.retain(|event|!matches!(event,eframe::egui::Event::Key{key:eframe::egui::Key::Enter,pressed:true,modifiers,..} if *modifiers==eframe::egui::Modifiers::NONE));
                 send
             });
-            ui.add(eframe::egui::TextEdit::multiline(draft).margin(eframe::egui::vec2(12.,12.)).id(composer_id).return_key(eframe::egui::KeyboardShortcut::new(eframe::egui::Modifiers::SHIFT,eframe::egui::Key::Enter)).desired_rows(3).desired_width(ui.available_width()).hint_text("Discuss your series…"));
+            ui.spacing_mut().item_spacing.y = 6.;
+            eframe::egui::ScrollArea::vertical().id_salt(("sidekick-input", &series)).max_height(90.).show(ui, |ui| {
+                ui.add(eframe::egui::TextEdit::multiline(draft).margin(eframe::egui::vec2(10.,8.)).id(composer_id).return_key(eframe::egui::KeyboardShortcut::new(eframe::egui::Modifiers::SHIFT,eframe::egui::Key::Enter)).desired_rows(2).desired_width(ui.available_width()).hint_text(crate::theme::placeholder("Discuss your series…")))
+                    .on_hover_text("Enter to send · Shift+Enter for a new line");
+            });
             let baseline=self.sidekick.saved_drafts.get_mut(&series).expect("loaded baseline");
             let mut draft_saved=true;
             if draft != baseline {
@@ -324,9 +564,29 @@ impl Studio {
                     Err(error)=>{draft_saved=false;ui.label(format!("Draft not saved: {error}"));}
                 }
             }
-            ui.small(if draft_saved {"Enter to send · Shift+Enter for a new line · draft saved locally"} else {"Enter to send · Shift+Enter for a new line · draft not saved"});
             let can_send=draft_saved&&self.sidekick.pending.is_none()&&!draft.trim().is_empty();
-            let send_clicked=ui.add_enabled(can_send,crate::theme::primary("Send message")).clicked();
+            let mut send_clicked = false;
+            ui.horizontal(|ui| {
+                ui.spacing_mut().button_padding = eframe::egui::vec2(10., 5.);
+                ui.with_layout(eframe::egui::Layout::right_to_left(eframe::egui::Align::Center), |ui| {
+                    send_clicked = ui.add_enabled(can_send, crate::theme::primary("Send")).on_hover_text("Enter to send").clicked();
+                    if self.sidekick.pending.as_ref().is_some_and(|(id,_,_,_,_)| id == &series) {
+                        let stage = match self.sidekick.progress.load(std::sync::atomic::Ordering::Relaxed) {
+                            1 => "Authorizing", 2 => "Waiting for reply", 3 => "Awaiting full reply", _ => "Preparing",
+                        };
+                        let elapsed = self.sidekick.request_started.map(|started| started.elapsed().as_secs()).unwrap_or(0);
+                        ui.label(eframe::egui::RichText::new(format!("{stage} · {elapsed}s")).small().color(MUTED));
+                        ui.add(eframe::egui::Spinner::new().size(14.));
+                        ui.ctx().request_repaint_after(std::time::Duration::from_secs(1));
+                    } else {
+                        ui.label(eframe::egui::RichText::new(if draft_saved {"Saved"} else {"Not saved"}).small().color(MUTED)).on_hover_text("Message draft saved locally · Shift+Enter for a new line");
+                        if messages.last().is_some_and(|message| message.role == "assistant") && draft.trim().is_empty()
+                            && ui.small_button("Continue reply").on_hover_text("Prepare a continuation, then press Send").clicked() {
+                            *draft = "Continue your previous reply from where it ended. Complete any unfinished sentences and promised list items without repeating the introduction. Do not create or modify characters or other documents; only finish the explanation.".into();
+                        }
+                    }
+                });
+            });
             if can_send&&(send_clicked||send_with_enter){
                 let message=Message{id:uuid::Uuid::new_v4().to_string(),role:"user".into(),text:draft.clone(),context:context.clone()};
                 match self.store.append_sidekick_message(&series,&message){Ok(())=>{draft.clear();self.sidekick.error.clear();
@@ -334,12 +594,35 @@ impl Studio {
                         Ok(())=>baseline.clear(),Err(error)=>self.sidekick.error=format!("Message retained in chat, but composer cleanup failed: {error}"),
                     }
                     match self.store.sidekick_messages(&series){Ok(messages)=>{let (sender,receiver)=std::sync::mpsc::channel();
+                        self.sidekick.episode_creation_request=if matches!(self.page,Page::Series|Page::Story) {self.story_drafts.get(&series).cloned().or_else(||self.store.series_plan(&series).ok()).map(|plan|(message.id.clone(),series.clone(),plan))}else{None};
+                        self.sidekick.generation_request=generation_snapshot;
+                        self.sidekick.episode_request=episode_snapshot;
+                        self.sidekick.plot_request = if self.page == Page::Story {
+                            self.story_drafts.get(&series).cloned().or_else(||self.store.series_plan(&series).ok()).map(|plan|(series.clone(),plan))
+                        } else { None };
                         self.sidekick.request_started=Some(std::time::Instant::now());
                         self.sidekick.progress.store(0,std::sync::atomic::Ordering::Relaxed);
                         let progress=self.sidekick.progress.clone();
                         self.sidekick.pending=Some((series.clone(),context.clone(),receiver,if self.page==Page::Synopsis{self.synopsis_drafts.get(&series).cloned()}else{None},character_snapshots));std::thread::spawn(move||{let _=sender.send(crate::sidekick::reply(&messages,&project_context,"google/gemini-4-argon",&progress).map_err(|error|error.to_string()));});},Err(error)=>self.sidekick.error=error.to_string()}},Err(error)=>self.sidekick.error=error.to_string()}
             }
-            ui.label(eframe::egui::RichText::new("Uses your paid OpenRouter account. Review draft edits before saving.").small().color(MUTED));
+            });
+            eframe::egui::ScrollArea::vertical().id_salt(("sidekick-history",&series)).stick_to_bottom(true).auto_shrink([false, false]).max_height(ui.available_height()).show(ui,|ui|{
+                if messages.is_empty(){ui.label("Tell me the kind of show you want to make, or an idea you want to explore.");}
+                for message in &messages {
+                    if let Some(action)=message_bubble(ui,message,&mut self.sidekick.editing_message,self.sidekick.pending.is_none()) {
+                        match action {
+                            MessageAction::Edit(message)=>self.sidekick.editing_message=Some((message.clone(),message.text.clone())),
+                            MessageAction::Cancel=>self.sidekick.editing_message=None,
+                            MessageAction::Save(original,text)=>match self.store.change_user_message(&series,&original,Some(&text)) {
+                                Ok(())=>{self.sidekick.editing_message=None;self.sidekick.error.clear();},Err(error)=>self.sidekick.error=error.to_string()
+                            },
+                            MessageAction::Delete(original)=>match self.store.change_user_message(&series,&original,None) {
+                                Ok(())=>{self.sidekick.editing_message=None;self.sidekick.error.clear();},Err(error)=>self.sidekick.error=error.to_string()
+                            }
+                        }
+                    }
+                }
+            });
         });
     }
 }
