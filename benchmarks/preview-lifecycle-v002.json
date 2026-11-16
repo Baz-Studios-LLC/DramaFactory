@@ -1,0 +1,23 @@
+{
+  "version": "v002",
+  "checks": {
+    "decoder_failure": "Actual /usr/bin/false child reaches visible failed state instead of indefinite loading",
+    "blocked_decoder_close": "Actual exec sleep child killed and reaped on Drop; PID absent with ESRCH; close under one second",
+    "actual_ffmpeg": "Generated disposable 64x64 24fps six-frame MP4, decoded through production Preview, six frames counted, final RGB buffer retained, one latest-frame slot, ended state; pacing at least 180ms",
+    "validation": "Invalid aspect rejected before launch"
+  },
+  "verification": {
+    "cargo_tests": 27,
+    "actual_ffmpeg_test_enabled": true,
+    "fmt": "passed",
+    "clippy": "passed with warnings denied",
+    "mcp": "passed",
+    "bundle": "local v002 rebuilt, strict ad-hoc signature verification passed",
+    "visual": "Mac locked; actual UI review pending"
+  },
+  "limits": [
+    "Video and afplay remain independent clocks; preview is not a frame-accurate lip-sync approval instrument.",
+    "System-player action added for original synchronized/full-resolution review; actual interaction awaits unlocked Mac.",
+    "No new acting take, review approval or source alteration."
+  ]
+}

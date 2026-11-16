@@ -1,0 +1,104 @@
+{
+  "version": "v002",
+  "official_repository": "Lightricks/LTX-2",
+  "official_commit": "2362161611a61154d342e02724fb8fe58efd455d",
+  "official_source_manifest_sha256": "b80ca89dcad6e3638219b1cfc65444a33608ff21312a926886cbb11cb0d04a38",
+  "converted_audio_weights_sha256": "442119db8eaf976f83a105cc8c5f2c930e0f625062f9776b10adcdb7bc96c416",
+  "conditioned_audio_sha256": "8fd261a70de8e5d7055e55398fd3736fd6dfa8fa9e1b2023f3e87c0171d32ba9",
+  "reference_runtime": {
+    "torch": "2.5.1",
+    "device": "cpu",
+    "dtype": "float32",
+    "strict_weight_load": true
+  },
+  "layers": {
+    "conv_in": {
+      "shape": [
+        1,
+        128,
+        305,
+        64
+      ],
+      "mean_absolute_error": 2.0585792127257334e-07,
+      "maximum_absolute_error": 3.814697265625e-06,
+      "relative_rms_error": 1.1713134110876799e-07,
+      "cosine": 0.9999999999999831
+    },
+    "down0": {
+      "shape": [
+        1,
+        128,
+        153,
+        32
+      ],
+      "mean_absolute_error": 0.0031814137935893124,
+      "maximum_absolute_error": 0.06389361619949341,
+      "relative_rms_error": 0.0013355611080592546,
+      "cosine": 0.9999991695019534
+    },
+    "down1": {
+      "shape": [
+        1,
+        256,
+        77,
+        16
+      ],
+      "mean_absolute_error": 0.010200211266132953,
+      "maximum_absolute_error": 0.4357719421386719,
+      "relative_rms_error": 0.002062125768668366,
+      "cosine": 0.9999979081892878
+    },
+    "down2": {
+      "shape": [
+        1,
+        512,
+        77,
+        16
+      ],
+      "mean_absolute_error": 0.012375321203558604,
+      "maximum_absolute_error": 6.2588114738464355,
+      "relative_rms_error": 0.00573865171573268,
+      "cosine": 0.9999835352465762
+    },
+    "mid": {
+      "shape": [
+        1,
+        512,
+        77,
+        16
+      ],
+      "mean_absolute_error": 0.014390749502720982,
+      "maximum_absolute_error": 13.211564064025879,
+      "relative_rms_error": 0.003515777501157236,
+      "cosine": 0.9999938223457906
+    },
+    "conv_out": {
+      "shape": [
+        1,
+        16,
+        77,
+        16
+      ],
+      "mean_absolute_error": 0.0023591638977673145,
+      "maximum_absolute_error": 0.18990451097488403,
+      "relative_rms_error": 0.0005032326550002421,
+      "cosine": 0.9999998740698668
+    },
+    "normalized": {
+      "shape": [
+        1,
+        8,
+        77,
+        16
+      ],
+      "mean_absolute_error": 0.0018441142503992194,
+      "maximum_absolute_error": 0.2394854724407196,
+      "relative_rms_error": 0.003273395901507709,
+      "cosine": 0.9999947839676433
+    }
+  },
+  "peak_mlx_memory_bytes": 731394078,
+  "new_video_render": false,
+  "source_preserved": true,
+  "limits": "Same converted checkpoint and same input mel. Does not validate original upstream-to-MLX weight conversion against original weights, transformer audio attention, or acting/synchronization quality."
+}

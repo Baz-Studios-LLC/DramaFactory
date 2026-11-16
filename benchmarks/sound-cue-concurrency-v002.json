@@ -1,0 +1,19 @@
+{
+  "version": "v002",
+  "scope": "Saved music/SFX cue edits and removals through shared UI/MCP Store services",
+  "verification": {
+    "real_production": "Passed stale save/no-expected update/stale removal rejection without mutation, identical retry, guarded restore, repeated removal and deleted-update protection; actual AAC mix onset/offset/gain/fades preserved",
+    "real_story": "Passed existing canon invalidation/final-cut integration",
+    "real_mcp": "Passed full SDK/service integration",
+    "unit_suite": 27,
+    "fmt": "passed",
+    "clippy": "all targets warnings denied passed",
+    "bundle": "rebuilt local v002, strict ad-hoc signature verified",
+    "visual": "Mac locked; new sound-draft controls await visual review"
+  },
+  "limits": [
+    "GUI drafts are local and snapshotted on exit; MCP sees saved state, not unsaved GUI drafts.",
+    "Existing-ID changes require the complete expected saved cue. Creates and identical retries remain supported.",
+    "No finished story episode or acting quality acceptance."
+  ]
+}

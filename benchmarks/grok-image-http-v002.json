@@ -1,0 +1,24 @@
+{
+  "version": "v002",
+  "scope": "Grok hosted image loopback integration",
+  "cases": [
+    "Actual HTTP POST with fixture credential and expected model payload",
+    "Valid PNG original bytes fully decoded, registered unreviewed and preserved without automatic library selection",
+    "Late cancellation after asset insert keeps validated canceled output and original reference",
+    "Malformed image, redirect response, authentication error produce no output asset",
+    "Attempted hosted jobs reject Retry; fixture credential absent from errors"
+  ],
+  "verification": {
+    "tests": 36,
+    "clippy": "all targets warnings denied passed",
+    "mcp": "existing real stdio integration passed",
+    "bundle": "rebuilt strict ad-hoc signature passed"
+  },
+  "environment": "Loopback TCP only; fake key; disposable SQLite/image fixtures; no paid provider request or keychain access",
+  "limits": [
+    "Production OpenRouter endpoint fixed; injected transport function private for tests",
+    "Does not prove live model access, image quality, remote cancellation or provider billing semantics",
+    "Provider endpoint capability/pricing preflight still pending",
+    "Reference editing, sidekick character/prompt edits and prompt persistence pending"
+  ]
+}

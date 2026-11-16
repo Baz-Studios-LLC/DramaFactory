@@ -1,0 +1,613 @@
+{
+  "version": "v002",
+  "episode_id": "8290815f-74db-424a-90ab-359ab5a3773f",
+  "screenplay_sha256": "c42130a7b2101b31d2fd0037ceacff68be60368e54f08d41864f02b325394f55",
+  "status": "saved_coverage_and_dialogue_plan_no_generation",
+  "shots": [
+    {
+      "asset_id": null,
+      "camera": "Medium close-up of Nora at the left rehearsal chair",
+      "duration": 3.0,
+      "episode_id": "8290815f-74db-424a-90ab-359ab5a3773f",
+      "id": "6073e180-b4ea-4bab-926b-7e66d82f48ba",
+      "position": 0,
+      "prompt": "Live-action grounded slice-of-life scene in Sloane\u2019s Secondhand. Nora listens to Ben on her phone. Her brighter social smile fades. Ben is voice-only; Nora does not mouth his words. Preserve the selected room layout, late-afternoon left-window light, amber lamp, receipt, bill and two coffee cups. Same continuous afternoon; stable wardrobe and eyelines. No cuts inside the take.",
+      "source_start": 0.0,
+      "status": "planned",
+      "title": "02.01 \u00b7 The unanswered move"
+    },
+    {
+      "asset_id": null,
+      "camera": "Medium close-up of Nora at the left rehearsal chair",
+      "duration": 3.0,
+      "episode_id": "8290815f-74db-424a-90ab-359ab5a3773f",
+      "id": "a66ba8d3-1f7b-4b85-b623-f03ffdc2366c",
+      "position": 1,
+      "prompt": "Live-action grounded slice-of-life scene in Sloane\u2019s Secondhand. Nora asks to call back. She ends the call rather than answering the question about moving. Preserve the selected room layout, late-afternoon left-window light, amber lamp, receipt, bill and two coffee cups. Same continuous afternoon; stable wardrobe and eyelines. No cuts inside the take.",
+      "source_start": 0.0,
+      "status": "planned",
+      "title": "02.02 \u00b7 A small retreat"
+    },
+    {
+      "asset_id": null,
+      "camera": "Medium close-up of Leah beside the right rehearsal chair",
+      "duration": 3.0,
+      "episode_id": "8290815f-74db-424a-90ab-359ab5a3773f",
+      "id": "fa2788eb-af49-4a3f-bf46-52e8386cf2aa",
+      "position": 2,
+      "prompt": "Live-action grounded slice-of-life scene in Sloane\u2019s Secondhand. Leah holds Emma\u2019s twenty-dollar bill, watching Nora return to business instead of her own life. Preserve the selected room layout, late-afternoon left-window light, amber lamp, receipt, bill and two coffee cups. Same continuous afternoon; stable wardrobe and eyelines. No cuts inside the take.",
+      "source_start": 0.0,
+      "status": "planned",
+      "title": "02.03 \u00b7 The twenty"
+    },
+    {
+      "asset_id": null,
+      "camera": "Medium close-up of Leah beside the right rehearsal chair",
+      "duration": 3.0,
+      "episode_id": "8290815f-74db-424a-90ab-359ab5a3773f",
+      "id": "6279f395-2b69-4d71-a656-21beb5aff7c6",
+      "position": 3,
+      "prompt": "Live-action grounded slice-of-life scene in Sloane\u2019s Secondhand. Leah makes her dry observation without hostility, twenty-dollar bill still between her fingers. Preserve the selected room layout, late-afternoon left-window light, amber lamp, receipt, bill and two coffee cups. Same continuous afternoon; stable wardrobe and eyelines. No cuts inside the take.",
+      "source_start": 0.0,
+      "status": "planned",
+      "title": "02.04 \u00b7 Negotiating"
+    },
+    {
+      "asset_id": null,
+      "camera": "Tight object insert",
+      "duration": 3.0,
+      "episode_id": "8290815f-74db-424a-90ab-359ab5a3773f",
+      "id": "90531c0e-bdb7-49ae-b9ea-ae756b901567",
+      "position": 4,
+      "prompt": "Live-action grounded slice-of-life scene in Sloane\u2019s Secondhand. Insert: Nora tears a receipt from the pad and draws a line down the middle. Hands must remain plausible; avoid readable generated writing. Preserve the selected room layout, late-afternoon left-window light, amber lamp, receipt, bill and two coffee cups. Same continuous afternoon; stable wardrobe and eyelines. No cuts inside the take.",
+      "source_start": 0.0,
+      "status": "planned",
+      "title": "02.05 \u00b7 Receipt pad"
+    },
+    {
+      "asset_id": null,
+      "camera": "Medium close-up of Nora at the left rehearsal chair",
+      "duration": 3.0,
+      "episode_id": "8290815f-74db-424a-90ab-359ab5a3773f",
+      "id": "c6c05a93-aa80-4276-970e-de0e3e2d3605",
+      "position": 5,
+      "prompt": "Live-action grounded slice-of-life scene in Sloane\u2019s Secondhand. Nora offers the division of work with a deliberately easy smile. Preserve the selected room layout, late-afternoon left-window light, amber lamp, receipt, bill and two coffee cups. Same continuous afternoon; stable wardrobe and eyelines. No cuts inside the take.",
+      "source_start": 0.0,
+      "status": "planned",
+      "title": "02.06 \u00b7 The talking"
+    },
+    {
+      "asset_id": null,
+      "camera": "Medium close-up of Leah beside the right rehearsal chair",
+      "duration": 3.0,
+      "episode_id": "8290815f-74db-424a-90ab-359ab5a3773f",
+      "id": "859a3996-62c8-442e-9592-d0d8957ee737",
+      "position": 6,
+      "prompt": "Live-action grounded slice-of-life scene in Sloane\u2019s Secondhand. Leah counts the real costs on her fingers, amused but serious. No grand gesture. Preserve the selected room layout, late-afternoon left-window light, amber lamp, receipt, bill and two coffee cups. Same continuous afternoon; stable wardrobe and eyelines. No cuts inside the take.",
+      "source_start": 0.0,
+      "status": "planned",
+      "title": "02.07 \u00b7 The overheads"
+    },
+    {
+      "asset_id": null,
+      "camera": "Medium close-up of Nora at the left rehearsal chair",
+      "duration": 3.0,
+      "episode_id": "8290815f-74db-424a-90ab-359ab5a3773f",
+      "id": "7f305fea-a269-43a3-99b8-3a890b3c728a",
+      "position": 7,
+      "prompt": "Live-action grounded slice-of-life scene in Sloane\u2019s Secondhand. Reaction: Nora listens as Leah lists what keeping the shop open actually requires; Leah continues off screen. Preserve the selected room layout, late-afternoon left-window light, amber lamp, receipt, bill and two coffee cups. Same continuous afternoon; stable wardrobe and eyelines. No cuts inside the take.",
+      "source_start": 0.0,
+      "status": "planned",
+      "title": "02.08 \u00b7 Not free space"
+    },
+    {
+      "asset_id": null,
+      "camera": "Medium close-up of Leah beside the right rehearsal chair",
+      "duration": 3.0,
+      "episode_id": "8290815f-74db-424a-90ab-359ab5a3773f",
+      "id": "1f588756-1f9d-41c1-81bc-821d9c438879",
+      "position": 8,
+      "prompt": "Live-action grounded slice-of-life scene in Sloane\u2019s Secondhand. Leah lands the absurdity of a bride shouting in her furniture shop. Same bill and receipt continuity. Preserve the selected room layout, late-afternoon left-window light, amber lamp, receipt, bill and two coffee cups. Same continuous afternoon; stable wardrobe and eyelines. No cuts inside the take.",
+      "source_start": 0.0,
+      "status": "planned",
+      "title": "02.09 \u00b7 Eight minutes"
+    },
+    {
+      "asset_id": null,
+      "camera": "Medium close-up of Nora at the left rehearsal chair",
+      "duration": 3.0,
+      "episode_id": "8290815f-74db-424a-90ab-359ab5a3773f",
+      "id": "409ef941-5720-4334-be5f-459b8e3a6aa5",
+      "position": 9,
+      "prompt": "Live-action grounded slice-of-life scene in Sloane\u2019s Secondhand. Nora offers ten minutes, twenty dollars, half each. She makes it sound simple. Preserve the selected room layout, late-afternoon left-window light, amber lamp, receipt, bill and two coffee cups. Same continuous afternoon; stable wardrobe and eyelines. No cuts inside the take.",
+      "source_start": 0.0,
+      "status": "planned",
+      "title": "02.10 \u00b7 Half each"
+    },
+    {
+      "asset_id": null,
+      "camera": "Tight object insert",
+      "duration": 3.0,
+      "episode_id": "8290815f-74db-424a-90ab-359ab5a3773f",
+      "id": "8e741c30-3901-4bad-b81d-1c418ba250ff",
+      "position": 10,
+      "prompt": "Live-action grounded slice-of-life scene in Sloane\u2019s Secondhand. Insert: Leah takes the pen and draws a simple heading line on the receipt. Actual readable RULES text belongs in post, not generated lettering. Preserve the selected room layout, late-afternoon left-window light, amber lamp, receipt, bill and two coffee cups. Same continuous afternoon; stable wardrobe and eyelines. No cuts inside the take.",
+      "source_start": 0.0,
+      "status": "planned",
+      "title": "02.11 \u00b7 A rule takes shape"
+    },
+    {
+      "asset_id": null,
+      "camera": "Medium close-up of Leah beside the right rehearsal chair",
+      "duration": 3.0,
+      "episode_id": "8290815f-74db-424a-90ab-359ab5a3773f",
+      "id": "d640c279-49f3-4060-afe7-9572f4ef7162",
+      "position": 11,
+      "prompt": "Live-action grounded slice-of-life scene in Sloane\u2019s Secondhand. Leah sets the first privacy rule. Warm, businesslike eye contact toward Nora. Preserve the selected room layout, late-afternoon left-window light, amber lamp, receipt, bill and two coffee cups. Same continuous afternoon; stable wardrobe and eyelines. No cuts inside the take.",
+      "source_start": 0.0,
+      "status": "planned",
+      "title": "02.12 \u00b7 No filming"
+    },
+    {
+      "asset_id": null,
+      "camera": "Medium close-up of Nora at the left rehearsal chair",
+      "duration": 3.0,
+      "episode_id": "8290815f-74db-424a-90ab-359ab5a3773f",
+      "id": "a07c1473-42d9-4bcb-9e26-532d5bc35911",
+      "position": 12,
+      "prompt": "Live-action grounded slice-of-life scene in Sloane\u2019s Secondhand. Nora agrees at once, brief genuine firmness replacing her sales pitch. Preserve the selected room layout, late-afternoon left-window light, amber lamp, receipt, bill and two coffee cups. Same continuous afternoon; stable wardrobe and eyelines. No cuts inside the take.",
+      "source_start": 0.0,
+      "status": "planned",
+      "title": "02.13 \u00b7 Absolutely not"
+    },
+    {
+      "asset_id": null,
+      "camera": "Medium close-up of Leah beside the right rehearsal chair",
+      "duration": 3.0,
+      "episode_id": "8290815f-74db-424a-90ab-359ab5a3773f",
+      "id": "c255033b-e4a4-4e56-8d82-c4e67bdba6d8",
+      "position": 13,
+      "prompt": "Live-action grounded slice-of-life scene in Sloane\u2019s Secondhand. Leah adds the confidentiality rule and waits for Nora to accept it. Preserve the selected room layout, late-afternoon left-window light, amber lamp, receipt, bill and two coffee cups. Same continuous afternoon; stable wardrobe and eyelines. No cuts inside the take.",
+      "source_start": 0.0,
+      "status": "planned",
+      "title": "02.14 \u00b7 No good bits"
+    },
+    {
+      "asset_id": null,
+      "camera": "Medium close-up of Nora at the left rehearsal chair",
+      "duration": 3.0,
+      "episode_id": "8290815f-74db-424a-90ab-359ab5a3773f",
+      "id": "8d77cb5e-1f9f-412a-ad73-aaebf492fdfb",
+      "position": 14,
+      "prompt": "Live-action grounded slice-of-life scene in Sloane\u2019s Secondhand. Nora tries a tiny joke, then sees Leah is not making an exception. Preserve the selected room layout, late-afternoon left-window light, amber lamp, receipt, bill and two coffee cups. Same continuous afternoon; stable wardrobe and eyelines. No cuts inside the take.",
+      "source_start": 0.0,
+      "status": "planned",
+      "title": "02.15 \u00b7 Even the good bits"
+    },
+    {
+      "asset_id": null,
+      "camera": "Tight object insert",
+      "duration": 3.0,
+      "episode_id": "8290815f-74db-424a-90ab-359ab5a3773f",
+      "id": "41306492-fe63-4c48-9fab-2e104fd054e9",
+      "position": 15,
+      "prompt": "Live-action grounded slice-of-life scene in Sloane\u2019s Secondhand. Insert: Nora reluctantly crosses out her own joke on the receipt. Keep the line and hands legible; no need for generated readable words. Preserve the selected room layout, late-afternoon left-window light, amber lamp, receipt, bill and two coffee cups. Same continuous afternoon; stable wardrobe and eyelines. No cuts inside the take.",
+      "source_start": 0.0,
+      "status": "planned",
+      "title": "02.16 \u00b7 The line through it"
+    },
+    {
+      "asset_id": null,
+      "camera": "Medium close-up of Leah beside the right rehearsal chair",
+      "duration": 3.0,
+      "episode_id": "8290815f-74db-424a-90ab-359ab5a3773f",
+      "id": "b49baefd-daaa-4bbe-a9e2-983b4ca8af32",
+      "position": 16,
+      "prompt": "Live-action grounded slice-of-life scene in Sloane\u2019s Secondhand. Leah asks what they are selling. Her hand comes off the twenty-dollar bill. Preserve the selected room layout, late-afternoon left-window light, amber lamp, receipt, bill and two coffee cups. Same continuous afternoon; stable wardrobe and eyelines. No cuts inside the take.",
+      "source_start": 0.0,
+      "status": "planned",
+      "title": "02.17 \u00b7 What is for sale"
+    },
+    {
+      "asset_id": null,
+      "camera": "Medium close-up of Nora at the left rehearsal chair",
+      "duration": 3.0,
+      "episode_id": "8290815f-74db-424a-90ab-359ab5a3773f",
+      "id": "f10929ad-732a-46a4-97df-ca918a6e020c",
+      "position": 17,
+      "prompt": "Live-action grounded slice-of-life scene in Sloane\u2019s Secondhand. Nora answers without a sales smile. This is something she believes. Preserve the selected room layout, late-afternoon left-window light, amber lamp, receipt, bill and two coffee cups. Same continuous afternoon; stable wardrobe and eyelines. No cuts inside the take.",
+      "source_start": 0.0,
+      "status": "planned",
+      "title": "02.18 \u00b7 A chance to practice"
+    },
+    {
+      "asset_id": null,
+      "camera": "Medium close-up of Leah beside the right rehearsal chair",
+      "duration": 3.0,
+      "episode_id": "8290815f-74db-424a-90ab-359ab5a3773f",
+      "id": "396838e2-f32e-40c5-a9dc-dcf58dc5dcc1",
+      "position": 18,
+      "prompt": "Live-action grounded slice-of-life scene in Sloane\u2019s Secondhand. Leah gives the boundary: they cannot sell a happy ending. Preserve the selected room layout, late-afternoon left-window light, amber lamp, receipt, bill and two coffee cups. Same continuous afternoon; stable wardrobe and eyelines. No cuts inside the take.",
+      "source_start": 0.0,
+      "status": "planned",
+      "title": "02.19 \u00b7 Not an ending"
+    },
+    {
+      "asset_id": null,
+      "camera": "Medium close-up of Nora at the left rehearsal chair",
+      "duration": 3.0,
+      "episode_id": "8290815f-74db-424a-90ab-359ab5a3773f",
+      "id": "076efa2d-42ca-4559-a50e-3f2f34369707",
+      "position": 19,
+      "prompt": "Live-action grounded slice-of-life scene in Sloane\u2019s Secondhand. Nora admits the limit with a small laugh, then lets the admission sit. Preserve the selected room layout, late-afternoon left-window light, amber lamp, receipt, bill and two coffee cups. Same continuous afternoon; stable wardrobe and eyelines. No cuts inside the take.",
+      "source_start": 0.0,
+      "status": "planned",
+      "title": "02.20 \u00b7 Not that good"
+    },
+    {
+      "asset_id": null,
+      "camera": "Tight object insert",
+      "duration": 3.0,
+      "episode_id": "8290815f-74db-424a-90ab-359ab5a3773f",
+      "id": "7aab17b9-3d51-417f-9f6e-8be1f4ebf455",
+      "position": 20,
+      "prompt": "Live-action grounded slice-of-life scene in Sloane\u2019s Secondhand. Insert: Leah slides ten dollars back toward Nora beside two coffee cups and the receipt; no readable banknote detail required. Preserve the selected room layout, late-afternoon left-window light, amber lamp, receipt, bill and two coffee cups. Same continuous afternoon; stable wardrobe and eyelines. No cuts inside the take.",
+      "source_start": 0.0,
+      "status": "planned",
+      "title": "02.21 \u00b7 A partnership"
+    },
+    {
+      "asset_id": null,
+      "camera": "Wide two-person rehearsal-room master",
+      "duration": 3.0,
+      "episode_id": "8290815f-74db-424a-90ab-359ab5a3773f",
+      "id": "32563a5a-9311-4ef3-bd55-7071ba8a0d04",
+      "position": 21,
+      "prompt": "Live-action grounded slice-of-life scene in Sloane\u2019s Secondhand. Quiet wide: two young women, two chairs and a very small partnership. No embracing or triumphant posing. Preserve the selected room layout, late-afternoon left-window light, amber lamp, receipt, bill and two coffee cups. Same continuous afternoon; stable wardrobe and eyelines. No cuts inside the take.",
+      "source_start": 0.0,
+      "status": "planned",
+      "title": "02.22 \u00b7 Useful chairs"
+    },
+    {
+      "asset_id": null,
+      "camera": "Tight object insert",
+      "duration": 3.0,
+      "episode_id": "8290815f-74db-424a-90ab-359ab5a3773f",
+      "id": "27109420-cfae-46e6-9f5c-efd4116d9898",
+      "position": 22,
+      "prompt": "Live-action grounded slice-of-life scene in Sloane\u2019s Secondhand. Insert: Nora\u2019s phone vibrates beside the receipt. Screen identifier is an editorial overlay, not generated text. Preserve the selected room layout, late-afternoon left-window light, amber lamp, receipt, bill and two coffee cups. Same continuous afternoon; stable wardrobe and eyelines. No cuts inside the take.",
+      "source_start": 0.0,
+      "status": "planned",
+      "title": "02.23 \u00b7 Emma calls"
+    },
+    {
+      "asset_id": null,
+      "camera": "Medium close-up of Nora at the left rehearsal chair",
+      "duration": 3.0,
+      "episode_id": "8290815f-74db-424a-90ab-359ab5a3773f",
+      "id": "a86ff138-0d37-480d-86ac-c6e17c4e376a",
+      "position": 23,
+      "prompt": "Live-action grounded slice-of-life scene in Sloane\u2019s Secondhand. Nora looks from the ringing phone to Leah, half amused, half needed. Preserve the selected room layout, late-afternoon left-window light, amber lamp, receipt, bill and two coffee cups. Same continuous afternoon; stable wardrobe and eyelines. No cuts inside the take.",
+      "source_start": 0.0,
+      "status": "planned",
+      "title": "02.24 \u00b7 She just left"
+    },
+    {
+      "asset_id": null,
+      "camera": "Medium close-up of Leah beside the right rehearsal chair",
+      "duration": 3.0,
+      "episode_id": "8290815f-74db-424a-90ab-359ab5a3773f",
+      "id": "65f8e18d-922d-4b28-a75e-4551a3ec7333",
+      "position": 24,
+      "prompt": "Live-action grounded slice-of-life scene in Sloane\u2019s Secondhand. Leah reaches a little toward the phone while suggesting speaker. Her expression catches itself. Preserve the selected room layout, late-afternoon left-window light, amber lamp, receipt, bill and two coffee cups. Same continuous afternoon; stable wardrobe and eyelines. No cuts inside the take.",
+      "source_start": 0.0,
+      "status": "planned",
+      "title": "02.25 \u00b7 The wrong instinct"
+    },
+    {
+      "asset_id": null,
+      "camera": "Medium close-up of Nora at the left rehearsal chair",
+      "duration": 3.0,
+      "episode_id": "8290815f-74db-424a-90ab-359ab5a3773f",
+      "id": "6a355682-079a-4b86-a73b-c10da6b8a9ee",
+      "position": 25,
+      "prompt": "Live-action grounded slice-of-life scene in Sloane\u2019s Secondhand. Nora pauses. She does not press speaker. Leah\u2019s reaching hand withdraws outside the frame. Preserve the selected room layout, late-afternoon left-window light, amber lamp, receipt, bill and two coffee cups. Same continuous afternoon; stable wardrobe and eyelines. No cuts inside the take.",
+      "source_start": 0.0,
+      "status": "planned",
+      "title": "02.26 \u00b7 Privacy in practice"
+    },
+    {
+      "asset_id": null,
+      "camera": "Medium close-up of Leah beside the right rehearsal chair",
+      "duration": 3.0,
+      "episode_id": "8290815f-74db-424a-90ab-359ab5a3773f",
+      "id": "28dec42c-24b7-4f7c-a49c-ec64c7e5dfd2",
+      "position": 26,
+      "prompt": "Live-action grounded slice-of-life scene in Sloane\u2019s Secondhand. Leah pushes the phone gently back and corrects herself. The rule has to apply to them too. Preserve the selected room layout, late-afternoon left-window light, amber lamp, receipt, bill and two coffee cups. Same continuous afternoon; stable wardrobe and eyelines. No cuts inside the take.",
+      "source_start": 0.0,
+      "status": "planned",
+      "title": "02.27 \u00b7 Ask first"
+    },
+    {
+      "asset_id": null,
+      "camera": "Medium close-up of Nora at the left rehearsal chair",
+      "duration": 3.0,
+      "episode_id": "8290815f-74db-424a-90ab-359ab5a3773f",
+      "id": "dbb159e5-6bb6-424a-96bc-745b0c859b42",
+      "position": 27,
+      "prompt": "Live-action grounded slice-of-life scene in Sloane\u2019s Secondhand. Nora answers privately, phone at her ear, listening rather than performing a solution. Preserve the selected room layout, late-afternoon left-window light, amber lamp, receipt, bill and two coffee cups. Same continuous afternoon; stable wardrobe and eyelines. No cuts inside the take.",
+      "source_start": 0.0,
+      "status": "planned",
+      "title": "02.28 \u00b7 Emma"
+    },
+    {
+      "asset_id": null,
+      "camera": "Medium close-up of Nora at the left rehearsal chair",
+      "duration": 3.0,
+      "episode_id": "8290815f-74db-424a-90ab-359ab5a3773f",
+      "id": "771fc1e4-4002-4f66-a4b2-48864bd0b062",
+      "position": 28,
+      "prompt": "Live-action grounded slice-of-life scene in Sloane\u2019s Secondhand. Nora hears Emma\u2019s voice-only admission. Nora does not articulate Emma\u2019s dialogue; a small concern replaces her smile. Preserve the selected room layout, late-afternoon left-window light, amber lamp, receipt, bill and two coffee cups. Same continuous afternoon; stable wardrobe and eyelines. No cuts inside the take.",
+      "source_start": 0.0,
+      "status": "planned",
+      "title": "02.29 \u00b7 Outside the house"
+    },
+    {
+      "asset_id": null,
+      "camera": "Medium close-up of Nora at the left rehearsal chair",
+      "duration": 3.0,
+      "episode_id": "8290815f-74db-424a-90ab-359ab5a3773f",
+      "id": "ceef4472-a65c-4070-813c-56bb203063fd",
+      "position": 29,
+      "prompt": "Live-action grounded slice-of-life scene in Sloane\u2019s Secondhand. Hold Nora listening to the ended line, receipt and partnership still on the table. End before she supplies an answer. Preserve the selected room layout, late-afternoon left-window light, amber lamp, receipt, bill and two coffee cups. Same continuous afternoon; stable wardrobe and eyelines. No cuts inside the take.",
+      "source_start": 0.0,
+      "status": "planned",
+      "title": "02.30 \u00b7 The price of being needed"
+    }
+  ],
+  "dialogue": [
+    {
+      "asset_id": null,
+      "id": "92d4b4bc-c090-5e09-bec1-776ae673dc21",
+      "revision": 2,
+      "shot_id": "6073e180-b4ea-4bab-926b-7e66d82f48ba",
+      "speed": 1.0,
+      "text": "Nora?",
+      "timeline_start": 0.0,
+      "voice": "am_michael"
+    },
+    {
+      "asset_id": null,
+      "id": "05705903-275e-531b-b196-283a5817b102",
+      "revision": 1,
+      "shot_id": "6073e180-b4ea-4bab-926b-7e66d82f48ba",
+      "speed": 1.0,
+      "text": "I heard you. Can I call you back?",
+      "timeline_start": 1.0,
+      "voice": "af_bella"
+    },
+    {
+      "asset_id": null,
+      "id": "b69f3fb7-dae0-51f9-adb5-f2be7fdc8b45",
+      "revision": 2,
+      "shot_id": "a66ba8d3-1f7b-4b85-b623-f03ffdc2366c",
+      "speed": 1.0,
+      "text": "Yeah. Of course.",
+      "timeline_start": 4.0,
+      "voice": "am_michael"
+    },
+    {
+      "asset_id": null,
+      "id": "b08e10a7-95f3-5ba7-a9b2-8942499e6dad",
+      "revision": 1,
+      "shot_id": "fa2788eb-af49-4a3f-bf46-52e8386cf2aa",
+      "speed": 1.0,
+      "text": "You wanted half.",
+      "timeline_start": 6.0,
+      "voice": "af_bella"
+    },
+    {
+      "asset_id": null,
+      "id": "668ae7b4-7e14-577e-9dc7-31836b5fe009",
+      "revision": 1,
+      "shot_id": "fa2788eb-af49-4a3f-bf46-52e8386cf2aa",
+      "speed": 1.0,
+      "text": "You wanted to change the subject. Look at us, negotiating.",
+      "timeline_start": 8.0,
+      "voice": "af_heart"
+    },
+    {
+      "asset_id": null,
+      "id": "52f46afc-43d2-59ea-b8a4-1baec029483b",
+      "revision": 1,
+      "shot_id": "90531c0e-bdb7-49ae-b9ea-ae756b901567",
+      "speed": 1.0,
+      "text": "I do the talking. You do the chairs.",
+      "timeline_start": 13.0,
+      "voice": "af_bella"
+    },
+    {
+      "asset_id": null,
+      "id": "225f3c4e-aab0-53d2-92ae-91eb430d119b",
+      "revision": 1,
+      "shot_id": "c6c05a93-aa80-4276-970e-de0e3e2d3605",
+      "speed": 1.0,
+      "text": "And the rent. And the electricity. And explaining why a bride is shouting at a woman she met eight minutes ago.",
+      "timeline_start": 17.0,
+      "voice": "af_heart"
+    },
+    {
+      "asset_id": null,
+      "id": "e04f3e6a-9bf5-57fd-8945-76e71f496fae",
+      "revision": 1,
+      "shot_id": "409ef941-5720-4334-be5f-459b8e3a6aa5",
+      "speed": 1.0,
+      "text": "Ten minutes. Twenty dollars. Half each.",
+      "timeline_start": 27.0,
+      "voice": "af_bella"
+    },
+    {
+      "asset_id": null,
+      "id": "b038bd59-508c-5876-8087-8ba867e9202c",
+      "revision": 1,
+      "shot_id": "8e741c30-3901-4bad-b81d-1c418ba250ff",
+      "speed": 1.0,
+      "text": "No filming in here.",
+      "timeline_start": 32.0,
+      "voice": "af_heart"
+    },
+    {
+      "asset_id": null,
+      "id": "aef9bb54-f762-5aaa-a31e-7bbabfece66c",
+      "revision": 1,
+      "shot_id": "d640c279-49f3-4060-afe7-9572f4ef7162",
+      "speed": 1.0,
+      "text": "Absolutely not.",
+      "timeline_start": 34.0,
+      "voice": "af_bella"
+    },
+    {
+      "asset_id": null,
+      "id": "4498f113-2a74-521e-b4fe-791d4d53a46a",
+      "revision": 1,
+      "shot_id": "a07c1473-42d9-4bcb-9e26-532d5bc35911",
+      "speed": 1.0,
+      "text": "No telling people what anyone said.",
+      "timeline_start": 37.0,
+      "voice": "af_heart"
+    },
+    {
+      "asset_id": null,
+      "id": "0886df5c-3947-5238-9c87-2123b99762fe",
+      "revision": 1,
+      "shot_id": "8d77cb5e-1f9f-412a-ad73-aaebf492fdfb",
+      "speed": 1.0,
+      "text": "Even the good bits?",
+      "timeline_start": 42.0,
+      "voice": "af_bella"
+    },
+    {
+      "asset_id": null,
+      "id": "22bf1782-4678-5316-83fb-696bab2fecb6",
+      "revision": 1,
+      "shot_id": "41306492-fe63-4c48-9fab-2e104fd054e9",
+      "speed": 1.0,
+      "text": "Fine.",
+      "timeline_start": 46.0,
+      "voice": "af_bella"
+    },
+    {
+      "asset_id": null,
+      "id": "fbba0dd0-bb84-509a-81e6-1bd06ec7a1c6",
+      "revision": 1,
+      "shot_id": "b49baefd-daaa-4bbe-a9e2-983b4ca8af32",
+      "speed": 1.0,
+      "text": "And what are we actually selling?",
+      "timeline_start": 49.0,
+      "voice": "af_heart"
+    },
+    {
+      "asset_id": null,
+      "id": "8a2cb8eb-506f-5cf1-8725-83284faac699",
+      "revision": 1,
+      "shot_id": "f10929ad-732a-46a4-97df-ca918a6e020c",
+      "speed": 1.0,
+      "text": "A chance to practice.",
+      "timeline_start": 53.0,
+      "voice": "af_bella"
+    },
+    {
+      "asset_id": null,
+      "id": "3665126c-d8d0-52f1-bb8f-5de694fef68a",
+      "revision": 1,
+      "shot_id": "396838e2-f32e-40c5-a9dc-dcf58dc5dcc1",
+      "speed": 1.0,
+      "text": "Not a happy ending.",
+      "timeline_start": 56.0,
+      "voice": "af_heart"
+    },
+    {
+      "asset_id": null,
+      "id": "c1dd22c9-597a-52aa-bf8c-024427facd06",
+      "revision": 1,
+      "shot_id": "076efa2d-42ca-4559-a50e-3f2f34369707",
+      "speed": 1.0,
+      "text": "I'm good. I'm not that good.",
+      "timeline_start": 59.0,
+      "voice": "af_bella"
+    },
+    {
+      "asset_id": null,
+      "id": "e7c116be-b37b-5cfb-bbe3-cc1d07badc26",
+      "revision": 1,
+      "shot_id": "27109420-cfae-46e6-9f5c-efd4116d9898",
+      "speed": 1.0,
+      "text": "She only just left.",
+      "timeline_start": 66.0,
+      "voice": "af_bella"
+    },
+    {
+      "asset_id": null,
+      "id": "b55ef840-972a-52af-bccb-e810bee5682d",
+      "revision": 1,
+      "shot_id": "a86ff138-0d37-480d-86ac-c6e17c4e376a",
+      "speed": 1.0,
+      "text": "No happy endings. Put it on speaker.",
+      "timeline_start": 69.0,
+      "voice": "af_heart"
+    },
+    {
+      "asset_id": null,
+      "id": "927f3ffa-b2da-5562-9986-f9620bf5a16d",
+      "revision": 1,
+      "shot_id": "6a355682-079a-4b86-a73b-c10da6b8a9ee",
+      "speed": 1.0,
+      "text": "Ask first.",
+      "timeline_start": 76.0,
+      "voice": "af_heart"
+    },
+    {
+      "asset_id": null,
+      "id": "e43181c3-8ab5-5f95-8c01-e4b2aca9f22d",
+      "revision": 1,
+      "shot_id": "28dec42c-24b7-4f7c-a49c-ec64c7e5dfd2",
+      "speed": 1.0,
+      "text": "Emma?",
+      "timeline_start": 80.0,
+      "voice": "af_bella"
+    },
+    {
+      "asset_id": null,
+      "id": "30d59aa4-e9cc-57d5-b515-65d4b2755fb4",
+      "revision": 2,
+      "shot_id": "dbb159e5-6bb6-424a-96bc-745b0c859b42",
+      "speed": 1.0,
+      "text": "I'm outside her house.",
+      "timeline_start": 83.0,
+      "voice": "af_sarah"
+    }
+  ],
+  "picture_seconds": 90.0,
+  "notes": [
+    "Thirty assistant-authored three-second cuts; spoken lines use absolute starts and may bridge cameras.",
+    "Speech timing is planned, not yet measured. Generate/audition/rehearse before accepting timing.",
+    "Phone voices and reaction coverage must not cause visible listeners to speak off-screen lines.",
+    "Inserts needing readable writing or phone identifiers require post-production overlays; no claim that generated text will be readable.",
+    "No video, speech generation, take approvals, final export or committed canon.",
+    "Both Ben phone lines and Emma phone line are marked off screen through shared services; native acting and shot-linked lip sync are blocked for them."
+  ],
+  "offscreen_dialogue": [
+    {
+      "line_id": "92d4b4bc-c090-5e09-bec1-776ae673dc21",
+      "speaker_visible": false
+    },
+    {
+      "line_id": "b69f3fb7-dae0-51f9-adb5-f2be7fdc8b45",
+      "speaker_visible": false
+    },
+    {
+      "line_id": "30d59aa4-e9cc-57d5-b515-65d4b2755fb4",
+      "speaker_visible": false
+    }
+  ]
+}

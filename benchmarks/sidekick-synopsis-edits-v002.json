@@ -1,0 +1,24 @@
+{
+  "version": "v002",
+  "scope": "Sidekick synopsis draft edits",
+  "implemented": [
+    "Strict structured conversation reply with optional synopsis proposal",
+    "Captured series-specific draft snapshot; apply only on exact match",
+    "Proposal changes unsaved draft only, saved baseline preserved",
+    "Undo guards intervening edits/saves",
+    "Conflict proposal retained in chat",
+    "Same draft proposal service exposed through MCP without provider calls"
+  ],
+  "verification": {
+    "unit_tests": 34,
+    "clippy": "passed all targets warnings denied",
+    "mcp": "Existing integration and real isolated proposal/conflict tool checks passed",
+    "bundle": "rebuilt and strict ad-hoc signature verified"
+  },
+  "limits": [
+    "No paid model request performed; live JSON adherence and chat-to-editor/Undo UI interaction unverified",
+    "Only Synopsis edits connected; cast, portrait prompt, overall/episode plot and generation edits pending",
+    "In-flight replies and malformed provider responses still need durable recovery",
+    "Undo currently one sidekick edit per series, session only; exit snapshots preserve drafts but no recovery UI"
+  ]
+}

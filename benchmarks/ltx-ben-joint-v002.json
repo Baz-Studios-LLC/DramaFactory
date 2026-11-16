@@ -1,0 +1,106 @@
+{
+  "version": "v002",
+  "status": "sampled_visual_and_sync_diagnostic_complete_unapproved",
+  "mode": "LTX 2.3 distilled joint audio/video; no supplied waveform or face compositing",
+  "generation": {
+    "version": "v002",
+    "status": "awaiting_actual_review",
+    "pid": 62153,
+    "hypothesis": "Jointly generating speech and picture may produce more coherent articulation than freezing an external voice track. First mode evaluation, not a duration-matched controlled ablation.",
+    "model_path": "/Users/brettbazaar/Library/Application Support/studio.DramaFactory.DramaFactory/models/ltx-2.3-q8-evaluation",
+    "encoder_path": "/Users/brettbazaar/Library/Application Support/studio.DramaFactory.DramaFactory/models/ltx-gemma3-encoder-evaluation",
+    "source_commit": "747b30ef10e92a011e85b2aa0f6c4ee86ced5218",
+    "reference_sha256": "5f34cb433b68afdcfaec44a3008e2234c7f2841a70037b1bbbe57adf1ec175b0",
+    "reference": "/Users/brettbazaar/Library/Application Support/studio.DramaFactory.DramaFactory/benchmarks/ltx-ben-joint-597d46a0-4e13-4510-a010-63736f41e602/reference.png",
+    "prompt": "A live-action medium portrait of the same adult 25-year-old man as the reference image, standing in the warm furniture showroom. He shifts his weight, raises one hand in a small open-palmed gesture, and says clearly in a natural young American male voice, \"I need to talk to my girlfriend.\" His nervous sincerity shows in his eyebrows and his face as he speaks, then he lowers his hand and listens. Preserve his youthful olive face, dark curly hair, brown eyes, very light stubble, navy overshirt and ivory T-shirt. His face stays visible. Steady eye-level camera, one continuous shot, realistic skin and hands. Audio: his spoken sentence, quiet room tone, no music.",
+    "frames": 97,
+    "fps": 24,
+    "width": 704,
+    "height": 1280,
+    "seed": 186,
+    "stage1_steps": 8,
+    "stage2_steps": 3,
+    "output": "/Users/brettbazaar/Library/Application Support/studio.DramaFactory.DramaFactory/benchmarks/ltx-ben-joint-597d46a0-4e13-4510-a010-63736f41e602/joint-dialogue.mp4",
+    "supplied_audio": false,
+    "lip_compositing": false,
+    "notes": "Single free local benchmark, no production config/selection/review changes. Exact approved Ben reference retained. Generated voice identity/transcript and acting require review.",
+    "output_sha256": "e2287af837239aa6a01f26c178310d64fae449223e807e0ba7b9fb3ba830aa52",
+    "generated_audio_sha256": "c814c6b113f814b05eacf015ea791090636cf46cfdb82aca47b950ef9823cf5e",
+    "wall_seconds": 121.47207645798335,
+    "peak_mlx_memory_bytes": 29131974210
+  },
+  "sync_diagnostic": {
+    "status": "scored_pending_crop_and_editorial_review",
+    "calibration": {
+      "offset_frames": 3,
+      "confidence": 10.087,
+      "min_distance": 5.352
+    },
+    "protocol": {
+      "fps": 25,
+      "common_seconds": 3.0,
+      "crop_scale": 0.4,
+      "min_track": 25,
+      "face_detection_scale": 0.5,
+      "search_window_frames": 15
+    },
+    "results": [
+      {
+        "name": "native_joint_unapproved",
+        "source": "/Users/brettbazaar/Library/Application Support/studio.DramaFactory.DramaFactory/benchmarks/ltx-ben-joint-597d46a0-4e13-4510-a010-63736f41e602/joint-dialogue.mp4",
+        "source_sha256": "e2287af837239aa6a01f26c178310d64fae449223e807e0ba7b9fb3ba830aa52",
+        "tracks": [
+          {
+            "track": "/Users/brettbazaar/Code/DramaFactory/benchmarks/local/sync-evaluation-8afe7618-dcb8-4ab6-90bb-8755405a1d1f/native_joint_unapproved/pycrop/native_joint_unapproved-94fa0c39/00000.avi",
+            "offset_frames_at_25fps": 0,
+            "confidence_raw": 4.052,
+            "min_embedding_distance": 7.563,
+            "search_edge": false
+          }
+        ],
+        "wall_seconds": 20.264696666999953
+      }
+    ],
+    "directory": "/Users/brettbazaar/Code/DramaFactory/benchmarks/local/sync-evaluation-8afe7618-dcb8-4ab6-90bb-8755405a1d1f",
+    "source_revision": "907c0b579c2e2d83f0eae1b2ac9e720cde4e5623",
+    "detector": {
+      "path": "/Users/brettbazaar/Library/Application Support/studio.DramaFactory.DramaFactory/models/syncnet-evaluation/sfd_face.pth",
+      "bytes": 89844381,
+      "sha256": "d54a87c2b7543b64729c9a25eafd188da15fd3f6e02f0ecec76ae1b30d86c491",
+      "url": "https://www.robots.ox.ac.uk/~vgg/software/lipsync/data/sfd_face.pth"
+    },
+    "limitations": [
+      "Three-second clips have fewer speaking samples than the reference control.",
+      "Raw confidence is not a probability or an acting-quality score.",
+      "All detected qualifying tracks are retained; verify the actor crop before interpreting a result.",
+      "No automatic approval, retiming, source overwrite or new video generation."
+    ]
+  },
+  "sampled_visual_review": {
+    "frames": [
+      0,
+      24,
+      48,
+      72,
+      96
+    ],
+    "crop_verified": "Ben face; first crop reviewed",
+    "observations": [
+      "Visible arm lift/open palm, weight shift and lateral body movement",
+      "Overall dark curly hair, navy overshirt and ivory shirt retained in sampled frames",
+      "Hand at frame 24 has individually visible digits; this does not establish every-frame anatomy",
+      "Face softens during motion at frames 48 and 96",
+      "Subject shifts left and changes apparent framing; no stable coverage acceptance"
+    ]
+  },
+  "acceptance": {
+    "production_approved": false,
+    "exact_words_verified": false,
+    "voice_identity_consistency_verified": false,
+    "full_audiovisual_editorial_review": false,
+    "cross_episode_identity_verified": false
+  },
+  "interpretation": "Zero-offset diagnostic is a useful signal for further review, not proof of convincing articulation. Raw confidence is not a probability. Different duration/audio/seed conditions prevent a controlled causal comparison with frozen-audio takes.",
+  "next": "Verify generated transcript and voice, review full playback for articulation and temporal hands/face artifacts. Do not integrate or rerender solely on this score.",
+  "preservation": "Original video/reference/audio hashes preserved; no production configuration, take selection or approval changed."
+}

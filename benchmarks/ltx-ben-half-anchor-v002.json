@@ -1,0 +1,63 @@
+{
+  "version": "v002",
+  "kind": "explicit_backend_quality_benchmark",
+  "status": "awaiting_visual_review",
+  "output_directory": "/Users/brettbazaar/Library/Application Support/studio.DramaFactory.DramaFactory/benchmarks/ltx-ben-77643dc7-35b8-420f-9168-c03067f0d7b0",
+  "source_reference": "/Users/brettbazaar/Library/Application Support/studio.DramaFactory.DramaFactory/references/9433af8c-95d8-4954-9490-01c61c8bd98c.png",
+  "source_reference_sha256": "5f34cb433b68afdcfaec44a3008e2234c7f2841a70037b1bbbe57adf1ec175b0",
+  "source_audio": "/Users/brettbazaar/Library/Application Support/studio.DramaFactory.DramaFactory/jobs/b4afa7e9-b289-4746-8942-a445c76b8d99/attempt-1/dialogue.wav",
+  "source_audio_sha256": "3b38a2865b26eaf36b9ab865e30491145d3840e8b93dcee36121c711df2bc40a",
+  "model_repository": "dgrauet/ltx-2.3-mlx-q8",
+  "model_revision": "69f8f11996b7b2ee54e82d0db7a5acad14b8685d",
+  "encoder_repository": "mlx-community/gemma-3-12b-it-4bit",
+  "encoder_revision": "86cc6a8dedbc456dd0e4af01a9d09f396f77e558",
+  "source_commit": "747b30ef10e92a011e85b2aa0f6c4ee86ced5218",
+  "prompt": "Live-action dialogue performance. The adult 25-year-old man in the supplied reference image is already speaking at the very beginning of the clip. Throughout the exact supplied audio he clearly articulates: \"I need to talk to my girlfriend.\" Every word has a distinct natural mouth shape, synchronized to the recorded male voice, starting immediately without a pause or a preliminary smile. During speech his eyebrows and shoulders respond naturally; a small palm-up hand gesture accompanies his concern. After the last word he closes his mouth and listens. Preserve the reference man exactly: youthful olive face, brown eyes, dark curly hair, very light stubble, navy overshirt, ivory T-shirt and tan trousers. Same warm furniture showroom. Photorealistic face and hands. Steady medium portrait, face unobstructed, looking toward his girlfriend just beside the camera, no cuts.",
+  "width": 704,
+  "height": 1280,
+  "frames": 73,
+  "fps": 24,
+  "seed": 186,
+  "stage1_steps": 8,
+  "stage2_steps": 3,
+  "low_ram_streaming": true,
+  "memory_limit_bytes": 40000000000,
+  "notes": "No prompt enhancement, script writing, production configuration switch or quality approval. One native A2V/I2V candidate with the original approved Ben image and recorded line.",
+  "hypothesis": "A full-strength smiling first-frame anchor suppresses immediate articulation; compare strength 0.5 against retained immediate-speech baseline with all other settings unchanged.",
+  "image_anchor_strength": 0.5,
+  "baseline": "benchmarks/ltx-ben-immediate-a2v-v002.json",
+  "output": "/Users/brettbazaar/Library/Application Support/studio.DramaFactory.DramaFactory/benchmarks/ltx-ben-77643dc7-35b8-420f-9168-c03067f0d7b0/candidate.mp4",
+  "output_sha256": "c1f4ad7a33311eebdec5939c3d3c2e4daed7245c7ab2814d28bcdf1c7436cbf9",
+  "wall_seconds": 79.39504000000306,
+  "peak_memory_bytes": 26756547622,
+  "quality_status": "rejected_as_sync_solution_preserved_for_comparison",
+  "sync_diagnostic": {
+    "protocol": {
+      "fps": 25,
+      "common_seconds": 3.0,
+      "crop_scale": 0.4,
+      "min_track": 25,
+      "face_detection_scale": 0.5,
+      "search_window_frames": 15
+    },
+    "tracks": [
+      {
+        "offset_frames_at_25fps": -13,
+        "confidence_raw": 0.844,
+        "min_embedding_distance": 10.535,
+        "search_edge": false
+      }
+    ]
+  },
+  "visual_review": {
+    "sampled_frames": "Five samples per second: smile releases earlier and head turns visibly. Recognizable Ben face and clothing remain; hand stays mostly anchored. Mouth remains active in late samples after source speech ends. No visible localized compositing seam in these samples.",
+    "crop_check": "First official S3FD crop contains intended Ben face.",
+    "limitations": [
+      "Only one seed/actor/line; not a causal generalization across models.",
+      "No full playback/listening approval or multi-episode identity evaluation.",
+      "Raw confidence 0.844 is weak, not a probability; do not retime using the -13 frame estimate."
+    ],
+    "conclusion": "Lowering the image anchor alone does not establish convincing synchronization. Keep production default unchanged."
+  },
+  "source_files_unchanged": true
+}

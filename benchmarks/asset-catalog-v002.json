@@ -1,0 +1,13 @@
+{
+  "version": "v002",
+  "scope": "Read-only actual packaged MCP catalog checks; no review or selection changed",
+  "total_assets": 78,
+  "rejected_leah_video_matches": 2,
+  "preserved_rejected_window_ids": [
+    "7e1aba02-09e0-4085-b88d-2d2455710821",
+    "d0aa0367-a0dd-4975-99b8-d0f6b49c8380"
+  ],
+  "paging_distinct": true,
+  "ui_verification": "Mac locked; pending",
+  "limits": "Search matches saved text and linked labels; no depicted-identity inference, file validation or quality approval"
+}

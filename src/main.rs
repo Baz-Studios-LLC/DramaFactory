@@ -1,95 +1,1198 @@
+mod asset_browser;
+mod asset_catalog;
+mod captions;
+mod cast_reference;
+mod character_edit;
+mod completion;
+mod credentials;
+mod dialogue_direction;
+mod dialogue_editing;
+mod dialogue_line_ui;
+mod dialogue_timing;
+mod dialogue_workspace;
+mod directing;
+mod directing_ui;
+mod editing;
+mod episode_ui;
+mod generation_plan;
+mod hosted_image;
+mod hosted_video;
+mod image_inspector;
+mod job_timing;
+mod library_editing;
 mod mcp;
+mod media;
+mod models;
+mod openrouter;
+mod orchestration;
+mod performance;
+mod performance_window;
+mod portrait_prompt;
+mod portrait_ui;
+mod preview;
+mod production;
+mod project_context;
+mod provider_settings;
+mod readiness;
+mod rehearsal;
+mod reviews;
+mod runtime;
+mod segment_takes;
+mod shot_workspace;
+mod sidekick;
+mod sidekick_edit;
+mod sidekick_ui;
+mod sound;
 mod store;
+mod story;
+mod story_ui;
+mod synopsis;
+mod transitions;
+mod updater;
 mod updates;
+mod video_plan;
+mod video_plan_ui;
+mod voice_ui;
+mod worker;
+mod workflow_ui;
+mod workspace_jobs;
 use eframe::egui::{self, Color32, RichText, Vec2};
+use production::{ImageRequest, RenderRequest, WorkerConfig};
+use std::path::PathBuf;
 use store::Store;
-const GOLD: Color32 = Color32::from_rgb(224, 184, 119);
-const MUTED: Color32 = Color32::from_rgb(137, 143, 154);
+const GOLD: Color32 = Color32::from_rgb(235, 177, 87);
+const MUTED: Color32 = Color32::from_rgb(148, 153, 165);
+const BG: Color32 = Color32::from_rgb(15, 17, 22);
+#[derive(Clone, Copy, PartialEq)]
+enum Page {
+    Studio,
+    Synopsis,
+    Story,
+    Series,
+    Cast,
+    Locations,
+    Scenes,
+    Assets,
+    Timeline,
+    Dialogue,
+    Images,
+    Queue,
+    Settings,
+}
 struct Studio {
     store: Store,
-    page: usize,
+    portrait_prompts: std::collections::HashMap<String, portrait_prompt::PromptDraft>,
+    sidekick: sidekick_ui::Sidekick,
+    synopsis_drafts: std::collections::HashMap<String, synopsis::SynopsisDraft>,
+    shot_directions: std::collections::BTreeMap<String, directing::ShotDirection>,
+    camera_drafts: std::collections::BTreeMap<String, directing::CameraSetup>,
+    story_section: story_ui::StorySection,
+    story_drafts: std::collections::BTreeMap<String, story::SeriesPlan>,
+    story_exports: std::collections::BTreeMap<String, String>,
+    story_reports: std::collections::BTreeMap<String, Result<story::StoryReport, String>>,
+    story_check: Option<std::sync::mpsc::Receiver<(String, Result<story::StoryReport, String>)>>,
+    provider_settings: provider_settings::ProviderSettings,
+    video_planner: video_plan_ui::VideoPlanner,
+    page: Page,
+    asset_browser: asset_browser::AssetBrowser,
     new_open: bool,
     name: String,
     premise: String,
     selected: Option<String>,
-    episode_title: String,
-    script: String,
     episode_id: Option<String>,
-    prompt: String,
+    episode_title: String,
+    episode_search: String,
+    script: String,
+    script_baseline: String,
+    last_sync: std::time::Instant,
+    request: RenderRequest,
+    image_request: ImageRequest,
+    shot_title: String,
+    shot_prompt: String,
+    shot_workspace: shot_workspace::ShotWorkspace,
+    edit_shot: Option<String>,
+    shot_camera: String,
+    shot_duration: f64,
+    shot_trim_drafts: std::collections::HashMap<String, editing::ShotTrim>,
+    library_name: String,
+    library_description: String,
+    library_reference: Option<PathBuf>,
     message: String,
-    update_rx: Option<std::sync::mpsc::Receiver<String>>,
+    config: WorkerConfig,
+    update_rx: Option<std::sync::mpsc::Receiver<updates::UpdateStatus>>,
     update_status: String,
+    automatic_updates: bool,
+    dialogue_workspace: dialogue_workspace::DialogueWorkspace,
+    new_dialogue_drafts: std::collections::HashMap<String, dialogue_workspace::NewLineDraft>,
+    dialogue_text: String,
+    review_drafts: std::collections::HashMap<String, reviews::AssetReview>,
+    readiness: Option<readiness::EpisodeReadiness>,
+    dialogue_timing_report: Option<dialogue_timing::DialogueTiming>,
+    fade_drafts: std::collections::HashMap<String, transitions::FadeEdit>,
+    cue_drafts: std::collections::HashMap<String, sound::CueDraft>,
+    library_drafts: std::collections::HashMap<String, library_editing::LibraryEdit>,
+    dialogue_drafts: std::collections::HashMap<String, production::Dialogue>,
+    dialogue_voice: String,
+    dialogue_speed: f64,
+    dialogue_shot: Option<String>,
+    dialogue_move_targets: std::collections::HashMap<String, String>,
+    performance_targets: std::collections::HashMap<String, String>,
+    audio: Option<std::process::Child>,
+    preview: Option<media::Preview>,
+    image_inspector: Option<image_inspector::Inspector>,
+    preview_asset: Option<String>,
 }
 impl Studio {
     fn new(cc: &eframe::CreationContext<'_>, store: Store) -> Self {
+        egui_extras::install_image_loaders(&cc.egui_ctx);
         let mut style = (*cc.egui_ctx.style()).clone();
         style.visuals = egui::Visuals::dark();
-        style.visuals.panel_fill = Color32::from_rgb(17, 19, 24);
-        style.visuals.window_fill = Color32::from_rgb(24, 27, 33);
-        style.visuals.extreme_bg_color = Color32::from_rgb(13, 15, 19);
-        style.visuals.selection.bg_fill = Color32::from_rgb(82, 66, 45);
-        style.visuals.widgets.inactive.bg_fill = Color32::from_rgb(32, 36, 44);
-        style.visuals.widgets.hovered.bg_fill = Color32::from_rgb(51, 49, 44);
+        style.visuals.panel_fill = BG;
+        style.visuals.window_fill = Color32::from_rgb(23, 26, 33);
+        style.visuals.extreme_bg_color = Color32::from_rgb(10, 12, 16);
+        style.visuals.selection.bg_fill = Color32::from_rgb(77, 58, 33);
+        style.visuals.widgets.inactive.bg_fill = Color32::from_rgb(30, 34, 42);
+        style.visuals.widgets.inactive.weak_bg_fill = Color32::from_rgb(24, 27, 34);
+        style.visuals.widgets.hovered.bg_fill = Color32::from_rgb(54, 48, 37);
+        style.visuals.widgets.active.bg_fill = Color32::from_rgb(77, 58, 33);
+        style.visuals.override_text_color = Some(Color32::from_rgb(228, 230, 235));
         style.spacing.item_spacing = Vec2::new(12., 12.);
-        style.spacing.button_padding = Vec2::new(18., 10.);
+        style.spacing.button_padding = Vec2::new(16., 9.);
         style
             .text_styles
-            .insert(egui::TextStyle::Body, egui::FontId::proportional(15.));
+            .insert(egui::TextStyle::Body, egui::FontId::proportional(14.));
         style
             .text_styles
             .insert(egui::TextStyle::Button, egui::FontId::proportional(14.));
         cc.egui_ctx.set_style(style);
+        let selected = store.current_gui_series().unwrap_or_default();
+        let remembered_episode = selected
+            .as_deref()
+            .and_then(|series| store.current_gui_episode(series).ok().flatten())
+            .and_then(|id| store.get_episode(&id).ok());
+        let episode_id = remembered_episode
+            .as_ref()
+            .map(|episode| episode.id.clone());
+        let script = remembered_episode
+            .map(|episode| episode.screenplay)
+            .unwrap_or_default();
+        let config = store.config().unwrap_or_default();
+        let automatic_updates = store.automatic_updates().unwrap_or(true);
+        let update_rx = Some(updates::check(store.root(), automatic_updates));
+        let message = worker::spawn_detached(&store.path)
+            .err()
+            .map(|e| e.to_string())
+            .unwrap_or_default();
         Self {
             store,
-            page: 0,
+            portrait_prompts: Default::default(),
+            sidekick: Default::default(),
+            synopsis_drafts: Default::default(),
+            shot_directions: Default::default(),
+            camera_drafts: Default::default(),
+            story_section: Default::default(),
+            story_drafts: Default::default(),
+            story_exports: Default::default(),
+            story_reports: Default::default(),
+            story_check: None,
+            provider_settings: Default::default(),
+            video_planner: Default::default(),
+            page: Page::Studio,
+            asset_browser: Default::default(),
             new_open: false,
             name: String::new(),
             premise: String::new(),
-            selected: None,
+            selected,
+            episode_id,
             episode_title: String::new(),
-            script: String::new(),
-            episode_id: None,
-            prompt: String::new(),
-            message: String::new(),
-            update_rx: Some(updates::check()),
-            update_status: "Checking for releases in the background…".into(),
+            episode_search: String::new(),
+            script_baseline: script.clone(),
+            script,
+            last_sync: std::time::Instant::now(),
+            request: RenderRequest::default(),
+            image_request: ImageRequest::default(),
+            shot_title: String::new(),
+            shot_prompt: String::new(),
+            shot_workspace: Default::default(),
+            edit_shot: None,
+            shot_camera: String::new(),
+            shot_duration: 3.,
+            shot_trim_drafts: Default::default(),
+            library_name: String::new(),
+            library_description: String::new(),
+            library_reference: None,
+            message,
+            config,
+            update_rx,
+            automatic_updates,
+            dialogue_workspace: Default::default(),
+            new_dialogue_drafts: Default::default(),
+            dialogue_text: String::new(),
+            review_drafts: Default::default(),
+            readiness: None,
+            dialogue_timing_report: None,
+            fade_drafts: Default::default(),
+            cue_drafts: Default::default(),
+            library_drafts: Default::default(),
+            dialogue_drafts: Default::default(),
+            dialogue_voice: "af_heart".into(),
+            dialogue_speed: 1.,
+            dialogue_shot: None,
+            dialogue_move_targets: Default::default(),
+            performance_targets: Default::default(),
+            audio: None,
+            update_status: "Checking published releases…".into(),
+            preview: None,
+            image_inspector: None,
+            preview_asset: None,
         }
     }
+    fn stop_playback(&mut self) {
+        self.preview = None;
+        if let Some(mut child) = self.audio.take() {
+            let _ = child.kill();
+            let _ = child.wait();
+        }
+    }
+    fn load<T: Default>(&mut self, result: anyhow::Result<T>) -> T {
+        match result {
+            Ok(v) => v,
+            Err(e) => {
+                self.message = format!("{e:#}");
+                T::default()
+            }
+        }
+    }
+    fn result<T>(&mut self, result: anyhow::Result<T>, ok: &str) {
+        self.message = match result {
+            Ok(_) => ok.into(),
+            Err(e) => format!("{e:#}"),
+        };
+    }
     fn title(ui: &mut egui::Ui, kicker: &str, title: &str, sub: &str) {
-        ui.label(RichText::new(kicker).size(11.).color(GOLD).strong());
-        ui.add_space(6.);
-        ui.label(RichText::new(title).size(34.).strong());
-        ui.label(RichText::new(sub).size(14.).color(MUTED));
-        ui.add_space(24.);
+        ui.label(RichText::new(kicker).size(10.).color(GOLD).strong());
+        ui.add_space(4.);
+        ui.label(RichText::new(title).size(32.).strong());
+        ui.label(RichText::new(sub).color(MUTED));
+        ui.add_space(22.);
     }
     fn card(ui: &mut egui::Ui, content: impl FnOnce(&mut egui::Ui)) {
         egui::Frame::new()
-            .fill(Color32::from_rgb(24, 27, 33))
-            .stroke(egui::Stroke::new(1_f32, Color32::from_rgb(43, 47, 55)))
+            .fill(Color32::from_rgb(22, 25, 32))
+            .stroke(egui::Stroke::new(1_f32, Color32::from_rgb(40, 44, 53)))
             .corner_radius(12)
-            .inner_margin(24.)
-            .show(ui, content);
+            .inner_margin(22.)
+            .show(ui, |ui| {
+                ui.set_width(ui.available_width());
+                content(ui)
+            });
     }
-    fn result<T>(&mut self, r: anyhow::Result<T>, ok: &str) {
-        self.message = match r {
-            Ok(_) => ok.into(),
-            Err(e) => e.to_string(),
+    fn field(ui: &mut egui::Ui, label: &str, value: &mut String, rows: usize) {
+        ui.label(RichText::new(label).size(10.).color(MUTED));
+        if rows == 1 {
+            ui.add(egui::TextEdit::singleline(value).desired_width(f32::INFINITY));
+        } else {
+            ui.add(
+                egui::TextEdit::multiline(value)
+                    .desired_width(f32::INFINITY)
+                    .desired_rows(rows),
+            );
+        }
+    }
+    fn save_script(&mut self) -> bool {
+        if self.script == self.script_baseline {
+            return true;
+        }
+        if let Some(id) = &self.episode_id {
+            match self
+                .store
+                .save_screenplay_if_unchanged(id, &self.script_baseline, &self.script)
+            {
+                Ok(_) => {
+                    self.script_baseline = self.script.clone();
+                    true
+                }
+                Err(e) => {
+                    self.message = e.to_string();
+                    false
+                }
+            }
+        } else {
+            true
+        }
+    }
+    fn episode_picker(&mut self, ui: &mut egui::Ui) {
+        self.episode_navigation(ui);
+    }
+    fn dashboard(&mut self, ui: &mut egui::Ui) {
+        self.workflow_home(ui);
+    }
+    fn series(&mut self, ui: &mut egui::Ui) {
+        self.episode_workspace(ui);
+    }
+    fn library(&mut self, ui: &mut egui::Ui, kind: &str) {
+        Self::title(
+            ui,
+            if kind == "character" {
+                "CASTING"
+            } else {
+                "WORLD BUILDING"
+            },
+            if kind == "character" {
+                "An unforgettable cast."
+            } else {
+                "Set the scene."
+            },
+            "Keep identities and references consistent across your series.",
+        );
+        let Some(series) = self.selected.clone() else {
+            ui.label("Choose a series first.");
+            return;
         };
+        let entries = self.load(self.store.library(&series, kind));
+        egui::CollapsingHeader::new(if kind == "character" {
+            "+ Add a character"
+        } else {
+            "+ Add a location"
+        })
+        .id_salt((&series, kind, "new-library-entry"))
+        .default_open(entries.is_empty())
+        .show(ui, |ui| {
+            Self::card(ui, |ui| {
+                Self::field(ui, "NAME", &mut self.library_name, 1);
+                Self::field(
+                    ui,
+                    "DESCRIPTION / CONTINUITY NOTES",
+                    &mut self.library_description,
+                    3,
+                );
+                ui.horizontal(|ui| {
+                    if ui.button("Choose reference image").clicked() {
+                        self.library_reference = rfd::FileDialog::new()
+                            .add_filter("Image", &["png", "jpg", "jpeg", "webp"])
+                            .pick_file();
+                    }
+                    if let Some(p) = &self.library_reference {
+                        ui.label(p.file_name().unwrap_or_default().to_string_lossy());
+                    }
+                    if ui
+                        .button(RichText::new("Add to library").color(GOLD))
+                        .clicked()
+                    {
+                        let r = self.store.add_library(
+                            &series,
+                            kind,
+                            &self.library_name,
+                            &self.library_description,
+                            self.library_reference.as_deref(),
+                        );
+                        if r.is_ok() {
+                            self.library_name.clear();
+                            self.library_description.clear();
+                            self.library_reference = None;
+                        }
+                        self.result(r, "Library entry created");
+                    }
+                });
+            });
+        });
+        ui.add_space(18.);
+        for entry in entries {
+            Self::card(ui, |ui| {
+                ui.horizontal_top(|ui| {
+                    if let Some(p) = &entry.reference {
+                        ui.vertical(|ui| {
+                            self.reference_preview(
+                                ui,
+                                p,
+                                if kind == "character" {
+                                    Vec2::new(260., 320.)
+                                } else {
+                                    Vec2::new(340., 240.)
+                                },
+                            )
+                        });
+                    }
+                    ui.vertical(|ui| {
+                        let displayed = self.library_drafts.get(&entry.id).cloned();
+                        ui.label(
+                            RichText::new(
+                                displayed
+                                    .as_ref()
+                                    .map(|draft| draft.name.as_str())
+                                    .unwrap_or(&entry.name),
+                            )
+                            .size(21.),
+                        );
+                        ui.label(
+                            RichText::new(
+                                displayed
+                                    .as_ref()
+                                    .map(|draft| draft.description.as_str())
+                                    .unwrap_or(&entry.description),
+                            )
+                            .color(MUTED),
+                        );
+                        if displayed.as_ref().is_some_and(|draft| {
+                            draft.name != entry.name || draft.description != entry.description
+                        }) {
+                            ui.label(
+                                RichText::new("Unsaved draft · open Edit name and brief to save")
+                                    .color(GOLD),
+                            );
+                        }
+                        self.library_brief_editor(ui, &entry);
+                        self.grok_portrait_controls(ui, &entry);
+                        if kind == "character" {
+                            ui.label(RichText::new("Assigned voice").size(11.).color(MUTED));
+                            let mut voice = entry.voice.clone();
+                            egui::ComboBox::from_id_salt(&entry.id)
+                                .selected_text(&voice)
+                                .show_ui(ui, |ui| {
+                                    for name in [
+                                        "af_heart",
+                                        "af_bella",
+                                        "am_adam",
+                                        "am_michael",
+                                        "bf_emma",
+                                        "bm_george",
+                                    ] {
+                                        ui.selectable_value(&mut voice, name.into(), name);
+                                    }
+                                });
+                            if voice != entry.voice {
+                                let r = self.store.set_voice(&entry.id, &voice);
+                                self.result(r, "Character voice saved");
+                            }
+                        }
+                    });
+                });
+            });
+            ui.add_space(12.);
+        }
+    }
+    fn scenes(&mut self, ui: &mut egui::Ui) {
+        self.shot_workspace(ui);
+    }
+    fn queue(&mut self, ui: &mut egui::Ui) {
+        Self::title(
+            ui,
+            "PRODUCTION",
+            "Create picture and sound together.",
+            "Prepare a Seedance segment through OpenRouter, then review its request before generation. Recent work for this series and episode appears below.",
+        );
+        self.hosted_video_planner(ui);
+        ui.add_space(24.);
+        for job in self.load(self.store.workspace_jobs(
+            self.selected.as_deref().unwrap_or(""),
+            self.episode_id.as_deref(),
+        )) {
+            Self::card(ui, |ui| {
+                ui.horizontal(|ui| {
+                    ui.label(
+                        RichText::new(job.status.to_uppercase())
+                            .color(GOLD)
+                            .size(10.),
+                    );
+                    ui.label(
+                        RichText::new(format!("ATTEMPT {}", job.attempts))
+                            .color(MUTED)
+                            .size(10.),
+                    );
+                });
+                ui.label(&job.prompt);
+                if let Ok(timing) = self.store.job_timing(&job.id) {
+                    let hosted = timing.kind.starts_with("openrouter_");
+                    if let Some(seconds) = timing.attempt_elapsed_seconds {
+                        ui.small(format!(
+                            "Processing elapsed this attempt: {}",
+                            job_timing::duration(seconds)
+                        ));
+                    }
+                    if let Some(seconds) = timing.queued_seconds {
+                        ui.small(format!(
+                            "Waiting since request: {}",
+                            job_timing::duration(seconds)
+                        ));
+                    }
+                    if job.status == "running" {
+                        if hosted {
+                            ui.horizontal(|ui| {
+                                ui.spinner();
+                                ui.label(&timing.stage);
+                            });
+                            ui.small(&timing.estimate_note);
+                        } else {
+                            ui.add(egui::ProgressBar::new(job.progress).show_percentage());
+                            ui.label(RichText::new(&job.phase).color(MUTED));
+                        }
+                    }
+                }
+                if !job.error.is_empty() {
+                    ui.label(RichText::new(&job.error).color(Color32::from_rgb(233, 151, 129)));
+                }
+                ui.horizontal(|ui| {
+                    if ["queued", "running", "blocked"].contains(&job.status.as_str())
+                        && ui.small_button("Cancel").clicked()
+                    {
+                        let r = self.store.cancel(&job.id);
+                        self.result(r, "Cancellation requested");
+                    }
+                    if ["failed", "canceled", "blocked"].contains(&job.status.as_str())
+                        && ui.small_button("Retry").clicked()
+                    {
+                        let r = self
+                            .store
+                            .retry(&job.id)
+                            .and_then(|_| worker::spawn_detached(&self.store.path));
+                        self.result(r, "Retry queued");
+                    }
+                    if job.output_id.is_some() && ui.small_button("View asset").clicked() {
+                        self.preview_asset = job.output_id.clone();
+                        if let Some(id) = &job.output_id {
+                            self.asset_browser.show_asset(id);
+                        }
+                        self.page = Page::Assets;
+                    }
+                });
+            });
+            ui.add_space(12.);
+        }
+    }
+    fn assets(&mut self, ui: &mut egui::Ui) {
+        Self::title(
+            ui,
+            "THE SCREENING ROOM",
+            "Review the work.",
+            "Original renders, full provenance, and a decision for every take.",
+        );
+        let Some(assets) = self.catalog_assets(ui) else {
+            return;
+        };
+        if assets.is_empty() {
+            Self::card(ui, |ui| {
+                let filtered = !self.asset_browser.query.text.trim().is_empty()
+                    || self.asset_browser.query.media != "all"
+                    || self.asset_browser.query.review != "all"
+                    || self.asset_browser.query.offset > 0;
+                ui.label(if filtered {
+                    "No media on this page matches the current view."
+                } else {
+                    "No generated assets yet."
+                });
+                ui.label(
+                    RichText::new("Completed renders appear automatically. Clear filters or use Previous to return to other media.").color(MUTED),
+                );
+            });
+        }
+        if self.preview.is_some()
+            && self
+                .preview_asset
+                .as_ref()
+                .is_some_and(|id| !assets.iter().any(|asset| &asset.id == id))
+        {
+            self.stop_playback();
+        }
+        for asset in assets {
+            Self::card(ui, |ui| {
+                ui.horizontal(|ui| {
+                    let poster = asset.path.with_file_name("poster.png");
+                    if poster.is_file() {
+                        ui.add(
+                            egui::Image::from_uri(format!("file://{}", poster.display()))
+                                .max_size(Vec2::new(180., 240.)),
+                        );
+                    }
+                    ui.vertical(|ui| {
+                        ui.label(RichText::new(self.store.asset_label(&asset)).size(20.));
+                        let details = if asset.duration == 0. {
+                            format!(
+                                "Image · {} × {} · {}",
+                                asset.width, asset.height, asset.review
+                            )
+                        } else if asset.width == 0 {
+                            format!("Audio · {:.2}s · {}", asset.duration, asset.review)
+                        } else {
+                            format!(
+                                "{} × {} · {:.2}s · {}",
+                                asset.width, asset.height, asset.duration, asset.review
+                            )
+                        };
+                        ui.label(RichText::new(details).color(GOLD));
+                        if let Some(prompt) = asset.metadata["request"]["prompt"].as_str() {
+                            ui.push_id((&asset.id,"prompt"),|ui|ui.collapsing("Generation prompt",|ui|{ui.label(prompt);}));
+                        } else if let Some(text) = asset.metadata["request"]["text"].as_str() {
+                            ui.label(text);
+                        }
+                        if asset.review=="rejected" && let Ok(review)=self.store.asset_review(&asset.id) && !review.note.trim().is_empty() {
+                            ui.label(RichText::new(review.note.chars().take(240).collect::<String>()).color(MUTED));
+                        }
+                        ui.horizontal_wrapped(|ui| {
+                            if ui
+                                .button(if asset.duration == 0. {
+                                    "View image"
+                                } else if asset.width == 0 {
+                                    "Listen"
+                                } else {
+                                    "Play preview"
+                                })
+                                .clicked()
+                            {
+                                self.stop_playback();
+                                if asset.duration == 0. {
+                                    self.preview = None;
+                                    self.preview_asset = Some(asset.id.clone());
+                                } else if asset.width == 0 {
+                                    if let Some(child) = &mut self.audio {
+                                        let _ = child.kill();
+                                        let _ = child.wait();
+                                    }
+                                    #[cfg(target_os = "macos")]
+                                    match std::process::Command::new("/usr/bin/afplay")
+                                        .arg(&asset.path)
+                                        .spawn()
+                                    {
+                                        Ok(child) => self.audio = Some(child),
+                                        Err(e) => self.message = e.to_string(),
+                                    }
+                                } else {
+                                    match media::Preview::open(
+                                        self.config.ffmpeg.clone(),
+                                        asset.path.clone(),
+                                        asset.width as f32 / asset.height as f32,
+                                        asset.metadata["info"]["audio"].as_bool().unwrap_or(false),
+                                    ) {
+                                        Ok(p) => {
+                                            self.preview = Some(p);
+                                            self.preview_asset = Some(asset.id.clone());
+                                        }
+                                        Err(e) => self.message = e.to_string(),
+                                    }
+                                }
+                            }
+                            if asset.duration == 0. && ui.button("Animate image").clicked() {
+                                self.request.shot_id = None;
+                                self.request.image = Some(asset.path.clone());
+                                self.request.prompt = asset.metadata["request"]["prompt"]
+                                    .as_str()
+                                    .unwrap_or("")
+                                    .into();
+                                self.page = Page::Queue;
+                            }
+                            #[cfg(target_os = "macos")]
+                            if asset.duration > 0. && ui.button("Open in system player").on_hover_text("Review the original file at full resolution with the system player's synchronized playback.").clicked() {
+                                self.stop_playback();
+                                let result=std::process::Command::new("/usr/bin/open").arg(&asset.path).spawn().map(|_|()).map_err(Into::into);
+                                self.result(result,"Opened original media in the system player");
+                            }
+                            if ui.button("Approve").clicked() {
+                                self.review_choice(&asset.id, "approved");
+                            }
+                            if ui.button("Reject").clicked() {
+                                self.review_choice(&asset.id, "rejected");
+                            }
+                            if let Some(path) = asset.metadata["subtitle_file"].as_str()
+                                && ui.button("Save subtitles (.srt)").clicked()
+                                && let Some(destination) = rfd::FileDialog::new()
+                                    .set_file_name("DramaFactory-episode.srt")
+                                    .add_filter("SubRip captions", &["srt"])
+                                    .save_file()
+                            {
+                                let r = std::fs::copy(path, destination).map_err(Into::into);
+                                self.result(r, "Subtitles copied");
+                            }
+                            if ui.button("Save a copy").clicked()
+                                && let Some(dest) = rfd::FileDialog::new()
+                                    .set_file_name(if asset.duration == 0. {
+                                        "DramaFactory-image.png"
+                                    } else if asset.width == 0 {
+                                        "DramaFactory-dialogue.wav"
+                                    } else {
+                                        "DramaFactory-take.mp4"
+                                    })
+                                    .save_file()
+                            {
+                                let r = std::fs::copy(&asset.path, dest).map_err(Into::into);
+                                self.result(r, "Media copied");
+                            }
+                        });
+                        self.review_notes(ui, &asset.id);
+                        ui.collapsing("Generation provenance", |ui| {
+                            ui.label(asset.path.display().to_string());
+                            ui.label(format!("SHA-256 {}", asset.hash));
+                            ui.label(
+                                serde_json::to_string_pretty(&asset.metadata).unwrap_or_default(),
+                            );
+                        });
+                    });
+                });
+                if self.preview_asset.as_ref() == Some(&asset.id) && asset.duration == 0. {
+                    self.reference_preview(ui, &asset.path, Vec2::new(700., 650.));
+                }
+                if self.preview_asset.as_ref() == Some(&asset.id)
+                    && let Some(p) = &mut self.preview
+                {
+                    ui.add_space(14.);
+                    p.ui(ui);
+                    ui.label(RichText::new("Local preview").color(MUTED).size(11.));
+                    if ui.small_button("Close preview").clicked() {
+                        self.preview = None;
+                    }
+                }
+            });
+            ui.add_space(16.);
+        }
+    }
+    fn images(&mut self, ui: &mut egui::Ui) {
+        Self::title(
+            ui,
+            "CHARACTER & WORLD DESIGN",
+            "Bring the world into focus.",
+            "Local FLUX.2 image generation and reference-guided revisions.",
+        );
+        Self::card(ui, |ui| {
+            Self::field(ui, "IMAGE DIRECTION", &mut self.image_request.prompt, 5);
+            ui.horizontal(|ui| {
+                ui.label("Width");
+                ui.add(
+                    egui::DragValue::new(&mut self.image_request.width)
+                        .range(256..=1536)
+                        .speed(16.),
+                );
+                ui.label("Height");
+                ui.add(
+                    egui::DragValue::new(&mut self.image_request.height)
+                        .range(256..=1536)
+                        .speed(16.),
+                );
+                ui.label("Steps");
+                ui.add(egui::DragValue::new(&mut self.image_request.steps).range(1..=20));
+                ui.label("Seed");
+                ui.add(egui::DragValue::new(&mut self.image_request.seed));
+            });
+            ui.horizontal(|ui| {
+                if ui.button("Reference image").clicked() {
+                    self.image_request.reference = rfd::FileDialog::new()
+                        .add_filter("Image", &["png", "jpg", "jpeg"])
+                        .pick_file();
+                }
+                if let Some(path) = &self.image_request.reference {
+                    ui.label(path.file_name().unwrap_or_default().to_string_lossy());
+                    if ui.small_button("Clear").clicked() {
+                        self.image_request.reference = None;
+                    }
+                }
+            });
+            if let Some(path) = self.image_request.reference.clone() {
+                self.reference_preview(ui, &path, Vec2::new(360., 320.));
+            }
+            if self.image_request.library_id.is_some() {
+                ui.label(RichText::new("Linked to a library entry. Its current reference guides revisions; originals remain in the asset library.").color(GOLD));
+                if ui.small_button("Unlink library entry").clicked() {
+                    self.image_request.library_id = None;
+                }
+            }
+            if ui
+                .button(RichText::new("Queue local image").color(GOLD))
+                .clicked()
+            {
+                match self.store.enqueue_image(&self.image_request) {
+                    Ok(job) => {
+                        if job.status == "queued" {
+                            let r = worker::spawn_detached(&self.store.path);
+                            self.result(r, "Image generation queued");
+                        } else {
+                            self.message = job.error;
+                        }
+                    }
+                    Err(e) => self.message = e.to_string(),
+                }
+            }
+            ui.label(
+                RichText::new(
+                    "One inference job at a time. Completed images appear in the screening room.",
+                )
+                .color(MUTED),
+            );
+        });
+    }
+    fn dialogue(&mut self, ui: &mut egui::Ui) {
+        self.dialogue_workspace(ui);
+    }
+    fn timeline(&mut self, ui: &mut egui::Ui) {
+        Self::title(
+            ui,
+            "THE EDITING ROOM",
+            "Shape the final cut.",
+            "Ordered shots, precise timing, and a deterministic portrait export.",
+        );
+        self.episode_picker(ui);
+        let Some(episode) = self.episode_id.clone() else {
+            ui.label("Choose an episode to assemble.");
+            return;
+        };
+        self.readiness_panel(ui, &episode);
+        let shots = self.load(self.store.shots(&episode));
+        let assets = self.load(self.store.assets());
+        let total: f64 = shots.iter().map(|s| s.duration).sum();
+        let target = self
+            .store
+            .get_episode(&episode)
+            .ok()
+            .and_then(|e| self.store.series_plan(&e.series_id).ok())
+            .map(|p| p.creative.episode_seconds)
+            .unwrap_or(75.);
+        ui.label(
+            RichText::new(format!(
+                "{:.2}s / {:.0}s target   ·   1080 × 1920   ·   24 fps",
+                total, target
+            ))
+            .color(GOLD),
+        );
+        ui.add_space(14.);
+        egui::ScrollArea::horizontal()
+            .id_salt("timeline-strip")
+            .show(ui, |ui| {
+                ui.horizontal(|ui| {
+                    let mut time = 0.;
+                    for shot in &shots {
+                        let asset = assets
+                            .iter()
+                            .find(|a| Some(&a.id) == shot.asset_id.as_ref());
+                        egui::Frame::new()
+                            .fill(Color32::from_rgb(37, 34, 30))
+                            .corner_radius(8)
+                            .inner_margin(14.)
+                            .show(ui, |ui| {
+                                ui.vertical(|ui| {
+                                    ui.set_width((shot.duration as f32 * 30.).max(140.));
+                                    ui.label(
+                                        RichText::new(format!(
+                                            "{:02}   {:.1}s",
+                                            shot.position + 1,
+                                            shot.duration
+                                        ))
+                                        .color(GOLD),
+                                    );
+                                    ui.label(&shot.title);
+                                    ui.label(
+                                        RichText::new(format!(
+                                            "{:.1} – {:.1}",
+                                            time,
+                                            time + shot.duration
+                                        ))
+                                        .size(11.)
+                                        .color(MUTED),
+                                    );
+                                    ui.label(
+                                        RichText::new(
+                                            asset
+                                                .map(|a| a.review.as_str())
+                                                .unwrap_or("awaiting render"),
+                                        )
+                                        .size(10.),
+                                    );
+                                    self.picture_trim_controls(ui, shot);
+                                    self.picture_fade_controls(ui, shot);
+                                });
+                            });
+                        time += shot.duration;
+                    }
+                });
+            });
+        ui.add_space(22.);
+        self.sound_timeline(ui, &episode, total);
+        Self::card(ui, |ui| {
+            ui.label(RichText::new("Export profile").size(21.));
+            ui.label("H.264 video · AAC stereo · MP4");
+            let mut burn = self.store.burn_captions(&episode).unwrap_or(false);
+            if ui
+                .checkbox(&mut burn, "Include readable captions in the video")
+                .changed()
+            {
+                let r = self.store.set_caption_mode(&episode, burn);
+                self.result(r, "Caption export mode saved");
+            }
+            ui.label(RichText::new("Dialogue also exports as a separate SRT file. Line boundaries follow generated speech; timing inside long lines is estimated.").color(MUTED));
+
+            ui.label(RichText::new("Clips are trimmed to their planned lengths, resized and cropped to fill the portrait frame. Every selected take must be approved. Shot-timed dialogue is mixed in sequence; timeline-timed dialogue can continue over camera cuts. Music and sound effects share the final mix. Lip synchronization remains experimental.").color(MUTED));
+            if (total - target).abs() > 0.05 {
+                ui.label(RichText::new(format!("This episode is {:.2}s. The series episode target is {:.0}s; shorter test exports are allowed.",total,target)).color(GOLD));
+            }
+            let unsaved_cues = self
+                .cue_drafts
+                .values()
+                .filter(|draft| draft.cue.episode_id == episode)
+                .count();
+            if unsaved_cues > 0 {
+                ui.label(RichText::new(format!("{unsaved_cues} local sound cue draft(s). Save or reload them before exporting the mix.")).color(GOLD));
+            }
+            if ui
+                .add_enabled(
+                    unsaved_cues == 0,
+                    egui::Button::new(RichText::new("Queue episode export").color(GOLD)),
+                )
+                .clicked()
+            {
+                let r = self
+                    .store
+                    .enqueue_export(&episode)
+                    .and_then(|_| worker::spawn_detached(&self.store.path));
+                self.result(r, "Episode export queued");
+            }
+        });
+    }
+    fn sound_timeline(&mut self, ui: &mut egui::Ui, episode: &str, total: f64) {
+        Self::card(ui, |ui| {
+            ui.horizontal(|ui| {
+                ui.label(RichText::new("Sound design").size(21.));
+                if ui.button("Import WAV…").clicked()
+                    && let Some(path) = rfd::FileDialog::new()
+                        .add_filter("WAV audio", &["wav"])
+                        .pick_file()
+                {
+                    let result = self.store.import_audio(&path);
+                    self.result(result, "Audio imported; original preserved");
+                }
+            });
+            ui.label(RichText::new("Place music and effects in seconds. Source trims preserve your originals; fades and gain shape the final mix.").color(MUTED));
+            ui.small(
+                "Edit locally, then Save sound cue. Reload saved cue discards your local edits.",
+            );
+            let assets = self.load(self.store.assets());
+            let cues = self.load(self.store.audio_cues(episode));
+            let saved_ids: std::collections::HashSet<_> =
+                cues.iter().map(|cue| cue.id.clone()).collect();
+            for saved in cues {
+                let mut draft =
+                    self.cue_drafts
+                        .get(&saved.id)
+                        .cloned()
+                        .unwrap_or(sound::CueDraft {
+                            cue: saved.clone(),
+                            expected: saved.clone(),
+                        });
+                let mut cue = draft.cue.clone();
+                ui.push_id(cue.id.clone(), |ui| {
+                    ui.separator();
+                    let mut changed = false;
+                    let mut discard=false;
+                    if saved!=draft.expected {ui.label(RichText::new("Newer sound cue saved in another session; your draft is preserved.").color(GOLD));}
+                    ui.horizontal(|ui| {
+                        changed |= ui.text_edit_singleline(&mut cue.name).changed();
+                        egui::ComboBox::from_id_salt("kind")
+                            .selected_text(&cue.kind)
+                            .show_ui(ui, |ui| {
+                                changed |= ui
+                                    .selectable_value(&mut cue.kind, "music".into(), "Music")
+                                    .changed();
+                                changed |= ui
+                                    .selectable_value(&mut cue.kind, "sfx".into(), "Sound effect")
+                                    .changed();
+                            });
+                        if ui.button("Remove saved cue").clicked() {
+                            let r = self.store.remove_audio_cue(&cue.id,&draft.expected);
+                            discard=r.is_ok();
+                            self.result(r, "Cue removed; audio preserved");
+                        }
+                    });
+                    egui::Grid::new("timing")
+                        .num_columns(4)
+                        .spacing([12., 8.])
+                        .show(ui, |ui| {
+                            for (index, (label, value, range)) in [
+                                ("Timeline start", &mut cue.start, 0. ..=1800.),
+                                ("Source start", &mut cue.source_start, 0. ..=1800.),
+                                ("Duration", &mut cue.duration, 0.01..=1800.),
+                                ("Gain (dB)", &mut cue.gain_db, -60. ..=12.),
+                                ("Fade in", &mut cue.fade_in, 0. ..=1800.),
+                                ("Fade out", &mut cue.fade_out, 0. ..=1800.),
+                            ]
+                            .into_iter()
+                            .enumerate()
+                            {
+                                ui.label(label);
+                                changed |= ui
+                                    .add(egui::DragValue::new(value).speed(0.05).range(range))
+                                    .changed();
+                                if index % 2 == 1 {
+                                    ui.end_row();
+                                }
+                            }
+                        });
+                    if cue.start + cue.duration > total + 0.001 {
+                        ui.label(
+                            RichText::new(
+                                "Extends beyond the cut — trim or reposition before exporting.",
+                            )
+                            .color(GOLD),
+                        );
+                    }
+                    if let Some(asset) = assets.iter().find(|a| a.id == cue.asset_id) {
+                        ui.horizontal(|ui| {
+                            ui.label(format!(
+                                "{} · {}",
+                                self.store.asset_label(asset),
+                                asset.review
+                            ));
+                            if asset.review != "approved" && ui.button("Approve audio").clicked() {
+                                let r = self.store.review(&asset.id, "approved");
+                                self.result(r, "Audio approved");
+                            }
+                        });
+                    }
+                    ui.horizontal(|ui| {
+                        if ui.button("Save sound cue").clicked() {
+                            let result=self.store.save_audio_cue(&cue,Some(&draft.expected));
+                            discard=result.is_ok();
+                            self.result(result,"Sound cue saved; original audio preserved");
+                        }
+                        if ui.small_button("Reload saved cue").clicked(){discard=true;}
+                    });
+                    if discard {self.cue_drafts.remove(&cue.id);}else if changed {draft.cue=cue.clone();self.cue_drafts.insert(cue.id.clone(),draft);}
+                });
+            }
+            let removed_drafts: Vec<_> = self
+                .cue_drafts
+                .values()
+                .filter(|draft| {
+                    draft.cue.episode_id == episode && !saved_ids.contains(&draft.cue.id)
+                })
+                .cloned()
+                .collect();
+            for draft in removed_drafts {
+                ui.push_id((&draft.cue.id,"removed"),|ui|{
+                ui.label(RichText::new(format!("{} was removed in another session. Your local draft is preserved and will be snapshotted on exit.",draft.cue.name)).color(GOLD));
+                if ui.small_button("Discard local draft").clicked(){self.cue_drafts.remove(&draft.cue.id);}
+            });
+            }
+            ui.collapsing("Add from audio library", |ui| {
+                let available: Vec<_> = assets
+                    .iter()
+                    .filter(|a| a.width == 0 && a.duration > 0.)
+                    .collect();
+                if available.is_empty() {
+                    ui.label("Import a WAV to begin. Mono/stereo, up to 200 MB.");
+                }
+                for asset in available {
+                    ui.push_id(&asset.id, |ui| {
+                        ui.horizontal(|ui| {
+                            ui.label(format!(
+                                "{} · {:.2}s",
+                                self.store.asset_label(asset),
+                                asset.duration
+                            ));
+                            for (kind, label) in [("music", "Add music"), ("sfx", "Add effect")] {
+                                if ui
+                                    .add_enabled(total > 0., egui::Button::new(label))
+                                    .clicked()
+                                {
+                                    let duration = asset.duration.min(total);
+                                    let cue = sound::AudioCue {
+                                        id: uuid::Uuid::new_v4().to_string(),
+                                        episode_id: episode.into(),
+                                        asset_id: asset.id.clone(),
+                                        name: self.store.asset_label(asset),
+                                        kind: kind.into(),
+                                        start: 0.,
+                                        source_start: 0.,
+                                        duration,
+                                        gain_db: if kind == "music" { -18. } else { -6. },
+                                        fade_in: 0.,
+                                        fade_out: 0.,
+                                    };
+                                    let r = self.store.save_audio_cue(&cue, None);
+                                    self.result(r, "Audio cue added");
+                                }
+                            }
+                        });
+                    });
+                }
+            });
+        });
+        ui.add_space(18.);
+    }
+    fn settings(&mut self, ui: &mut egui::Ui) {
+        Self::title(
+            ui,
+            "STUDIO PREFERENCES",
+            "Made to stay yours.",
+            "OpenRouter connection, application updates, and project storage.",
+        );
+        self.provider_settings_panel(ui);
+        ui.add_space(18.);
+        Self::card(ui, |ui| {
+            ui.heading("Application updates");
+            if ui
+                .checkbox(
+                    &mut self.automatic_updates,
+                    "Download signed updates silently; install after exit",
+                )
+                .changed()
+            {
+                let r = self.store.set_automatic_updates(self.automatic_updates);
+                self.result(r, "Update preference saved");
+            }
+            ui.label("v002 · MIT · Baz-Studios-LLC / DramaFactory");
+            ui.label(&self.update_status);
+            if ui
+                .add_enabled(
+                    self.update_rx.is_none(),
+                    egui::Button::new("Check for updates"),
+                )
+                .clicked()
+            {
+                self.update_rx = Some(updates::check(self.store.root(), self.automatic_updates));
+                self.update_status = "Checking published releases…".into();
+            }
+            ui.label(RichText::new("Updates require a signature from Baz Studios and wait for active renders to finish. This local build is not Apple notarized.").color(MUTED));
+        });
+        ui.add_space(18.);
+        Self::card(ui, |ui| {
+            ui.heading("MCP connection");
+            ui.label("Local stdio · launched on demand by your MCP client");
+            if let Ok(exe) = std::env::current_exe() {
+                ui.code(exe.display().to_string());
+                ui.label("Arguments: --mcp");
+                if ui.button("Copy MCP launch configuration").clicked() {
+                    let config = serde_json::json!({"command":exe,"args":["--mcp"]});
+                    ui.ctx()
+                        .copy_text(serde_json::to_string_pretty(&config).unwrap_or_default());
+                    self.message = "MCP launch configuration copied".into();
+                }
+            }
+        });
+        ui.add_space(18.);
+        ui.label(RichText::new("PROJECT STORAGE").color(GOLD).size(10.));
+        ui.label(self.store.path.display().to_string());
     }
 }
 impl eframe::App for Studio {
     fn update(&mut self, ctx: &egui::Context, _: &mut eframe::Frame) {
+        if self.last_sync.elapsed() > std::time::Duration::from_secs(2) {
+            if self.script == self.script_baseline
+                && let Some(id) = &self.episode_id
+                && let Ok(episode) = self.store.get_episode(id)
+            {
+                self.script = episode.screenplay;
+                self.script_baseline = self.script.clone();
+            }
+            self.last_sync = std::time::Instant::now();
+        }
+        if ctx.input(|i| i.modifiers.command && i.key_pressed(egui::Key::S)) && self.save_script() {
+            self.message = "Screenplay saved".into();
+        }
         if let Some(rx) = &self.update_rx
-            && let Ok(status) = rx.try_recv()
+            && let Ok(s) = rx.try_recv()
         {
-            self.update_status = status;
+            self.update_status = s.message;
             self.update_rx = None;
         }
         egui::TopBottomPanel::bottom("status")
             .frame(
                 egui::Frame::new()
-                    .fill(Color32::from_rgb(13, 15, 19))
-                    .inner_margin(12.),
+                    .fill(Color32::from_rgb(10, 12, 16))
+                    .inner_margin(10.),
             )
             .show(ctx, |ui| {
                 ui.horizontal(|ui| {
@@ -97,28 +1200,31 @@ impl eframe::App for Studio {
                     ui.separator();
                     ui.label(
                         RichText::new(if self.message.is_empty() {
-                            "Your stories stay on this Mac"
+                            "Private production. Independent by design."
                         } else {
                             &self.message
                         })
-                        .size(11.)
-                        .color(MUTED),
+                        .color(MUTED)
+                        .size(11.),
                     );
                     ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                        ui.label(RichText::new("v001  /  FOUNDATION").size(10.).color(MUTED));
+                        ui.label(RichText::new("v002 / DEVELOPMENT").color(MUTED).size(10.));
                     });
                 });
             });
         egui::SidePanel::left("navigation")
-            .exact_width(218.)
+            .exact_width(220.)
             .frame(
                 egui::Frame::new()
-                    .fill(Color32::from_rgb(13, 15, 19))
-                    .inner_margin(22.),
+                    .fill(Color32::from_rgb(10, 12, 16))
+                    .inner_margin(18.),
             )
             .show(ctx, |ui| {
-                ui.add_space(16.);
-                ui.label(RichText::new("D / F").size(30.).color(GOLD).strong());
+                ui.add_space(10.);
+                ui.add(
+                    egui::Image::new(egui::include_image!("../branding/icon.png"))
+                        .fit_to_exact_size(Vec2::splat(82.)),
+                );
                 ui.add_space(8.);
                 ui.label(RichText::new("DRAMAFACTORY").size(15.).strong());
                 ui.label(
@@ -126,95 +1232,71 @@ impl eframe::App for Studio {
                         .size(9.)
                         .color(MUTED),
                 );
-                ui.add_space(42.);
-                for (i, label) in [
-                    "01   Studio",
-                    "02   Series & episodes",
-                    "03   Production queue",
-                    "04   Model library",
-                    "05   Preferences",
-                ]
-                .iter()
-                .enumerate()
-                {
-                    if ui
-                        .add_sized(
-                            [174., 42.],
-                            egui::Button::new(RichText::new(*label).color(if self.page == i {
-                                GOLD
-                            } else {
-                                MUTED
-                            }))
-                            .selected(self.page == i),
-                        )
-                        .clicked()
-                    {
-                        self.page = i;
-                    }
-                    ui.add_space(3.);
-                }
+                ui.add_space(16.);
+                self.current_series_picker(ui);
+                ui.add_space(18.);
+                egui::ScrollArea::vertical()
+                    .max_height((ui.available_height() - 32.).max(100.))
+                    .id_salt("navigation-scroll")
+                    .show(ui, |ui| {
+                        self.workflow_navigation(ui);
+                    });
                 ui.with_layout(egui::Layout::bottom_up(egui::Align::LEFT), |ui| {
                     ui.label(
-                        RichText::new("BUILT FOR YOUR NEXT STORY.")
-                            .size(9.)
-                            .color(MUTED),
-                    );
-                    ui.separator();
-                    ui.label(
-                        RichText::new("Private by design\nLocal-first production")
-                            .size(12.)
-                            .color(MUTED),
+                        RichText::new("YOUR VISION. YOUR FINAL CUT.")
+                            .color(MUTED)
+                            .size(9.),
                     );
                 });
             });
-        egui::CentralPanel::default().frame(egui::Frame::new().fill(Color32::from_rgb(17,19,24)).inner_margin(36.)).show(ctx,|ui|{egui::ScrollArea::vertical().show(ui,|ui|{match self.page{
- 0=>{Self::title(ui,"YOUR PRODUCTION HOME","Every great drama starts here.","From the first idea to the final frame. One independent studio.");
- let width=ui.available_width();let (rect,_)=ui.allocate_exact_size(Vec2::new(width,220.),egui::Sense::hover());let p=ui.painter();p.rect_filled(rect,16,Color32::from_rgb(33,34,39));for i in 0..36{let x=rect.right()-i as f32*16.;p.line_segment([egui::pos2(x,rect.top()),egui::pos2(x-150.,rect.bottom())],egui::Stroke::new(1_f32,Color32::from_rgba_unmultiplied(224,184,119,18)));}p.text(rect.left_top()+Vec2::new(28.,30.),egui::Align2::LEFT_TOP,"THE DIRECTOR’S CHAIR",egui::FontId::proportional(11.),GOLD);p.text(rect.left_top()+Vec2::new(28.,64.),egui::Align2::LEFT_TOP,"A world waiting\nto be written.",egui::FontId::proportional(34.),Color32::WHITE);p.text(rect.left_bottom()+Vec2::new(28.,-24.),egui::Align2::LEFT_BOTTOM,"YOUR VISION. YOUR CAST. YOUR FINAL CUT.",egui::FontId::proportional(10.),MUTED);
- ui.add_space(22.);ui.horizontal(|ui|{if ui.button(RichText::new("+  Create a series").color(GOLD)).clicked(){self.new_open=true;}
-if ui.button("Open production queue").clicked(){self.page=2;}});ui.add_space(24.);
- let series=self.store.series().unwrap_or_default();let jobs=self.store.jobs().unwrap_or_default();ui.columns(3,|cols|{for (col,(n,label)) in cols.iter_mut().zip([(series.len(),"SERIES IN DEVELOPMENT"),(jobs.iter().filter(|j|j.status=="blocked").count(),"REQUESTS AWAITING SETUP"),(0,"VERIFIED VIDEO MODELS")]){Self::card(col,|ui|{ui.label(RichText::new(n.to_string()).size(32.).color(GOLD));ui.label(RichText::new(label).size(10.).color(MUTED));});}});ui.add_space(28.);ui.heading("Your productions");ui.add_space(8.);if series.is_empty(){Self::card(ui,|ui|{ui.label(RichText::new("The stage is yours.").size(21.));ui.label(RichText::new("Create your first series to develop its premise, episodes, and screenplay.").color(MUTED));});}
-for s in series{Self::card(ui,|ui|{if ui.button(RichText::new(&s.name).size(20.)).clicked(){self.selected=Some(s.id.clone());self.page=1;}ui.label(&s.premise);});ui.add_space(10.);}}
- 1=>{Self::title(ui,"DEVELOPMENT","Series & episodes","Build the world. Find the characters. Write the first scene.");if ui.button("+  New series").clicked(){self.new_open=true;}
-for s in self.store.series().unwrap_or_default(){if ui.selectable_label(self.selected.as_ref()==Some(&s.id),RichText::new(&s.name).size(19.)).clicked(){self.selected=Some(s.id.clone());self.episode_id=None;self.script.clear();}
-if self.selected.as_ref()==Some(&s.id){ui.label(RichText::new(&s.premise).color(MUTED));ui.add_space(12.);ui.horizontal(|ui|{ui.add(egui::TextEdit::singleline(&mut self.episode_title).hint_text("Episode title"));if ui.button("Add episode").clicked(){let r=self.store.create_episode(&s.id,&self.episode_title);self.result(r,"Episode created");self.episode_title.clear();}});for e in self.store.episodes(&s.id).unwrap_or_default(){if ui.selectable_label(self.episode_id.as_ref()==Some(&e.id),&e.title).clicked(){self.episode_id=Some(e.id);self.script=e.screenplay;}}}ui.separator();}
-if let Some(id)=self.episode_id.clone(){ui.add_space(12.);ui.label(RichText::new("SCREENPLAY").color(GOLD).size(11.));ui.add(egui::TextEdit::multiline(&mut self.script).desired_width(f32::INFINITY).desired_rows(16).hint_text("INT. YOUR WORLD — NIGHT\n\nIt begins with a moment…"));if ui.button("Save screenplay").clicked(){let r=self.store.save_screenplay(&id,&self.script);self.result(r,"Screenplay saved");}}}
- 2=>{Self::title(ui,"PRODUCTION","The render room","Persistent requests. Clear status. Nothing lost between sessions.");Self::card(ui,|ui|{ui.label(RichText::new("Set the scene").size(21.));ui.add(egui::TextEdit::multiline(&mut self.prompt).desired_width(f32::INFINITY).desired_rows(3).hint_text("Describe the shot, light, camera movement, and atmosphere…"));ui.label(RichText::new("Local video generation requires a verified model worker. Requests are saved as blocked until setup is complete.").color(MUTED));if ui.button("Save render request").clicked(){let r=self.store.queue(&self.prompt);self.result(r,"Render request saved · awaiting worker setup");}});ui.add_space(24.);for j in self.store.jobs().unwrap_or_default(){Self::card(ui,|ui|{ui.horizontal(|ui|{ui.label(RichText::new(j.status.to_uppercase()).size(11.).color(GOLD));ui.label(&j.prompt);});
-if !j.error.is_empty(){ui.label(RichText::new(&j.error).color(MUTED));}
-if j.status=="blocked"&&ui.small_button("Cancel request").clicked(){let r=self.store.cancel(&j.id);self.result(r,"Request canceled");}});ui.add_space(10.);}}
- 3=>{Self::title(ui,"INFERENCE","Model library","A deliberate selection of local creative tools.");Self::card(ui,|ui|{ui.label(RichText::new("Wan 2.2 · TI2V 5B").size(24.));ui.label(RichText::new("CANDIDATE  /  NOT INSTALLED").color(GOLD).size(11.));ui.add_space(12.);ui.label("Text and image to video, through an isolated MLX worker.");ui.label(RichText::new("Upstream MLX support documented. Performance and memory use on this Mac are not yet verified. A large checkpoint download is required before benchmarking.").color(MUTED));});}
- _=>{Self::title(ui,"STUDIO PREFERENCES","Made to stay yours.","Local storage, release channels, and application identity.");Self::card(ui,|ui|{ui.label(RichText::new("Project storage").size(20.));ui.label(self.store.path.display().to_string());ui.add_space(16.);ui.label(RichText::new("Updates · Baz-Studios-LLC / DramaFactory").size(20.));ui.label("Version v001 · MIT license");ui.label(&self.update_status);
-if ui.add_enabled(self.update_rx.is_none(), egui::Button::new("Check for updates")).clicked(){self.update_rx=Some(updates::check());self.update_status="Checking for releases…".into();}
-ui.label(RichText::new("Automatic updates are pending a signed GitHub release feed. Planned behavior: check quietly, download verified updates, install after exit. Developer ID signing and notarization can follow when your Apple developer account is ready.").color(MUTED));ui.add_space(16.);ui.label("Cloud inference is disabled. No API credentials are stored.");});}
- }});});
+        self.sidekick_panel(ctx);
+        egui::CentralPanel::default()
+            .frame(egui::Frame::new().fill(BG).inner_margin(30.))
+            .show(ctx, |ui| {
+                egui::ScrollArea::vertical()
+                    .id_salt(("studio-page", self.page as u8))
+                    .show(ui, |ui| {
+                        ui.set_min_width(ui.available_width());
+                        self.workflow_location(ui);
+                        match self.page {
+                            Page::Studio => self.dashboard(ui),
+                            Page::Series => self.series(ui),
+                            Page::Synopsis => self.synopsis(ui),
+                            Page::Story => self.story_development(ui),
+                            Page::Cast => self.library(ui, "character"),
+                            Page::Locations => self.library(ui, "location"),
+                            Page::Scenes => self.scenes(ui),
+                            Page::Assets => self.assets(ui),
+                            Page::Timeline => self.timeline(ui),
+                            Page::Dialogue => self.dialogue(ui),
+                            Page::Images => self.images(ui),
+                            Page::Queue => self.queue(ui),
+                            Page::Settings => self.settings(ui),
+                        }
+                    });
+            });
+        self.image_inspector_window(ctx);
         if self.new_open {
             let mut open = true;
-            egui::Window::new("A new production")
+            egui::Window::new("Create a new series")
                 .open(&mut open)
                 .collapsible(false)
                 .resizable(false)
                 .default_width(460.)
                 .show(ctx, |ui| {
-                    ui.label("SERIES TITLE");
-                    ui.add(
-                        egui::TextEdit::singleline(&mut self.name)
-                            .desired_width(f32::INFINITY)
-                            .hint_text("Give your story a name"),
-                    );
-                    ui.label("THE PREMISE");
-                    ui.add(
-                        egui::TextEdit::multiline(&mut self.premise)
-                            .desired_width(f32::INFINITY)
-                            .desired_rows(4)
-                            .hint_text("Who wants what, and what stands in their way?"),
-                    );
+                    Self::field(ui, "SERIES TITLE", &mut self.name, 1);
+                    Self::field(ui, "THE PREMISE", &mut self.premise, 4);
                     if ui
                         .button(RichText::new("Create series").color(GOLD))
                         .clicked()
                     {
+                        if !self.save_script() {
+                            return;
+                        }
                         match self.store.create_series(&self.name, &self.premise) {
                             Ok(s) => {
-                                self.selected = Some(s.id);
-                                self.page = 1;
+                                self.select_series(&s.id);
+                                self.page = Page::Synopsis;
                                 self.new_open = false;
                                 self.name.clear();
                                 self.premise.clear();
@@ -226,19 +1308,322 @@ ui.label(RichText::new("Automatic updates are pending a signed GitHub release fe
                 });
             self.new_open &= open;
         }
-        ctx.request_repaint_after(std::time::Duration::from_secs(2));
+        ctx.request_repaint_after(std::time::Duration::from_millis(500));
+    }
+    fn on_exit(&mut self, _: Option<&eframe::glow::Context>) {
+        let directory = self.store.root().join("drafts");
+        if std::fs::create_dir_all(&directory).is_ok() {
+            for draft in self.portrait_prompts.values() {
+                if let Ok(bytes) = serde_json::to_vec_pretty(draft) {
+                    let _ = std::fs::write(
+                        directory.join(format!(
+                            "portrait-prompt-{}-{}.json",
+                            draft.id,
+                            uuid::Uuid::new_v4()
+                        )),
+                        bytes,
+                    );
+                }
+            }
+        }
+        let _ = self.snapshot_generation_plans();
+        let _ = self.snapshot_shot_form();
+        let _ = self.snapshot_new_dialogue();
+        let draft_directory = self.store.root().join("drafts");
+        for draft in self.synopsis_drafts.values().filter(|draft| {
+            draft.title != draft.expected_title || draft.premise != draft.expected_premise
+        }) {
+            if std::fs::create_dir_all(&draft_directory).is_ok()
+                && let Ok(bytes) = serde_json::to_vec_pretty(draft)
+            {
+                let _ = std::fs::write(
+                    draft_directory.join(format!(
+                        "synopsis-{}-{}.json",
+                        draft.id,
+                        uuid::Uuid::new_v4()
+                    )),
+                    bytes,
+                );
+            }
+        }
+        for draft in self.cue_drafts.values() {
+            if std::fs::create_dir_all(&draft_directory).is_ok() {
+                let _ = std::fs::write(
+                    draft_directory.join(format!(
+                        "sound-cue-{}-{}.json",
+                        draft.cue.id,
+                        uuid::Uuid::new_v4()
+                    )),
+                    serde_json::to_vec_pretty(draft).unwrap_or_default(),
+                );
+            }
+        }
+        for draft in self.fade_drafts.values() {
+            if std::fs::create_dir_all(&draft_directory).is_ok() {
+                let _ = std::fs::write(
+                    draft_directory.join(format!(
+                        "picture-fades-{}-{}.json",
+                        draft.shot_id,
+                        uuid::Uuid::new_v4()
+                    )),
+                    serde_json::to_vec_pretty(draft).unwrap_or_default(),
+                );
+            }
+        }
+        for draft in self.library_drafts.values() {
+            if std::fs::create_dir_all(&draft_directory).is_ok() {
+                let _ = std::fs::write(
+                    draft_directory.join(format!(
+                        "library-{}-{}.json",
+                        draft.id,
+                        uuid::Uuid::new_v4()
+                    )),
+                    serde_json::to_vec_pretty(draft).unwrap_or_default(),
+                );
+            }
+        }
+        for draft in self.review_drafts.values() {
+            if std::fs::create_dir_all(&draft_directory).is_ok() {
+                let _ = std::fs::write(
+                    draft_directory.join(format!(
+                        "asset-review-{}-{}.json",
+                        draft.asset_id,
+                        uuid::Uuid::new_v4()
+                    )),
+                    serde_json::to_vec_pretty(draft).unwrap_or_default(),
+                );
+            }
+        }
+        for draft in self.shot_trim_drafts.values() {
+            if std::fs::create_dir_all(&draft_directory).is_ok() {
+                let _ = std::fs::write(
+                    draft_directory.join(format!(
+                        "picture-trim-{}-{}.json",
+                        draft.shot_id,
+                        uuid::Uuid::new_v4()
+                    )),
+                    serde_json::to_vec_pretty(draft).unwrap_or_default(),
+                );
+            }
+        }
+        for draft in self.dialogue_drafts.values() {
+            if std::fs::create_dir_all(&draft_directory).is_ok() {
+                let _ = std::fs::write(
+                    draft_directory.join(format!(
+                        "dialogue-{}-{}.json",
+                        draft.id,
+                        uuid::Uuid::new_v4()
+                    )),
+                    serde_json::to_vec_pretty(draft).unwrap_or_default(),
+                );
+            }
+        }
+        for (id, direction) in &self.shot_directions {
+            if self
+                .store
+                .shot_direction(id)
+                .ok()
+                .and_then(|d| serde_json::to_string(&d).ok())
+                != serde_json::to_string(direction).ok()
+                && std::fs::create_dir_all(&draft_directory).is_ok()
+            {
+                let _ = std::fs::write(
+                    draft_directory
+                        .join(format!("shot-direction-{id}-{}.json", uuid::Uuid::new_v4())),
+                    serde_json::to_vec_pretty(direction).unwrap_or_default(),
+                );
+            }
+        }
+        for camera in self
+            .camera_drafts
+            .values()
+            .filter(|c| !c.name.trim().is_empty())
+        {
+            let saved = self
+                .store
+                .camera_setups(&camera.location_id)
+                .ok()
+                .and_then(|items| items.into_iter().find(|c| c.id == camera.id));
+            if saved.and_then(|c| serde_json::to_string(&c).ok())
+                != serde_json::to_string(camera).ok()
+                && std::fs::create_dir_all(&draft_directory).is_ok()
+            {
+                let _ = std::fs::write(
+                    draft_directory.join(format!(
+                        "camera-{}-{}.json",
+                        camera.id,
+                        uuid::Uuid::new_v4()
+                    )),
+                    serde_json::to_vec_pretty(camera).unwrap_or_default(),
+                );
+            }
+        }
+        for plan in self.story_drafts.values() {
+            if self
+                .store
+                .series_plan(&plan.series_id)
+                .ok()
+                .and_then(|p| serde_json::to_string(&p).ok())
+                != serde_json::to_string(plan).ok()
+            {
+                let directory = self.store.root().join("drafts");
+                if std::fs::create_dir_all(&directory).is_ok() {
+                    let _ = std::fs::write(
+                        directory.join(format!(
+                            "story-{}-{}.json",
+                            plan.series_id,
+                            uuid::Uuid::new_v4()
+                        )),
+                        serde_json::to_vec_pretty(plan).unwrap_or_default(),
+                    );
+                }
+            }
+        }
+        if self.script != self.script_baseline {
+            let directory = self.store.root().join("drafts");
+            if std::fs::create_dir_all(&directory).is_ok() {
+                let _ = std::fs::write(
+                    directory.join(format!("screenplay-{}.txt", uuid::Uuid::new_v4())),
+                    &self.script,
+                );
+            }
+        }
+        self.save_script();
+        if let Some(child) = &mut self.audio {
+            let _ = child.kill();
+            let _ = child.wait();
+        }
     }
 }
-fn main() -> anyhow::Result<()> {
+fn run() -> anyhow::Result<()> {
+    let args: Vec<String> = std::env::args().collect();
+    if args.get(1).is_some_and(|x| x == "--help") {
+        println!(
+            "DramaFactory v002\n\n(no arguments) Launch studio\n--mcp Start local stdio MCP\n--worker Drain durable queue\n--worker-once Drain if no other worker owns the queue\n--data-path Print database path\n--configure-worker PYTHON WAN_MODEL FFMPEG KOKORO_MODEL\n--configure-images PYTHON FLUX_MODEL\n--configure-lipsync PYTHON MUSETALK_MODEL\n--configure-performance PYTHON LTX_MODEL ENCODER\n--version Print public version"
+        );
+        return Ok(());
+    }
+    if let Some(flag) = args.get(1)
+        && ![
+            "--mcp",
+            "--worker",
+            "--worker-once",
+            "--data-path",
+            "--configure-worker",
+            "--configure-images",
+            "--configure-lipsync",
+            "--configure-performance",
+            "--apply-update",
+            "--install-staged-update",
+            "--version",
+        ]
+        .contains(&flag.as_str())
+    {
+        anyhow::bail!("Unknown option '{flag}'. Use --help");
+    }
+    if args.get(1).is_some_and(|x| x == "--version") {
+        println!("v002");
+        return Ok(());
+    }
+    if args.get(1).is_some_and(|x| x == "--install-staged-update") {
+        if args.len() != 4 {
+            anyhow::bail!("Usage: --install-staged-update MANIFEST DATABASE");
+        }
+        return updater::schedule_install(
+            std::path::Path::new(&args[2]),
+            std::path::Path::new(&args[3]),
+        );
+    }
+    if args.get(1).is_some_and(|x| x == "--apply-update") {
+        return updater::apply(&args[2..]);
+    }
+    if args.get(1).is_some_and(|x| x == "--data-path") {
+        println!("{}", store::default_path().display());
+        return Ok(());
+    }
     let store = Store::open(store::default_path())?;
+    if args.get(1).is_some_and(|x| x == "--configure-worker") {
+        if args.len() != 6 {
+            anyhow::bail!("Usage: --configure-worker PYTHON WAN_MODEL FFMPEG KOKORO_DIRECTORY");
+        }
+        let mut config = store.config()?;
+        config.python = args[2].clone().into();
+        config.model = args[3].clone().into();
+        config.ffmpeg = args[4].clone().into();
+        config.speech_model = args[5].clone().into();
+        store.save_config(&config)?;
+        println!("Local worker configuration saved");
+        return Ok(());
+    }
+    if args.get(1).is_some_and(|x| x == "--configure-images") {
+        if args.len() != 4 {
+            anyhow::bail!("Usage: --configure-images PYTHON MODEL_DIRECTORY");
+        }
+        let mut config = store.config()?;
+        config.image_python = args[2].clone().into();
+        config.image_model = args[3].clone().into();
+        store.save_config(&config)?;
+        println!("Image worker configuration saved");
+        return Ok(());
+    }
+    if args.get(1).is_some_and(|x| x == "--configure-performance") {
+        if args.len() != 5 {
+            anyhow::bail!(
+                "Usage: --configure-performance PYTHON MODEL_DIRECTORY ENCODER_DIRECTORY"
+            );
+        }
+        let mut config = store.config()?;
+        config.performance_python = args[2].clone().into();
+        config.performance_model = args[3].clone().into();
+        config.performance_encoder = args[4].clone().into();
+        performance::validate_setup(&config)?;
+        store.save_config(&config)?;
+        println!("Experimental performance worker configuration saved");
+        return Ok(());
+    }
+    if args.get(1).is_some_and(|x| x == "--configure-lipsync") {
+        if args.len() != 4 {
+            anyhow::bail!("Usage: --configure-lipsync PYTHON MODEL_DIRECTORY");
+        }
+        let mut config = store.config()?;
+        config.lipsync_python = args[2].clone().into();
+        config.lipsync_model = args[3].clone().into();
+        store.save_config(&config)?;
+        println!("Lip-sync worker configuration saved");
+        return Ok(());
+    }
+    if std::env::args().any(|x| x == "--worker" || x == "--worker-once") {
+        return worker::run(
+            store.path.clone(),
+            std::env::args().any(|x| x == "--worker-once"),
+        );
+    }
     if std::env::args().any(|x| x == "--mcp") {
         return mcp::run(store);
     }
+    let viewport = egui::ViewportBuilder::default()
+        .with_title("DramaFactory · v002")
+        .with_inner_size([1380., 900.])
+        .with_min_inner_size([1100., 740.]);
+    // macOS resolves the system-rendered Icon Composer asset from the bundle.
+    // eframe treats None as its own default "e" icon. An explicit empty icon
+    // is its opt-out sentinel (AppTitleIconSetter::new), leaving NSApp's bundle
+    // icon untouched so macOS can render the Icon Composer asset and mask.
+    #[cfg(target_os = "macos")]
+    let viewport = viewport.with_icon(egui::IconData::default());
+    #[cfg(not(target_os = "macos"))]
+    let viewport = {
+        let icon = image::load_from_memory(include_bytes!("../branding/icon.png"))?
+            .resize(256, 256, image::imageops::FilterType::Lanczos3)
+            .into_rgba8();
+        viewport.with_icon(egui::IconData {
+            width: icon.width(),
+            height: icon.height(),
+            rgba: icon.into_raw(),
+        })
+    };
     let opts = eframe::NativeOptions {
-        viewport: egui::ViewportBuilder::default()
-            .with_title("DramaFactory · v001")
-            .with_inner_size([1320., 860.])
-            .with_min_inner_size([1000., 680.]),
+        viewport,
         ..Default::default()
     };
     eframe::run_native(
@@ -247,4 +1632,20 @@ fn main() -> anyhow::Result<()> {
         Box::new(|cc| Ok(Box::new(Studio::new(cc, store)))),
     )
     .map_err(|e| anyhow::anyhow!(e.to_string()))
+}
+
+fn main() {
+    if let Err(error) = run() {
+        eprintln!("DramaFactory: {error:#}");
+        if !std::env::args().skip(1).any(|a| a.starts_with("--")) {
+            rfd::MessageDialog::new()
+                .set_title("DramaFactory could not open this studio")
+                .set_description(format!(
+                    "{error:#}\n\nYour project files have not been removed."
+                ))
+                .set_level(rfd::MessageLevel::Error)
+                .show();
+        }
+        std::process::exit(1);
+    }
 }

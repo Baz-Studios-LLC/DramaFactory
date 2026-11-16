@@ -1,0 +1,364 @@
+{
+  "checked_at": "2026-11-16 10:16:53",
+  "episode_id": "8290815f-74db-424a-90ab-359ab5a3773f",
+  "gaps_without_dialogue": [
+    {
+      "duration": 2.164,
+      "start": 0.936
+    },
+    {
+      "duration": 0.17999999999999972,
+      "start": 5.163958333333333
+    },
+    {
+      "duration": 0.2393749999999999,
+      "start": 6.960625
+    },
+    {
+      "duration": 0.8399999999999999,
+      "start": 8.26
+    },
+    {
+      "duration": 0.5626666666666669,
+      "start": 12.787333333333333
+    },
+    {
+      "duration": 0.7666666666666693,
+      "start": 15.583333333333332
+    },
+    {
+      "duration": 0.7440416666666678,
+      "start": 22.855958333333334
+    },
+    {
+      "duration": 1.7547083333333333,
+      "start": 26.095291666666668
+    },
+    {
+      "duration": 0.608666666666668,
+      "start": 29.241333333333333
+    },
+    {
+      "duration": 0.7340416666666663,
+      "start": 31.115958333333335
+    },
+    {
+      "duration": 0.7993749999999977,
+      "start": 34.050625000000004
+    },
+    {
+      "duration": 1.1267083333333332,
+      "start": 36.07329166666667
+    },
+    {
+      "duration": 0.39733333333332865,
+      "start": 37.95266666666667
+    },
+    {
+      "duration": 0.7987083333333302,
+      "start": 40.05129166666667
+    },
+    {
+      "duration": 0.5847083333333316,
+      "start": 42.26529166666667
+    },
+    {
+      "duration": 0.5873333333333335,
+      "start": 44.26266666666667
+    },
+    {
+      "duration": 4.682000000000002,
+      "start": 46.668
+    },
+    {
+      "duration": 0.9099999999999966,
+      "start": 52.690000000000005
+    },
+    {
+      "duration": 2.0047083333333333,
+      "start": 56.09529166666667
+    },
+    {
+      "duration": 0.8766666666666652,
+      "start": 59.27333333333333
+    },
+    {
+      "duration": 0.7813750000000041,
+      "start": 60.818625
+    },
+    {
+      "duration": 1.9073750000000018,
+      "start": 63.092625
+    }
+  ],
+  "limits": "Snapshot of saved placement and durations measured when speech was registered. Missing/rejected files are unmeasured; later implicit starts stay unknown after unmeasured speech. Overlaps may be intentional interruptions. Dialogue-free gaps may contain acting, music or effects; they are not a silence measurement. File hashes, listening quality and word alignment are not verified by this report.",
+  "lines": [
+    {
+      "beyond_episode": false,
+      "crosses_shot_boundary": false,
+      "duration": 0.936,
+      "end": 0.936,
+      "line_id": "92d4b4bc-c090-5e09-bec1-776ae673dc21",
+      "shot_id": "6073e180-b4ea-4bab-926b-7e66d82f48ba",
+      "shot_title": "02.01 \u00b7 The unanswered move",
+      "speaker_visible": false,
+      "start": 0.0,
+      "text": "Nora?"
+    },
+    {
+      "beyond_episode": false,
+      "crosses_shot_boundary": false,
+      "duration": 2.0639583333333333,
+      "end": 5.163958333333333,
+      "line_id": "05705903-275e-531b-b196-283a5817b102",
+      "shot_id": "a66ba8d3-1f7b-4b85-b623-f03ffdc2366c",
+      "shot_title": "02.02 \u00b7 A small retreat",
+      "speaker_visible": true,
+      "start": 3.1,
+      "text": "I heard you. Can I call you back?"
+    },
+    {
+      "beyond_episode": false,
+      "crosses_shot_boundary": true,
+      "duration": 1.6166666666666667,
+      "end": 6.960625,
+      "line_id": "b69f3fb7-dae0-51f9-adb5-f2be7fdc8b45",
+      "shot_id": "a66ba8d3-1f7b-4b85-b623-f03ffdc2366c",
+      "shot_title": "02.02 \u00b7 A small retreat",
+      "speaker_visible": false,
+      "start": 5.343958333333333,
+      "text": "Yeah. Of course."
+    },
+    {
+      "beyond_episode": false,
+      "crosses_shot_boundary": false,
+      "duration": 1.06,
+      "end": 8.26,
+      "line_id": "b08e10a7-95f3-5ba7-a9b2-8942499e6dad",
+      "shot_id": "fa2788eb-af49-4a3f-bf46-52e8386cf2aa",
+      "shot_title": "02.03 \u00b7 The twenty",
+      "speaker_visible": false,
+      "start": 7.2,
+      "text": "You wanted half."
+    },
+    {
+      "beyond_episode": false,
+      "crosses_shot_boundary": true,
+      "duration": 3.687333333333333,
+      "end": 12.787333333333333,
+      "line_id": "668ae7b4-7e14-577e-9dc7-31836b5fe009",
+      "shot_id": "6279f395-2b69-4d71-a656-21beb5aff7c6",
+      "shot_title": "02.04 \u00b7 Negotiating",
+      "speaker_visible": true,
+      "start": 9.1,
+      "text": "You wanted to change the subject. Look at us, negotiating."
+    },
+    {
+      "beyond_episode": false,
+      "crosses_shot_boundary": false,
+      "duration": 2.2333333333333334,
+      "end": 15.583333333333332,
+      "line_id": "52f46afc-43d2-59ea-b8a4-1baec029483b",
+      "shot_id": "c6c05a93-aa80-4276-970e-de0e3e2d3605",
+      "shot_title": "02.06 \u00b7 The talking",
+      "speaker_visible": true,
+      "start": 13.35,
+      "text": "I do the talking. You do the chairs."
+    },
+    {
+      "beyond_episode": false,
+      "crosses_shot_boundary": true,
+      "duration": 6.505958333333333,
+      "end": 22.855958333333334,
+      "line_id": "225f3c4e-aab0-53d2-92ae-91eb430d119b",
+      "shot_id": "859a3996-62c8-442e-9592-d0d8957ee737",
+      "shot_title": "02.07 \u00b7 The overheads",
+      "speaker_visible": true,
+      "start": 16.35,
+      "text": "And the rent. And the electricity. And explaining why a bride is shouting at a woman she met eight minutes ago."
+    },
+    {
+      "beyond_episode": false,
+      "crosses_shot_boundary": false,
+      "duration": 2.4952916666666667,
+      "end": 26.095291666666668,
+      "line_id": "e04f3e6a-9bf5-57fd-8945-76e71f496fae",
+      "shot_id": "409ef941-5720-4334-be5f-459b8e3a6aa5",
+      "shot_title": "02.10 \u00b7 Half each",
+      "speaker_visible": true,
+      "start": 23.6,
+      "text": "Ten minutes. Twenty dollars. Half each."
+    },
+    {
+      "beyond_episode": false,
+      "crosses_shot_boundary": false,
+      "duration": 1.3913333333333333,
+      "end": 29.241333333333333,
+      "line_id": "b038bd59-508c-5876-8087-8ba867e9202c",
+      "shot_id": "d640c279-49f3-4060-afe7-9572f4ef7162",
+      "shot_title": "02.12 \u00b7 No filming",
+      "speaker_visible": true,
+      "start": 27.85,
+      "text": "No filming in here."
+    },
+    {
+      "beyond_episode": false,
+      "crosses_shot_boundary": false,
+      "duration": 1.2659583333333333,
+      "end": 31.115958333333335,
+      "line_id": "aef9bb54-f762-5aaa-a31e-7bbabfece66c",
+      "shot_id": "a07c1473-42d9-4bcb-9e26-532d5bc35911",
+      "shot_title": "02.13 \u00b7 Absolutely not",
+      "speaker_visible": true,
+      "start": 29.85,
+      "text": "Absolutely not."
+    },
+    {
+      "beyond_episode": false,
+      "crosses_shot_boundary": false,
+      "duration": 2.200625,
+      "end": 34.050625000000004,
+      "line_id": "4498f113-2a74-521e-b4fe-791d4d53a46a",
+      "shot_id": "c255033b-e4a4-4e56-8d82-c4e67bdba6d8",
+      "shot_title": "02.14 \u00b7 No good bits",
+      "speaker_visible": true,
+      "start": 31.85,
+      "text": "No telling people what anyone said."
+    },
+    {
+      "beyond_episode": false,
+      "crosses_shot_boundary": false,
+      "duration": 1.2232916666666667,
+      "end": 36.07329166666667,
+      "line_id": "0886df5c-3947-5238-9c87-2123b99762fe",
+      "shot_id": "8d77cb5e-1f9f-412a-ad73-aaebf492fdfb",
+      "shot_title": "02.15 \u00b7 Even the good bits",
+      "speaker_visible": true,
+      "start": 34.85,
+      "text": "Even the good bits?"
+    },
+    {
+      "beyond_episode": false,
+      "crosses_shot_boundary": false,
+      "duration": 0.7526666666666667,
+      "end": 37.95266666666667,
+      "line_id": "22bf1782-4678-5316-83fb-696bab2fecb6",
+      "shot_id": "41306492-fe63-4c48-9fab-2e104fd054e9",
+      "shot_title": "02.16 \u00b7 The line through it",
+      "speaker_visible": false,
+      "start": 37.2,
+      "text": "Fine."
+    },
+    {
+      "beyond_episode": false,
+      "crosses_shot_boundary": false,
+      "duration": 1.7012916666666666,
+      "end": 40.05129166666667,
+      "line_id": "fbba0dd0-bb84-509a-81e6-1bd06ec7a1c6",
+      "shot_id": "b49baefd-daaa-4bbe-a9e2-983b4ca8af32",
+      "shot_title": "02.17 \u00b7 What is for sale",
+      "speaker_visible": true,
+      "start": 38.35,
+      "text": "And what are we actually selling?"
+    },
+    {
+      "beyond_episode": false,
+      "crosses_shot_boundary": false,
+      "duration": 1.4152916666666666,
+      "end": 42.26529166666667,
+      "line_id": "8a2cb8eb-506f-5cf1-8725-83284faac699",
+      "shot_id": "f10929ad-732a-46a4-97df-ca918a6e020c",
+      "shot_title": "02.18 \u00b7 A chance to practice",
+      "speaker_visible": true,
+      "start": 40.85,
+      "text": "A chance to practice."
+    },
+    {
+      "beyond_episode": false,
+      "crosses_shot_boundary": false,
+      "duration": 1.4126666666666667,
+      "end": 44.26266666666667,
+      "line_id": "3665126c-d8d0-52f1-bb8f-5de694fef68a",
+      "shot_id": "396838e2-f32e-40c5-a9dc-dcf58dc5dcc1",
+      "shot_title": "02.19 \u00b7 Not an ending",
+      "speaker_visible": true,
+      "start": 42.85,
+      "text": "Not a happy ending."
+    },
+    {
+      "beyond_episode": false,
+      "crosses_shot_boundary": false,
+      "duration": 1.818,
+      "end": 46.668,
+      "line_id": "c1dd22c9-597a-52aa-bf8c-024427facd06",
+      "shot_id": "076efa2d-42ca-4559-a50e-3f2f34369707",
+      "shot_title": "02.20 \u00b7 Not that good",
+      "speaker_visible": true,
+      "start": 44.85,
+      "text": "I'm good. I'm not that good."
+    },
+    {
+      "beyond_episode": false,
+      "crosses_shot_boundary": false,
+      "duration": 1.34,
+      "end": 52.690000000000005,
+      "line_id": "e7c116be-b37b-5cfb-bbe3-cc1d07badc26",
+      "shot_id": "a86ff138-0d37-480d-86ac-c6e17c4e376a",
+      "shot_title": "02.24 \u00b7 She just left",
+      "speaker_visible": true,
+      "start": 51.35,
+      "text": "She only just left."
+    },
+    {
+      "beyond_episode": false,
+      "crosses_shot_boundary": false,
+      "duration": 2.4952916666666667,
+      "end": 56.09529166666667,
+      "line_id": "b55ef840-972a-52af-bccb-e810bee5682d",
+      "shot_id": "65f8e18d-922d-4b28-a75e-4551a3ec7333",
+      "shot_title": "02.25 \u00b7 The wrong instinct",
+      "speaker_visible": true,
+      "start": 53.6,
+      "text": "No happy endings. Put it on speaker."
+    },
+    {
+      "beyond_episode": false,
+      "crosses_shot_boundary": false,
+      "duration": 1.1733333333333333,
+      "end": 59.27333333333333,
+      "line_id": "927f3ffa-b2da-5562-9986-f9620bf5a16d",
+      "shot_id": "28dec42c-24b7-4f7c-a49c-ec64c7e5dfd2",
+      "shot_title": "02.27 \u00b7 Ask first",
+      "speaker_visible": true,
+      "start": 58.1,
+      "text": "Ask first."
+    },
+    {
+      "beyond_episode": false,
+      "crosses_shot_boundary": false,
+      "duration": 0.668625,
+      "end": 60.818625,
+      "line_id": "e43181c3-8ab5-5f95-8c01-e4b2aca9f22d",
+      "shot_id": "dbb159e5-6bb6-424a-96bc-745b0c859b42",
+      "shot_title": "02.28 \u00b7 Emma",
+      "speaker_visible": true,
+      "start": 60.15,
+      "text": "Emma?"
+    },
+    {
+      "beyond_episode": false,
+      "crosses_shot_boundary": false,
+      "duration": 1.492625,
+      "end": 63.092625,
+      "line_id": "30d59aa4-e9cc-57d5-b515-65d4b2755fb4",
+      "shot_id": "771fc1e4-4002-4f66-a4b2-48864bd0b062",
+      "shot_title": "02.29 \u00b7 Outside the house",
+      "speaker_visible": false,
+      "start": 61.6,
+      "text": "I'm outside her house."
+    }
+  ],
+  "overlaps": [],
+  "picture_seconds": 65.0,
+  "unmeasured_lines": 0
+}

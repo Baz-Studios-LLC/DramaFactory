@@ -1,0 +1,40 @@
+{
+  "version": "v002",
+  "status": "verified_real_window_generation_rejected_for_visual_quality",
+  "implementation": [
+    "src/performance_window.rs",
+    "src/performance.rs",
+    "workers/performance.py"
+  ],
+  "verification": {
+    "unit_tests": 24,
+    "audio_preparation": "scripts/test-performance-audio.py passed actual adapter/FFmpeg exact samples, 73-frame duration, conditioned WAV hash, source unchanged, no inference",
+    "export": "scripts/test-performance-windows.py passed actual 9s MCP/FFmpeg export with retained-footage fixture and a synthetic 6s tone, mixed once across cuts; RMS ratio 0.9996, cosine 1.00000; stale-window rejection",
+    "legacy": "scripts/test-performance-export.py passed retained native footage and older request metadata",
+    "real_episode_preflight": "benchmarks/native-window-preflight-v002.json; corrected run queued 73/33 frames, source offset 5.9s, canceled at attempt zero with no assets",
+    "real_generation": "Real MCP windowed Leah attempt completed: 73 frames, 78.88s adapter wall, 26,756,547,622 peak MLX bytes; cropped conditioning hash verified, source inputs preserved, unselected. Rejected for costume/framing drift and unconvincing speaking.",
+    "controlled_wardrobe": "Same source image, conditioning WAV bytes, worker script, seed and model/settings; model prompt differs only in wardrobe note. Second take 79.66s, same peak memory; sampled green costume preserved, but wide reframing and missing convincing articulation remain rejected."
+  },
+  "earlier_failed_preflight": {
+    "job_id": "887f2eef-7dd3-46c7-a7d2-d7a9dc0cd802",
+    "status": "canceled",
+    "attempts": 1,
+    "output_id": null,
+    "error": "Native performance canceled or timed out; attempt inputs and originals preserved",
+    "new_assets": 0,
+    "subprocess_pid": 53865,
+    "subprocess_exit_verified": true,
+    "cause": "Preflight helper namespace collision released its lock before cleanup; inference started and was canceled after detection. Fixed helper isolates RPC names and cancels created jobs in finally before lock release.",
+    "historical_snapshot_before_intentional_retry": true,
+    "observed_attempt": 1,
+    "attempt_1_created_assets": 0,
+    "intentional_followup": "Same job deliberately retried as attempt 2; completed rejected take 7e1aba02-09e0-4085-b88d-2d2455710821. The canceled status/assets-zero fields describe the earlier attempt-1 observation."
+  },
+  "limitations": [
+    "Two actual generated windowed takes completed technically; both rejected, no lip-sync or episode acceptance. See leah-native-window-v002.json and leah-wardrobe-control-v002.json.",
+    "One visible source line per generated take; continuation requires same episode and matching primary character when linked.",
+    "Each raw picture take including its in-point remains bounded to 121 frames.",
+    "Legacy metadata uses its previous timing rules; original takes and full episode speech assets are preserved.",
+    "Mac UI remains visually unverified while locked."
+  ]
+}

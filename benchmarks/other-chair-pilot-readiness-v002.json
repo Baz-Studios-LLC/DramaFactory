@@ -1,0 +1,249 @@
+{
+  "checked_at": "2026-11-16 09:36:02",
+  "dialogue_count": 27,
+  "episode_id": "10626b64-acc7-4dcb-aa27-47deed234db4",
+  "export_request_valid": false,
+  "issues": [
+    {
+      "action": "Generate or select a picture take in the shot planner.",
+      "blocks_export": true,
+      "entity_id": "4c6f1977-25c3-4c1e-947a-f59d2cf25eb6",
+      "scope": "picture",
+      "title": "01 \u00b7 An apparent rejection"
+    },
+    {
+      "action": "Generate or select a picture take in the shot planner.",
+      "blocks_export": true,
+      "entity_id": "bfc4335d-07dc-4f1e-ada0-0779d856d1b1",
+      "scope": "picture",
+      "title": "02 \u00b7 The wounded mother"
+    },
+    {
+      "action": "Generate or select a picture take in the shot planner.",
+      "blocks_export": true,
+      "entity_id": "ec19b4a9-4661-4048-8f0a-58c6ce4719d9",
+      "scope": "picture",
+      "title": "03 \u00b7 The apology"
+    },
+    {
+      "action": "Generate or select a picture take in the shot planner.",
+      "blocks_export": true,
+      "entity_id": "839bed6f-6f76-402d-92f6-e144007f94b8",
+      "scope": "picture",
+      "title": "04 \u00b7 Stop"
+    },
+    {
+      "action": "Generate or select a picture take in the shot planner.",
+      "blocks_export": true,
+      "entity_id": "30c86221-8307-4d8b-94d8-7c96cd68bbd2",
+      "scope": "picture",
+      "title": "05 \u00b7 Invited back"
+    },
+    {
+      "action": "Generate or select a picture take in the shot planner.",
+      "blocks_export": true,
+      "entity_id": "bd860521-2210-4b51-aeab-9a5a82f90e74",
+      "scope": "picture",
+      "title": "06 \u00b7 What"
+    },
+    {
+      "action": "Generate or select a picture take in the shot planner.",
+      "blocks_export": true,
+      "entity_id": "687b52f0-5c86-45ae-b8a1-464355ae9d42",
+      "scope": "picture",
+      "title": "07 \u00b7 Try again"
+    },
+    {
+      "action": "Generate or select a picture take in the shot planner.",
+      "blocks_export": true,
+      "entity_id": "9a6c1676-96f8-4f7a-a935-2147fb7eaf30",
+      "scope": "picture",
+      "title": "08 \u00b7 The room revealed"
+    },
+    {
+      "action": "Generate or select a picture take in the shot planner.",
+      "blocks_export": true,
+      "entity_id": "467b5f40-76a3-48c5-8114-94139617e4a6",
+      "scope": "picture",
+      "title": "09 \u00b7 Sold"
+    },
+    {
+      "action": "Generate or select a picture take in the shot planner.",
+      "blocks_export": true,
+      "entity_id": "bb3743c8-5dc7-418f-b6b8-756762f7c2c9",
+      "scope": "picture",
+      "title": "10 \u00b7 Breakthrough"
+    },
+    {
+      "action": "Generate or select a picture take in the shot planner.",
+      "blocks_export": true,
+      "entity_id": "dd1af1e2-7413-4679-9088-8b21ed470a94",
+      "scope": "picture",
+      "title": "11 \u00b7 Imprint"
+    },
+    {
+      "action": "Generate or select a picture take in the shot planner.",
+      "blocks_export": true,
+      "entity_id": "7ae50863-aa3c-4770-b9d5-0f0858615297",
+      "scope": "picture",
+      "title": "12 \u00b7 Make room"
+    },
+    {
+      "action": "Generate or select a picture take in the shot planner.",
+      "blocks_export": true,
+      "entity_id": "95a97e33-765d-402b-919a-026028c17a42",
+      "scope": "picture",
+      "title": "13 \u00b7 The invitation"
+    },
+    {
+      "action": "Generate or select a picture take in the shot planner.",
+      "blocks_export": true,
+      "entity_id": "400182eb-e7a7-48b0-abfc-f0e6c4d345ce",
+      "scope": "picture",
+      "title": "14 \u00b7 The boundary"
+    },
+    {
+      "action": "Generate or select a picture take in the shot planner.",
+      "blocks_export": true,
+      "entity_id": "294dc930-4c24-4a47-8563-f6db8064b89f",
+      "scope": "picture",
+      "title": "15 \u00b7 There she is"
+    },
+    {
+      "action": "Generate or select a picture take in the shot planner.",
+      "blocks_export": true,
+      "entity_id": "db9190f8-caa1-430b-a9b7-683e51c5a8fb",
+      "scope": "picture",
+      "title": "16 \u00b7 And then"
+    },
+    {
+      "action": "Generate or select a picture take in the shot planner.",
+      "blocks_export": true,
+      "entity_id": "d22e042d-68a9-4aaf-8739-cb11da2a9097",
+      "scope": "picture",
+      "title": "17 \u00b7 Let her answer"
+    },
+    {
+      "action": "Generate or select a picture take in the shot planner.",
+      "blocks_export": true,
+      "entity_id": "e8440916-5ddf-4594-817d-b845eb8f2c40",
+      "scope": "picture",
+      "title": "18 \u00b7 Her decision"
+    },
+    {
+      "action": "Generate or select a picture take in the shot planner.",
+      "blocks_export": true,
+      "entity_id": "ebe17077-7e54-4711-8421-484939185b1b",
+      "scope": "picture",
+      "title": "19 \u00b7 Only a lamp"
+    },
+    {
+      "action": "Generate or select a picture take in the shot planner.",
+      "blocks_export": true,
+      "entity_id": "e094b47b-a69e-4809-adfe-350113c72597",
+      "scope": "picture",
+      "title": "20 \u00b7 Still get the lamp"
+    },
+    {
+      "action": "Generate or select a picture take in the shot planner.",
+      "blocks_export": true,
+      "entity_id": "63ce474e-72d6-4ee3-a527-911ecce710a1",
+      "scope": "picture",
+      "title": "21 \u00b7 A real sale"
+    },
+    {
+      "action": "Generate or select a picture take in the shot planner.",
+      "blocks_export": true,
+      "entity_id": "e8dd8c69-0697-452b-a9b5-625d0e64cb7f",
+      "scope": "picture",
+      "title": "22 \u00b7 At the door"
+    },
+    {
+      "action": "Generate or select a picture take in the shot planner.",
+      "blocks_export": true,
+      "entity_id": "65ec794b-e3e3-4cd3-a329-06d0cbde579e",
+      "scope": "picture",
+      "title": "23 \u00b7 Good luck"
+    },
+    {
+      "action": "Generate or select a picture take in the shot planner.",
+      "blocks_export": true,
+      "entity_id": "2760b2fb-36a9-40a9-89d0-876f3b66184c",
+      "scope": "picture",
+      "title": "24 \u00b7 Twenty dollars"
+    },
+    {
+      "action": "Generate or select a picture take in the shot planner.",
+      "blocks_export": true,
+      "entity_id": "c8c2b111-80b0-400a-82f2-8c95165bdb00",
+      "scope": "picture",
+      "title": "25 \u00b7 The useful chair"
+    },
+    {
+      "action": "Generate or select a picture take in the shot planner.",
+      "blocks_export": true,
+      "entity_id": "eeefa98e-f120-48a6-8878-eab4d8538a05",
+      "scope": "picture",
+      "title": "26 \u00b7 Half"
+    },
+    {
+      "action": "Generate or select a picture take in the shot planner.",
+      "blocks_export": true,
+      "entity_id": "4087a89c-e25a-405d-9e56-5ff8ef6e7698",
+      "scope": "picture",
+      "title": "27 \u00b7 Of the twenty"
+    },
+    {
+      "action": "Generate or select a picture take in the shot planner.",
+      "blocks_export": true,
+      "entity_id": "3cedf50e-041e-488e-a8b9-fbe0374e119a",
+      "scope": "picture",
+      "title": "28 \u00b7 Of the business"
+    },
+    {
+      "action": "Generate or select a picture take in the shot planner.",
+      "blocks_export": true,
+      "entity_id": "be34f64c-8542-4967-b907-e778046cebfb",
+      "scope": "picture",
+      "title": "29 \u00b7 Ben calls"
+    },
+    {
+      "action": "Generate or select a picture take in the shot planner.",
+      "blocks_export": true,
+      "entity_id": "b9a16a95-c73a-4243-927b-8b3f42f5195e",
+      "scope": "picture",
+      "title": "30 \u00b7 The easy smile"
+    },
+    {
+      "action": "Generate or select a picture take in the shot planner.",
+      "blocks_export": true,
+      "entity_id": "73240f32-9f99-4da8-8360-019541becefb",
+      "scope": "picture",
+      "title": "31 \u00b7 The offer"
+    },
+    {
+      "action": "Generate or select a picture take in the shot planner.",
+      "blocks_export": true,
+      "entity_id": "573a4a10-7398-4557-a77e-24c2fa84ada3",
+      "scope": "picture",
+      "title": "32 \u00b7 Are we doing this"
+    },
+    {
+      "action": "Generate or select a picture take in the shot planner.",
+      "blocks_export": true,
+      "entity_id": "6aa74469-efd2-47c9-9852-f8bf560b474e",
+      "scope": "picture",
+      "title": "33 \u00b7 No answer"
+    },
+    {
+      "action": "Shot '01 \u00b7 An apparent rejection' has no rendered asset",
+      "blocks_export": true,
+      "entity_id": "10626b64-acc7-4dcb-aa27-47deed234db4",
+      "scope": "export",
+      "title": "Export check"
+    }
+  ],
+  "limits": "Saved-state snapshot. Refresh after edits. File presence and export request checks only; worker verifies media hashes and decodes. This does not approve acting, synchronization or story continuity.",
+  "picture_seconds": 78.5,
+  "shot_count": 33
+}

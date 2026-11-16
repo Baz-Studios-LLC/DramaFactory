@@ -1,0 +1,69 @@
+{
+  "version": "v002",
+  "scope": "Real experimental native-performance queue and final-export technical integration. No acting-quality approval.",
+  "episode_id": "4054aa18-41cc-45e5-873a-3ac8e3d5a85e",
+  "shot_id": "96edaa2a-cb79-4171-9e33-dafdc3676143",
+  "job_id": "ede31f98-7d3a-4957-84fe-9f2043ebb91b",
+  "asset_id": "2ea2f2ba-3957-40b6-a380-78c5eb06be58",
+  "path": "/Users/brettbazaar/Library/Application Support/studio.DramaFactory.DramaFactory/jobs/ede31f98-7d3a-4957-84fe-9f2043ebb91b/attempt-1/performance.mp4",
+  "review": "rejected",
+  "visual_review": "Rejected for production: sampled face sequence holds the reference smile through roughly 1.3s; visible articulation begins around 1.5s while the supplied recording begins near the start. Gesture/body action also remains limited. No independent synchronization score.",
+  "reference_sha256": "5f34cb433b68afdcfaec44a3008e2234c7f2841a70037b1bbbe57adf1ec175b0",
+  "speech_sha256": "6b5b672af4221811101c9708b30e2fc44fd65f870186deaf9df5c8e499500f45",
+  "technical": {
+    "width": 704,
+    "height": 1280,
+    "duration": 3.38,
+    "telemetry": {
+      "adapter": "ltx-2.3-q8-native-a2v-experimental-v1",
+      "fps": 24,
+      "frames": 81,
+      "memory_limit_bytes": 40000000000,
+      "peak_memory_bytes": 26757137446,
+      "phase": "Validating performance take",
+      "progress": 0.95,
+      "prompt_enhancement": false,
+      "wall_seconds": 90.27223420800874
+    },
+    "queued_cancel_retry": true,
+    "producer_disconnect_and_reconnect": true,
+    "copied_input_hashes_verified": true,
+    "automatic_selection": false
+  },
+  "running_cancellation": {
+    "denoising_evidence": "First actual step (1/8) recorded before cancellation",
+    "worker_pid": 46756,
+    "worker_process_gone": true,
+    "job_id": "6a9fa3bb-e372-44a5-a0c8-396cf3e87c69",
+    "observed_running_phase": "Generating native dialogue performance \u00b7 experimental",
+    "terminal": "canceled",
+    "attempts": 1,
+    "output_id": null,
+    "result": "Real running native inference canceled; no asset registered, existing completed take and selection preserved."
+  },
+  "export_fixture": {
+    "result": "Passed via real MCP in disposable database; source review remains rejected",
+    "dimensions": [
+      1080,
+      1920
+    ],
+    "fps": 24,
+    "duration_seconds": 3.2,
+    "captions_burned": true,
+    "speech_mixed_once_rms_ratio_rounded": 0.9984,
+    "speech_waveform_cosine_rounded": 0.99962,
+    "note": "Audio mixing checks, not synchronization scores"
+  },
+  "runtime": {
+    "source_commit": "747b30ef10e92a011e85b2aa0f6c4ee86ced5218",
+    "installed_core": "non-editable local wheel",
+    "matching_source_and_resource_files": 94,
+    "wheel_sha256": "2408c5f9682ba6d29cee1d07c2e74f1ead8ffebbe6922262c6dc869d0068c97b",
+    "purpose": "Remove runtime dependency on ignored vendor checkout; exact pinned code/resources retained"
+  },
+  "limitations": [
+    "Native speech onset can be badly delayed; this take was rejected after sampled visual review.",
+    "Independent lip-sync scoring and convincing acting remain incomplete.",
+    "Native UI controls still await visual QA on the locked Mac."
+  ]
+}

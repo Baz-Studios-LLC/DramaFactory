@@ -1,0 +1,34 @@
+{
+  "version": "v002",
+  "scope": "Shot-planning usability overhaul, first pass",
+  "changes": [
+    "Searchable shot list and one selected-shot inspector replace long form above every shot",
+    "Separate Plan & references / Takes & review views",
+    "Related video takes shown by default, other-shot inclusion explicit",
+    "Large saved cast/location references in the inspector",
+    "Generation/dialogue actions placed above details with explicit no-render-until-queued explanation",
+    "Shot title/prompt/camera/duration editing no longer reuses generation queue prompt",
+    "In-progress shot forms snapshotted on exit or series/episode switch; no automatic recovery UI claimed",
+    "Context changes close stale reference inspectors"
+  ],
+  "actual_mac": [
+    "Current series and remembered pilot carried into planner; 33 shots / 78.50s visible from saved data",
+    "Observed linked Emma portrait and display-room reference at useful sizes",
+    "Found duplicated number prefixes and buried generation buttons, corrected and rechecked current bundle",
+    "Switched to Takes & review and observed correct no-takes explanation and current-shot default scope"
+  ],
+  "verification": {
+    "unit_tests": 29,
+    "fmt": "passed",
+    "clippy": "passed all targets warnings denied",
+    "mcp": "passed",
+    "bundle": "v002 rebuilt, strict ad-hoc signature verified"
+  },
+  "remaining": [
+    "Search typing, edit/save/cancel and take-selection interaction checks",
+    "Small-window and long-text layout checks",
+    "Shot plan legacy save API still lacks expected-state concurrency guard; inspect before broader editor acceptance",
+    "Remaining story/dialogue/generation/timeline/preferences page overhaul",
+    "Native joint dialogue benchmark audiovisual review and reliable acting remain incomplete"
+  ]
+}

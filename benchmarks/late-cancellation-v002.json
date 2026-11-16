@@ -1,0 +1,34 @@
+{
+  "version": "v002",
+  "scope": "Cancellation at validated output registration and interrupted-row recovery",
+  "verified": {
+    "shared_adapters": [
+      "export",
+      "rehearsal",
+      "dialogue",
+      "image",
+      "performance",
+      "lipsync"
+    ],
+    "unit_tests": 28,
+    "actual_worker_paths": [
+      "FFmpeg episode export",
+      "FFmpeg WAV rehearsal",
+      "Kokoro speech"
+    ],
+    "late_cancel_fixture": "Disposable SQLite AFTER INSERT trigger sets cancellation at validated asset registration, before terminal update. No trigger installed in real studio.",
+    "late_cancel_results": "Jobs remain canceled, validated assets/hash preserved, canceled speech not selected. Retry queued snapshot has no output_id; attempt two completes and earlier asset remains.",
+    "recovery_fixture": "Disposable running rows with and without cancel flag plus attempt-file sentinels. Actual --worker startup returns canceled/failed respectively, attempts/files preserved.",
+    "fmt": "passed",
+    "clippy": "all targets warnings denied passed",
+    "mcp": "passed",
+    "story": "passed",
+    "production": "passed",
+    "bundle": "rebuilt local v002; strict ad-hoc signature verified"
+  },
+  "limits": [
+    "No new image/native/lip-sync inference; those adapters use the tested shared finish step and unit fixtures.",
+    "No acting acceptance or completed story episode.",
+    "No further GUI actions while user controls the Mac; queue phase text not separately visually verified."
+  ]
+}

@@ -1,0 +1,35 @@
+{
+  "version": "v002",
+  "scope": "Dialogue workspace usability overhaul, first pass",
+  "changes": [
+    "Episode-wide searchable line browser and focused editor replace shot dropdown and stacked line cards",
+    "Human-readable voice names with assigned voices retained",
+    "Generate and Listen above the editor; separate words/voice, placement, timing and experimental acting sections",
+    "New-line form chooses a shot explicitly and saves before generation",
+    "New-line text snapshots on exit/context switch; recovery UI remains incomplete",
+    "Unfinished new-line text/voice/speed/shot remembered separately per episode during the session"
+  ],
+  "actual_mac": [
+    "Current series and remembered pilot restored with 27 saved lines",
+    "Typed lamp search and observed exactly two matching lines",
+    "Selected Still get the lamp and observed its saved words, Bella voice and 1.45s speech metadata",
+    "Opened Add line, observed shot browser and disabled empty Save; returned without creating data",
+    "Reopened final bundle and visually verified prominent Generate/Listen and corrected shot heading",
+    "Typed an unsaved marker in pilot Add line; Next opened episode 2 with an empty new-line form",
+    "Previous and Add line restored original pilot marker; cleared it and returned to saved lines without saving or generating"
+  ],
+  "verification": {
+    "unit_tests": 29,
+    "clippy": "all targets warnings denied passed",
+    "fmt": "passed",
+    "mcp": "real integration passed",
+    "bundle": "rebuilt v002 and strict ad-hoc signature verified"
+  },
+  "limits": [
+    "No model generation, saved dialogue changes or take approvals during visual test",
+    "Small-window layout, voice selection, edited-save/conflict and listening interactions still need UI checks",
+    "New-line snapshots lack recovery UI across app restarts; per-episode drafts restored during the session",
+    "Story, generation, review, timeline and setup overhaul remain incomplete",
+    "Reliable synchronized acting and full episode acceptance remain incomplete"
+  ]
+}

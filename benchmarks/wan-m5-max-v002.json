@@ -1,0 +1,55 @@
+{
+  "date": "2026-11-08",
+  "hardware": {
+    "chip": "Apple M5 Max",
+    "unified_memory_gb": 64,
+    "gpu_cores": 40
+  },
+  "model": "Anes1032/Wan2.2-TI2V-5B-mlx-q8",
+  "worker_revision": "87db56a51758fefb748a359b90a5283bb8ba4837",
+  "job_id": "5d4e3d1f-3e16-4329-87bd-abe1b7cc8b96",
+  "attempts": 2,
+  "generation": {
+    "fps": 24,
+    "generation_resolution": [
+      704,
+      1280
+    ],
+    "request": {
+      "frames": 121,
+      "height": 1280,
+      "image": null,
+      "negative_prompt": "",
+      "prompt": "Cinematic close-up of a silver film reel turning slowly on a dark editing desk, warm amber practical light, gentle camera push in, photorealistic, shallow depth of field, no text, no logos.",
+      "seed": 42,
+      "shot_id": null,
+      "steps": 40,
+      "width": 704
+    },
+    "telemetry": {
+      "adapter": "mlx-video-wan2.2",
+      "peak_memory_bytes": 55919660232,
+      "phase": "Validating output",
+      "progress": 0.95,
+      "wall_seconds": 1200.5506526249228
+    }
+  },
+  "generated_asset_sha256": "36ae26b824c7dd2ec895b916d80720327c16afe99aceccff2bde0a4af03b1ece",
+  "generated_duration_seconds": 5.041666666666667,
+  "finished_export": {
+    "width": 1080,
+    "height": 1920,
+    "duration": 5.0,
+    "hash": "c045c3b09733ab03c5f2b34fd3f04c49dc2a1a6c25f985691fea5c027f83a1b7",
+    "source_generation_resolution": [
+      704,
+      1280
+    ],
+    "audio": "Kokoro af_heart dialogue, mixed locally"
+  },
+  "notes": [
+    "First bootstrap worker was interrupted before inference; second attempt completed.",
+    "1080x1920 export is resized/cropped from 704x1280 generation, not native 1080p generation.",
+    "Single-subject benchmark; does not establish character consistency or lip-sync quality."
+  ]
+}

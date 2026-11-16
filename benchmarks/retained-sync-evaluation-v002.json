@@ -1,0 +1,117 @@
+{
+  "date": "2026-11-16",
+  "version": "v002",
+  "status": "diagnostic_complete_no_acting_approval",
+  "source": {
+    "repository": "https://github.com/joonson/syncnet_python",
+    "revision": "907c0b579c2e2d83f0eae1b2ac9e720cde4e5623"
+  },
+  "calibration": {
+    "expected": {
+      "offset_frames": 3,
+      "min_distance": 5.353,
+      "confidence": 10.021
+    },
+    "measured": {
+      "offset_frames": 3,
+      "confidence": 10.087,
+      "min_distance": 5.352
+    },
+    "status": "reference_calibration_passed"
+  },
+  "protocol": {
+    "fps": 25,
+    "common_seconds": 3.0,
+    "crop_scale": 0.4,
+    "min_track": 25,
+    "face_detection_scale": 0.5,
+    "search_window_frames": 15
+  },
+  "weights": {
+    "syncnet_v2.model": {
+      "bytes": 54573114,
+      "sha256": "961e8696f888fce4f3f3a6c3d5b3267cf5b343100b238e79b2659bff2c605442",
+      "url": "https://www.robots.ox.ac.uk/~vgg/software/lipsync/data/syncnet_v2.model"
+    },
+    "example.avi": {
+      "bytes": 1111536,
+      "sha256": "1724121b3a50141cfc9e77c034f7de914024d015b92762ae12d3e1a7151b8621",
+      "url": "https://www.robots.ox.ac.uk/~vgg/software/lipsync/data/example.avi"
+    },
+    "sfd_face.pth": {
+      "bytes": 89844381,
+      "sha256": "d54a87c2b7543b64729c9a25eafd188da15fd3f6e02f0ecec76ae1b30d86c491",
+      "url": "https://www.robots.ox.ac.uk/~vgg/software/lipsync/data/sfd_face.pth"
+    }
+  },
+  "results": [
+    {
+      "name": "native_mcp_rejected",
+      "source_sha256": "42852817cd69e9e1e9a43a899575f8d53caad45b7c37cd0473a8ce5f18129d87",
+      "wall_seconds": 18.55208591700648,
+      "face_crop_review": "first-frame crop contains intended Ben face",
+      "tracks": [
+        {
+          "offset_frames_at_25fps": -15,
+          "confidence_raw": 1.509,
+          "min_embedding_distance": 13.03,
+          "search_edge": true
+        }
+      ]
+    },
+    {
+      "name": "native_immediate_unapproved",
+      "source_sha256": "c8cc4140589544319556511dd888d431feb2ad78ebf2c3d906f278c2b21e4059",
+      "wall_seconds": 18.35331079197931,
+      "face_crop_review": "first-frame crop contains intended Ben face",
+      "tracks": [
+        {
+          "offset_frames_at_25fps": 4,
+          "confidence_raw": 0.71,
+          "min_embedding_distance": 12.114,
+          "search_edge": false
+        }
+      ]
+    },
+    {
+      "name": "native_first_unapproved",
+      "source_sha256": "686256ccc5552782fd584a9bef48e132cf0ecf6acf3dd676e857f6c689aa351a",
+      "wall_seconds": 18.163785332988482,
+      "face_crop_review": "first-frame crop contains intended Ben face",
+      "tracks": [
+        {
+          "offset_frames_at_25fps": -15,
+          "confidence_raw": 0.98,
+          "min_embedding_distance": 12.153,
+          "search_edge": true
+        }
+      ]
+    },
+    {
+      "name": "musetalk_rejected",
+      "source_sha256": "2bcecd2f9edeacaee07af7361eb1e569b79f4c30c7467c6403b4f8d70a62808d",
+      "wall_seconds": 18.503707416006364,
+      "face_crop_review": "first-frame crop contains intended Ben face",
+      "tracks": [
+        {
+          "offset_frames_at_25fps": 0,
+          "confidence_raw": 5.075,
+          "min_embedding_distance": 8.427,
+          "search_edge": false
+        }
+      ]
+    }
+  ],
+  "limitations": [
+    "Three-second clips have fewer speaking samples than the reference control.",
+    "Raw confidence is not a probability or an acting-quality score.",
+    "All detected qualifying tracks are retained; verify the actor crop before interpreting a result.",
+    "No automatic approval, retiming, source overwrite or new video generation.",
+    "All four first-frame crops visually verified as the intended Ben face; this does not validate every frame or multi-person tracking.",
+    "Short speech and low confidence make offset estimates unreliable; search-edge results are not actionable retiming instructions.",
+    "The controls calibrate the upstream scoring network, not a universal acceptance threshold for generated acting."
+  ],
+  "interpretation": "Native takes provide weak sync evidence. MuseTalk has a stronger zero-offset result but remains rejected for visible mouth softness; no take approvals changed.",
+  "next_quality_question": "Investigate native audio conditioning strength and the smiling image anchor before a controlled backend comparison; do not infer that moving audio by the estimated offsets fixes articulation.",
+  "local_details": "benchmarks/local/retained-sync-evaluation-state.json"
+}

@@ -1,0 +1,17 @@
+{
+  "version": "v002",
+  "source": "Real local MCP and serialized workers",
+  "series": "The Other Chair",
+  "episode_id": "10626b64-acc7-4dcb-aa27-47deed234db4",
+  "planned_shots": 33,
+  "planned_seconds": 78.5,
+  "dialogue_lines": 27,
+  "measured_speech_seconds": 37.79983333333333,
+  "measured_line_overlaps": 0,
+  "rehearsal_asset_id": "40d29a36-ae92-4aed-ac4b-14f92881cb65",
+  "rehearsal_path": "/Users/brettbazaar/Library/Application Support/studio.DramaFactory.DramaFactory/jobs/d0a195ac-e1e7-42d0-b9b8-73cc1731a7d6/attempt-2/rehearsal.wav",
+  "rehearsal_sha256": "922848922bbfee3670321362562988108e86a79e1a29c12ed7de9f50fda56f3a",
+  "rehearsal_seconds": 78.5,
+  "review": "Audio timing export validated; listening/voice acting and final pacing review pending. No pilot video, final cut or canon approval.",
+  "preserved_attempts": 2
+}

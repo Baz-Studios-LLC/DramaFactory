@@ -1,0 +1,19 @@
+{
+  "version": "v002",
+  "operation": "produce_episode_dialogue",
+  "live_pilot_result": {
+    "episode_id": "10626b64-acc7-4dcb-aa27-47deed234db4",
+    "jobs": [],
+    "newly_queued": 0,
+    "ready_lines": 27,
+    "retried": 0,
+    "reused_pending": 0
+  },
+  "real_integration": [
+    "Two independent MCP producer processes concurrently resume the same saved episode; exactly two jobs are created for two draft lines.",
+    "Repeated calls reuse pending job IDs. A canceled queued attempt retries in place.",
+    "Completed usable selected takes are preserved. Text edits and hash-mismatched selections regenerate only the affected line.",
+    "Missing model setup rejects the batch without creating jobs or changing saved words."
+  ],
+  "scope": "Resumable speech step only. Does not write scripts, approve performances, render video, export final cuts or commit canon."
+}

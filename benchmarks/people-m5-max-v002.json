@@ -1,0 +1,125 @@
+{
+  "date": "2026-11-08",
+  "hardware": "Apple M5 Max / 64 GB / 40-core GPU",
+  "human_generation": {
+    "width": 704,
+    "height": 1280,
+    "duration": 5.04,
+    "sha256": "ffedf716d186d02f73f5935dc3fab2c309f86f6367c24d39933d50b1a3d0a13a",
+    "telemetry": {
+      "adapter": "mlx-video-wan2.2",
+      "peak_memory_bytes": 55962717376,
+      "phase": "Validating output",
+      "progress": 0.95,
+      "wall_seconds": 1368.2576126250206
+    },
+    "request": {
+      "frames": 121,
+      "height": 1280,
+      "negative_prompt": "changing identity, deformed face, crossed eyes, extra fingers, fused fingers, warped hands, plastic skin, frozen face, flicker, jitter, morphing clothes, text, watermark",
+      "prompt": "The same adult woman as in the reference image stands behind the hotel reception counter. She naturally blinks, slowly turns her gaze toward the camera, and forms a restrained warm smile. Her right hand shifts gently on the marble counter while her left hand remains resting. Preserve her facial identity, freckles, brown eyes, dark hair, navy blazer, ivory blouse, and natural fingers. Subtle breathing, realistic human movement, very slow cinematic camera push in, warm practical hotel lighting, photorealistic. She is not speaking.",
+      "seed": 42,
+      "shot_id": "3d1233fd-b09a-441a-a7df-65966fcfe0a3",
+      "steps": 40,
+      "width": 704,
+      "image_sha256": "c66e59a2bd22fb6e6910b1c0af042333a87e3d18642e51fea444ee43003a73ee"
+    }
+  },
+  "location_generation": {
+    "width": 1024,
+    "height": 704,
+    "duration": 0.0,
+    "sha256": "e96f10b03133183ddf29e489ce45a865ab09da85bd68133021b97c2a16723692",
+    "telemetry": {
+      "adapter": "mflux-flux2-klein-4b-q4",
+      "peak_memory_bytes": 5293198164,
+      "phase": "Validating image",
+      "progress": 0.95,
+      "reference_conditioned": false,
+      "wall_seconds": 4.489681749953888
+    },
+    "request": {
+      "height": 704,
+      "library_id": "8225ea38-8493-4198-83fb-ca703b243a5c",
+      "prompt": "Photorealistic cinematic location reference of an elegant hotel lobby at night, dark green marble reception counter, warm shaded practical lamps, brass details, cool blue evening through tall windows. Empty environment, no people, no text, no watermark.",
+      "reference": null,
+      "seed": 42,
+      "steps": 4,
+      "width": 1024
+    }
+  },
+  "reference_guided_image": {
+    "width": 704,
+    "height": 1280,
+    "duration": 0.0,
+    "sha256": "4afaed550257a7bcf12cf141be2cb32084881602a2389b301ad430efc435ff8c",
+    "telemetry": {
+      "adapter": "mflux-flux2-klein-4b-q4",
+      "peak_memory_bytes": 6338071308,
+      "phase": "Validating image",
+      "progress": 0.95,
+      "reference_conditioned": true,
+      "wall_seconds": 9.167572999955157
+    },
+    "request": {
+      "height": 1280,
+      "library_id": "e3b94f75-771e-41a3-9ff9-13746a39c59e",
+      "prompt": "The same adult woman, identical facial identity, natural freckles, brown eyes, shoulder-length dark brown hair, navy blazer and ivory blouse. Keep the same hotel lobby and both hands. Turn her head slightly to a three-quarter angle and give her a restrained warm smile. Photorealistic skin, natural human anatomy. No text.",
+      "seed": 43,
+      "steps": 4,
+      "width": 704,
+      "reference_sha256": "c66e59a2bd22fb6e6910b1c0af042333a87e3d18642e51fea444ee43003a73ee"
+    }
+  },
+  "speech": {
+    "width": 0,
+    "height": 0,
+    "duration": 2.328666666666667,
+    "sha256": "84cdd1573335ed9333c453655873a83915550aca4fac0200bac5aa1a60ac630a",
+    "telemetry": {
+      "adapter": "kokoro-onnx-int8",
+      "duration": 2.328666666666667,
+      "progress": 0.95,
+      "sample_rate": 24000,
+      "wall_seconds": 0.668588292086497
+    },
+    "request": {
+      "line_id": "0cb61605-2058-4120-af4e-c6d10bf23b5c",
+      "speed": 1.0,
+      "text": "Please, promise me you won't tell anyone.",
+      "voice": "af_heart"
+    }
+  },
+  "lipsync_v2": {
+    "width": 704,
+    "height": 1280,
+    "duration": 5.04,
+    "sha256": "c47f34d316b33ee367301a764cde04d3aef622c499710b1fc12555917c4725d7",
+    "telemetry": {
+      "adapter": "musetalk-mlx-q4-experimental-v2",
+      "fps": 24.0,
+      "frames": 121,
+      "peak_memory_bytes": 4268054454,
+      "phase": "Validating lip-sync output",
+      "progress": 0.97,
+      "wall_seconds": 14.352022666018456
+    },
+    "request": {
+      "audio_asset_id": "c1749d83-1323-464c-970a-bfa6682dae05",
+      "shot_id": "3d1233fd-b09a-441a-a7df-65966fcfe0a3",
+      "video_asset_id": "1b23187b-4ce8-4fe1-81a7-0e50b8efe2b4"
+    }
+  },
+  "review_notes": [
+    "Human identity, eyes, hands, and clothing inspected at start, midpoint, and end. No multi-episode continuity claim.",
+    "First lip-sync take rejected due to lower-face crop seam. Second uses zero-edge feathering and restores original motion after dialogue ends.",
+    "Lip-sync output technically validated; lower-face detail is softer than the source. Treat as experimental and review at playback speed.",
+    "No paid inference. All media was generated locally through the app adapters; durable video/image/dialogue/lip-sync jobs exercised via MCP."
+  ],
+  "finished_export": {
+    "width": 1080,
+    "height": 1920,
+    "duration": 5.0,
+    "hash": "ba5b882425f40df3c0efe25515b55e1d0330a6d0df9f8cda28394a7a5f5aea4b"
+  }
+}

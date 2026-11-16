@@ -1,0 +1,2009 @@
+{
+  "audience": "Adults who enjoy intimate, funny relationship drama and a glamorous young soap cast.",
+  "central_question": "Can Nora stop playing the person everyone needs and choose a life she can honestly call her own?",
+  "characters": [
+    {
+      "character_id": "0b69b98d-665c-49d1-9b5e-74fb3c97cd59",
+      "desire": "Make a living performing and be loved without disappointing anyone.",
+      "flaw": "She performs agreement and supplies convincing words to avoid the cost of an honest answer.",
+      "transformation": "She owns her ambition, accepts a loving separation, and helps clients find truthful words rather than selling approval."
+    },
+    {
+      "character_id": "44bc00e6-115f-4d96-b5f1-66bc08b3c22b",
+      "desire": "Save a tangible connection to her grandmother and prove she can carry the inherited shop.",
+      "flaw": "She turns care into transactions because needing someone feels like another debt.",
+      "transformation": "She closes the shop without calling herself a failure and asks for an equal, flexible partnership."
+    },
+    {
+      "character_id": "9433af8c-95d8-4954-9490-01c61c8bd98c",
+      "desire": "Build a settled life with Nora while beginning his teaching career.",
+      "flaw": "He accepts Nora's reassuring performance because asking what she actually wants might cost the relationship.",
+      "transformation": "He asks a real question, states his own needs and accepts that love need not make two futures compatible."
+    }
+  ],
+  "creative": {
+    "casting_brief": "Exceptionally attractive adult leads and supporting cast with soap-opera polish. Usually around 25; script-appropriate ages for parents, children and other roles. Story-led casting through believable relationships, setting, chemistry and family resemblance. Across a large catalog, racial/ethnic representation should roughly reflect U.S. population proportions; each series is not a demographic lineup. Ben Ortiz's exact portrait is user-approved and must be preserved. Other portraits are provisional.",
+    "episode_seconds": 90.0,
+    "max_shot_seconds": 4.0,
+    "min_shot_seconds": 1.0,
+    "style": "slice_of_life",
+    "target_episodes": 67
+  },
+  "ending": "Nora auditions honestly and is rejected. She and Ben remain lovingly parted; he begins his chosen teaching life. Leah closes the inherited shop on day fourteen, keeping useful craft and family connection rather than an unaffordable building. Their rehearsal practice continues as a modest prepaid room trial, with clear privacy, shared work and flexible notice. In the finale Nora sits in the other chair and admits she is hurt without performing being fine. Leah listens. Their next paid booking is real; neither artistic success nor reconciliation is promised.",
+  "episodes": [
+    {
+      "changes": [
+        {
+          "from": "not_established",
+          "key": "business",
+          "to": "terms_proposed"
+        },
+        {
+          "from": null,
+          "key": "emma_boundary",
+          "to": "rehearsed"
+        },
+        {
+          "from": "pending",
+          "key": "ben_job",
+          "to": "offered"
+        }
+      ],
+      "conflict": "Emma apologizes whenever the imagined mother is hurt; Leah needs the display chair kept sellable.",
+      "ending_resolution": "",
+      "episode_id": "10626b64-acc7-4dcb-aa27-47deed234db4",
+      "goal": "Nora helps Emma rehearse a boundary with her mother.",
+      "hook": "Ben calls with the teaching offer and asks Nora if they are really moving together.",
+      "payoff": "Emma finds a truthful boundary and pays. Leah proposes a share of the accidental business.",
+      "requires": [],
+      "turn": "Nora drops the mother's persona and shows Emma that apologizing has invited the argument back."
+    },
+    {
+      "changes": [
+        {
+          "from": "terms_proposed",
+          "key": "business",
+          "to": "informal_partnership"
+        },
+        {
+          "from": null,
+          "key": "customer_privacy",
+          "to": "no_recordings_or_disclosure"
+        }
+      ],
+      "conflict": "Nora wants a room to perform in; Leah needs income without promising to solve customers' lives.",
+      "ending_resolution": "",
+      "episode_id": "8290815f-74db-424a-90ab-359ab5a3773f",
+      "goal": "Nora and Leah turn the first payment into a workable arrangement.",
+      "hook": "Emma returns to the door: she still has not made the call.",
+      "payoff": "The first booking card has both their names on it.",
+      "requires": [
+        {
+          "key": "business",
+          "value": "terms_proposed"
+        }
+      ],
+      "turn": "They agree on a split and a short session, with no recordings and no promise about another person's response."
+    },
+    {
+      "changes": [
+        {
+          "from": "rehearsed",
+          "key": "emma_boundary",
+          "to": "spoken"
+        },
+        {
+          "from": null,
+          "key": "emma_mother_response",
+          "to": "threatens_absence"
+        }
+      ],
+      "conflict": "She wants Nora to stand beside her and provide each answer.",
+      "ending_resolution": "",
+      "episode_id": "26846ccf-21fd-43de-90a7-c8f5fadbca28",
+      "goal": "Emma says her boundary to her actual mother.",
+      "hook": "Her mother says she may not come at all.",
+      "payoff": "Emma says she wants her mother there, but will not accept a day of punishment.",
+      "requires": [
+        {
+          "key": "emma_boundary",
+          "value": "rehearsed"
+        }
+      ],
+      "turn": "Nora steps out of earshot; Emma chooses her own words and makes the call herself."
+    },
+    {
+      "changes": [
+        {
+          "from": "spoken",
+          "key": "emma_boundary",
+          "to": "held_without_guarantee"
+        },
+        {
+          "from": null,
+          "key": "nora_service_confidence",
+          "to": "first_doubt"
+        }
+      ],
+      "conflict": "Nora wants to offer another clever line; Emma needs to live with the answer she got.",
+      "ending_resolution": "",
+      "episode_id": "dc57758b-f313-4e2b-accc-e8a1453ad052",
+      "goal": "Emma decides whether a boundary still matters when it costs her something.",
+      "hook": "Nora realizes the rehearsal did not guarantee a happy ending.",
+      "payoff": "Emma leaves the invitation open without retracting the boundary.",
+      "requires": [
+        {
+          "key": "emma_boundary",
+          "value": "spoken"
+        },
+        {
+          "key": "emma_mother_response",
+          "value": "threatens_absence"
+        }
+      ],
+      "turn": "Leah asks what Emma wanted the wedding day to feel like, rather than how to win the argument."
+    },
+    {
+      "changes": [
+        {
+          "from": null,
+          "key": "lily_work_boundary",
+          "to": "stated"
+        },
+        {
+          "from": null,
+          "key": "ben_move_question",
+          "to": "concrete_date_requested"
+        }
+      ],
+      "conflict": "She confuses being useful with being liked; Nora recognizes the habit without admitting it.",
+      "ending_resolution": "",
+      "episode_id": "aed30568-9326-41c9-8d85-83c1d96a77cd",
+      "goal": "Lily, a young cafe worker, practices declining another unwanted Saturday shift.",
+      "hook": "Ben asks Nora whether he can reserve their moving van.",
+      "payoff": "She sends the message before she can rewrite it into a yes.",
+      "requires": [
+        {
+          "key": "business",
+          "value": "informal_partnership"
+        }
+      ],
+      "turn": "Lily replaces her long invented excuse with a clear statement of availability."
+    },
+    {
+      "changes": [
+        {
+          "from": null,
+          "key": "nora_knows_ben_career_cost",
+          "to": "yes"
+        },
+        {
+          "from": null,
+          "key": "move_answer_deadline",
+          "to": "tonight"
+        }
+      ],
+      "conflict": "He brings packing boxes and a floor plan; Nora is pleased by his care and frightened by the certainty.",
+      "ending_resolution": "",
+      "episode_id": "97815847-a878-41fc-9fb7-c668634cf304",
+      "goal": "Ben makes their proposed move tangible.",
+      "hook": "She promises him an answer after the shop closes.",
+      "payoff": "Nora understands that his new offer matters to him personally.",
+      "requires": [
+        {
+          "key": "ben_job",
+          "value": "offered"
+        },
+        {
+          "key": "ben_move_question",
+          "value": "concrete_date_requested"
+        }
+      ],
+      "turn": "Ben admits he postponed a previous career step to stay nearby, without making that a debt she owes."
+    },
+    {
+      "changes": [
+        {
+          "from": null,
+          "key": "emma_wedding_plan",
+          "to": "boundary_kept_with_open_invitation"
+        }
+      ],
+      "conflict": "A message from her mother makes the empty chair feel like a public failure.",
+      "ending_resolution": "",
+      "episode_id": "f3ece686-fc44-4cb9-8f8d-6736b2f4babe",
+      "goal": "Emma protects the wedding she and her partner actually want.",
+      "hook": "Nora gives Emma a brave answer, then sees Ben waiting for her own.",
+      "payoff": "She makes the seating plan without surrendering the boundary.",
+      "requires": [
+        {
+          "key": "emma_boundary",
+          "value": "held_without_guarantee"
+        }
+      ],
+      "turn": "Emma stops seeking an audience vote and leaves a place available as a choice, not a concession."
+    },
+    {
+      "changes": [
+        {
+          "from": "unanswered",
+          "key": "move_response",
+          "to": "promised"
+        },
+        {
+          "from": "offered",
+          "key": "ben_job",
+          "to": "accepted"
+        },
+        {
+          "from": null,
+          "key": "nora_audition_notice",
+          "to": "seen"
+        }
+      ],
+      "conflict": "She wants his happiness and does not know how to distinguish it from her own.",
+      "ending_resolution": "",
+      "episode_id": "9748fc74-3189-4cf7-ac2c-3f31884bbc1f",
+      "goal": "Nora answers Ben about the move.",
+      "hook": "An audition notice appears on Nora's phone after he leaves.",
+      "payoff": "Ben accepts the teaching offer and makes practical plans in good faith.",
+      "requires": [
+        {
+          "key": "ben_job",
+          "value": "offered"
+        },
+        {
+          "key": "move_answer_deadline",
+          "value": "tonight"
+        }
+      ],
+      "turn": "She gives him the warm, polished yes she could perform for any customer."
+    },
+    {
+      "changes": [
+        {
+          "from": "stated",
+          "key": "lily_work_boundary",
+          "to": "accepted"
+        },
+        {
+          "from": "unspoken",
+          "key": "nora_desire",
+          "to": "touring_again_private"
+        }
+      ],
+      "conflict": "Lily wants to know what her no should cost in gratitude; Nora still measures success by being needed.",
+      "ending_resolution": "",
+      "episode_id": "5cb08d70-0f1f-4234-b5c0-eec786a12a89",
+      "goal": "Nora handles the first customer who returns after a conversation went well.",
+      "hook": "She cannot stop rereading the audition notice.",
+      "payoff": "Nora sees that an honest boundary can leave a relationship intact.",
+      "requires": [
+        {
+          "key": "lily_work_boundary",
+          "value": "stated"
+        },
+        {
+          "key": "nora_audition_notice",
+          "value": "seen"
+        }
+      ],
+      "turn": "Lily says her manager simply found someone else, making the feared disaster ordinary."
+    },
+    {
+      "changes": [
+        {
+          "from": "not_applied",
+          "key": "nora_audition",
+          "to": "considering_in_secret"
+        },
+        {
+          "from": null,
+          "key": "tour_move_conflict",
+          "to": "known_to_nora"
+        }
+      ],
+      "conflict": "Ben talks about their shared home while she asks practical questions about a touring role.",
+      "ending_resolution": "",
+      "episode_id": "30d14a3a-7f26-4ca9-9467-8ce1a073011f",
+      "goal": "Nora tests whether she could apply without admitting that she wants to.",
+      "hook": "Leah offers to clear a display room for the supposed friend's audition.",
+      "payoff": "The tour is real and her availability would conflict with the move.",
+      "requires": [
+        {
+          "key": "move_response",
+          "value": "promised"
+        },
+        {
+          "key": "nora_desire",
+          "value": "touring_again_private"
+        }
+      ],
+      "turn": "She describes the opportunity as something she is checking for a friend."
+    },
+    {
+      "changes": [
+        {
+          "from": null,
+          "key": "nora_audition_readiness",
+          "to": "first_honest_run"
+        }
+      ],
+      "conflict": "She is fluent as somebody's mother or boss, but exposed when the ambition is hers.",
+      "ending_resolution": "",
+      "episode_id": "c60b484a-a651-4e19-a43b-16f158111327",
+      "goal": "Nora tries an audition scene in the empty shop.",
+      "hook": "Leah asks why her friend's audition seems to matter so much to her.",
+      "payoff": "She completes the scene without turning it into a joke.",
+      "requires": [
+        {
+          "key": "nora_audition",
+          "value": "considering_in_secret"
+        }
+      ],
+      "turn": "A line she meant to throw away comes out with real feeling."
+    },
+    {
+      "changes": [
+        {
+          "from": null,
+          "key": "nora_application",
+          "to": "completed_private"
+        },
+        {
+          "from": null,
+          "key": "nora_reference",
+          "to": "needed"
+        }
+      ],
+      "conflict": "The availability box asks a direct question she cannot answer for both herself and Ben.",
+      "ending_resolution": "",
+      "episode_id": "fbd41c51-caa7-409b-ae76-afadbcfe12f1",
+      "goal": "Nora completes the application.",
+      "hook": "The application requires a professional reference.",
+      "payoff": "Her desired future has a concrete shape on the page.",
+      "requires": [
+        {
+          "key": "tour_move_conflict",
+          "value": "known_to_nora"
+        }
+      ],
+      "turn": "She enters the touring dates, then leaves the form unsent instead of changing them to a convenient lie."
+    },
+    {
+      "changes": [
+        {
+          "from": "needed",
+          "key": "nora_reference",
+          "to": "secured"
+        }
+      ],
+      "conflict": "She expects disappointment or a lecture about the years she spent drifting.",
+      "ending_resolution": "",
+      "episode_id": "38284a44-6960-4a67-b985-96977c83b1e1",
+      "goal": "Nora asks her former acting teacher for a reference.",
+      "hook": "She now has everything she needs to press send.",
+      "payoff": "Nora receives a reference based on her work, not reassurance about her chances.",
+      "requires": [
+        {
+          "key": "nora_reference",
+          "value": "needed"
+        }
+      ],
+      "turn": "The teacher asks what Nora is actually requesting and makes her ask it plainly."
+    },
+    {
+      "changes": [
+        {
+          "from": "considering_in_secret",
+          "key": "nora_audition",
+          "to": "application_hidden"
+        },
+        {
+          "from": "completed_private",
+          "key": "nora_application",
+          "to": "submitted"
+        },
+        {
+          "from": "1",
+          "key": "story_day",
+          "to": "2"
+        }
+      ],
+      "conflict": "Sending it will make her private uncertainty a real commitment.",
+      "ending_resolution": "",
+      "episode_id": "5b9ead6d-83f8-4142-bf98-22babc5d4f76",
+      "goal": "Nora chooses whether the application will remain a story about a friend.",
+      "hook": "The confirmation email arrives beside Ben's moving checklist.",
+      "payoff": "She takes a small real step toward acting again.",
+      "requires": [
+        {
+          "key": "nora_application",
+          "value": "completed_private"
+        },
+        {
+          "key": "nora_reference",
+          "value": "secured"
+        }
+      ],
+      "turn": "She checks that her own name is on the form and sends it."
+    },
+    {
+      "changes": [
+        {
+          "from": null,
+          "key": "refund_promise",
+          "to": "offered_for_failed_apology"
+        },
+        {
+          "from": null,
+          "key": "owen_account",
+          "to": "small_loan_version"
+        }
+      ],
+      "conflict": "A prospective customer wants proof that the right words will get him forgiven.",
+      "ending_resolution": "",
+      "episode_id": "2d0d42a5-68fc-4981-ae25-97373b0099bb",
+      "goal": "Nora explains what the rehearsal service can and cannot do.",
+      "hook": "Owen says the problem was just a small loan between friends.",
+      "payoff": "Owen books a session; Leah hears how badly Nora wants the work to count.",
+      "requires": [
+        {
+          "key": "business",
+          "value": "informal_partnership"
+        }
+      ],
+      "turn": "Nora says there are no guarantees, then weakens the boundary by offering to refund a failed apology."
+    },
+    {
+      "changes": [
+        {
+          "from": "small_loan_version",
+          "key": "owen_account",
+          "to": "rent_money_disclosed"
+        }
+      ],
+      "conflict": "He casts himself as embarrassed and his roommate as unreasonable, encouraging Nora to play a flattering scene.",
+      "ending_resolution": "",
+      "episode_id": "016f9c17-62ba-49e9-93d9-8879f6f43f95",
+      "goal": "Nora understands the apology Owen wants to make.",
+      "hook": "The money was not spare cash; it was meant for rent.",
+      "payoff": "Nora agrees to rehearse, but one basic detail is still missing.",
+      "requires": [
+        {
+          "key": "owen_account",
+          "value": "small_loan_version"
+        }
+      ],
+      "turn": "Leah asks what the roommate lost, not merely why Owen feels ashamed."
+    },
+    {
+      "changes": [
+        {
+          "from": null,
+          "key": "owen_commitments",
+          "to": "not_yet_specific"
+        },
+        {
+          "from": null,
+          "key": "leah_accounts",
+          "to": "private_pressure"
+        }
+      ],
+      "conflict": "Nora sees persuasive acting as the product; Leah wants a record of what was actually promised.",
+      "ending_resolution": "",
+      "episode_id": "bfaaeae3-7f6d-4e82-87ce-a073a9fd2873",
+      "goal": "Leah closes the day's books while Nora plans Owen's next session.",
+      "hook": "Owen cannot name the date on which he will repay the rent money.",
+      "payoff": "The gap between performance and action is visible on one small card.",
+      "requires": [
+        {
+          "key": "owen_account",
+          "value": "rent_money_disclosed"
+        }
+      ],
+      "turn": "Leah asks Nora to write the apology's practical commitments beside its beautiful sentences."
+    },
+    {
+      "changes": [
+        {
+          "from": null,
+          "key": "owen_income",
+          "to": "unconfirmed_booking"
+        },
+        {
+          "from": null,
+          "key": "owen_truth",
+          "to": "rent_spent_on_equipment"
+        }
+      ],
+      "conflict": "Owen calls his camera equipment an investment, while Rhea has been covering the missing rent.",
+      "ending_resolution": "",
+      "episode_id": "8cfdc58d-1383-4f96-a96d-0f2f7f5425ab",
+      "goal": "Nora gets the full account before rehearsing again.",
+      "hook": "Owen asks her to help make that uncertainty sound less frightening.",
+      "payoff": "Nora knows that a confident repayment promise would be speculation.",
+      "requires": [
+        {
+          "key": "owen_account",
+          "value": "rent_money_disclosed"
+        },
+        {
+          "key": "owen_commitments",
+          "value": "not_yet_specific"
+        }
+      ],
+      "turn": "He admits the promised paid job has not been confirmed."
+    },
+    {
+      "changes": [
+        {
+          "from": null,
+          "key": "owen_repayment",
+          "to": "conditional_booking_income"
+        },
+        {
+          "from": null,
+          "key": "nora_owen_judgment",
+          "to": "compromised_by_result"
+        }
+      ],
+      "conflict": "He wants a line that preserves his image as a dependable friend.",
+      "ending_resolution": "",
+      "episode_id": "b0a70b66-3e88-49b0-a075-01737d02dc0a",
+      "goal": "Make the apology honest about what Owen can pay now.",
+      "hook": "Owen asks to run the apology once without Leah listening.",
+      "payoff": "Their draft contains a conditional plan dressed as certainty.",
+      "requires": [
+        {
+          "key": "owen_income",
+          "value": "unconfirmed_booking"
+        }
+      ],
+      "turn": "Nora initially insists on the real numbers, then lets him substitute a hopeful future booking."
+    },
+    {
+      "changes": [
+        {
+          "from": null,
+          "key": "owen_apology",
+          "to": "delivered_without_clear_repayment"
+        },
+        {
+          "from": "unwritten",
+          "key": "rehearsal_boundary",
+          "to": "sold_words_without_action"
+        },
+        {
+          "from": "2",
+          "key": "story_day",
+          "to": "3"
+        }
+      ],
+      "conflict": "Nora's performance as the hurt roommate makes him responsive in the room, but his practical promises remain thin.",
+      "ending_resolution": "",
+      "episode_id": "fca8e9d5-5be6-4a7e-a495-83b333a46fee",
+      "goal": "Owen delivers an apology that sounds persuasive.",
+      "hook": "Leah asks what exactly will be different tomorrow.",
+      "payoff": "Owen leaves grateful; Nora feels she has made something that works.",
+      "requires": [
+        {
+          "key": "owen_repayment",
+          "value": "conditional_booking_income"
+        }
+      ],
+      "turn": "They find a moving speech that avoids the condition attached to his future income."
+    },
+    {
+      "changes": [
+        {
+          "from": null,
+          "key": "owen_claim",
+          "to": "forgiven_claimed"
+        },
+        {
+          "from": "first_doubt",
+          "key": "nora_service_confidence",
+          "to": "overconfident"
+        }
+      ],
+      "conflict": "He reports the welcome-back part and leaves out the condition Rhea believed he had met.",
+      "ending_resolution": "",
+      "episode_id": "27c9cec4-0ac5-42f0-95c3-2659d0ff7738",
+      "goal": "Nora learns how Owen's real conversation went.",
+      "hook": "Nora accepts his thanks while he leaves Rhea's call unanswered.",
+      "payoff": "She books the next apology request with greater confidence.",
+      "requires": [
+        {
+          "key": "owen_apology",
+          "value": "delivered_without_clear_repayment"
+        }
+      ],
+      "turn": "His extravagant thanks makes Nora accept his version as proof of success."
+    },
+    {
+      "changes": [
+        {
+          "from": "transactional",
+          "key": "leah_trust",
+          "to": "warming"
+        },
+        {
+          "from": null,
+          "key": "ben_assumes_business",
+          "to": "temporary_gig"
+        }
+      ],
+      "conflict": "Nora turns every personal question into a funny character story; Leah treats help as a transaction.",
+      "ending_resolution": "",
+      "episode_id": "e17f09b9-c4b6-4eac-93c0-c68a89d3cee9",
+      "goal": "Leah and Nora make room for an ordinary lunch together.",
+      "hook": "Nora calls the business temporary because it is the easiest answer to give.",
+      "payoff": "They enjoy each other's company without resolving the uncomfortable question.",
+      "requires": [
+        {
+          "key": "business",
+          "value": "informal_partnership"
+        },
+        {
+          "key": "move_response",
+          "value": "promised"
+        }
+      ],
+      "turn": "Ben's moving list arrives while Leah asks whether Nora will still want the work in a month."
+    },
+    {
+      "changes": [
+        {
+          "from": null,
+          "key": "rhea_has_been_paid",
+          "to": "no"
+        },
+        {
+          "from": null,
+          "key": "nora_knows_apology_harm",
+          "to": "yes"
+        }
+      ],
+      "conflict": "She is tired of being cast as cruel for asking to get her own money back.",
+      "ending_resolution": "",
+      "episode_id": "3a8e319b-c4ac-48c6-abe9-636118dfba40",
+      "goal": "Rhea finds out what Nora helped Owen promise.",
+      "hook": "Rhea asks, 'You gave him that line?' ",
+      "payoff": "Nora realizes that her successful scene concealed the real problem.",
+      "requires": [
+        {
+          "key": "owen_claim",
+          "value": "forgiven_claimed"
+        }
+      ],
+      "turn": "Rhea repeats the apology nearly word for word, then shows the unchanged payment record."
+    },
+    {
+      "changes": [
+        {
+          "from": "overconfident",
+          "key": "nora_service_confidence",
+          "to": "accountability_needed"
+        },
+        {
+          "from": null,
+          "key": "rhea_boundary",
+          "to": "no_more_unfunded_promises"
+        }
+      ],
+      "conflict": "She wants to defend the exercise by saying Owen must have used it wrong.",
+      "ending_resolution": "",
+      "episode_id": "b552dd71-676c-44e9-b0a3-b705a9f9c3f6",
+      "goal": "Nora hears the apology from the person who had to live with it.",
+      "hook": "Owen arrives expecting another rehearsal to smooth things over.",
+      "payoff": "Nora stops treating persuasive speech as evidence of changed behavior.",
+      "requires": [
+        {
+          "key": "nora_knows_apology_harm",
+          "value": "yes"
+        }
+      ],
+      "turn": "Rhea explains that the words were effective precisely because they sounded accountable."
+    },
+    {
+      "changes": [
+        {
+          "from": null,
+          "key": "owen_next_step",
+          "to": "sell_nonessential_equipment"
+        },
+        {
+          "from": null,
+          "key": "nora_boundary_with_owen",
+          "to": "no_more_cover_story"
+        }
+      ],
+      "conflict": "He wants another version of the speech; she risks the refund promise and his approval by refusing.",
+      "ending_resolution": "",
+      "episode_id": "da2e997c-e510-4e5c-a5c0-d7336762bdbe",
+      "goal": "Nora refuses to be Owen's alibi.",
+      "hook": "He looks at the equipment he bought with the missing money.",
+      "payoff": "Owen has to face the gap himself instead of outsourcing the difficult sentence.",
+      "requires": [
+        {
+          "key": "nora_knows_apology_harm",
+          "value": "yes"
+        },
+        {
+          "key": "owen_truth",
+          "value": "rent_spent_on_equipment"
+        }
+      ],
+      "turn": "She asks for a concrete action before offering another rehearsal."
+    },
+    {
+      "changes": [
+        {
+          "from": "conditional_booking_income",
+          "key": "owen_repayment",
+          "to": "partial_payment_made"
+        },
+        {
+          "from": "no",
+          "key": "rhea_has_been_paid",
+          "to": "partly"
+        }
+      ],
+      "conflict": "He fears that returning part of the money will expose how far he is from fixing everything.",
+      "ending_resolution": "",
+      "episode_id": "6a779f53-571a-4d5e-9a53-bc6efe0d542f",
+      "goal": "Owen makes a payment he can afford today.",
+      "hook": "Owen asks whether that means he can move back in.",
+      "payoff": "Rhea receives a small real payment; the remaining debt is named plainly.",
+      "requires": [
+        {
+          "key": "owen_next_step",
+          "value": "sell_nonessential_equipment"
+        }
+      ],
+      "turn": "He sells one piece of equipment and transfers the actual proceeds without a flattering speech."
+    },
+    {
+      "changes": [
+        {
+          "from": null,
+          "key": "rhea_housing_boundary",
+          "to": "separate_households"
+        },
+        {
+          "from": "partial_payment_made",
+          "key": "owen_repayment",
+          "to": "partial_paid_with_schedule"
+        }
+      ],
+      "conflict": "Owen hopes the payment has bought back their old living arrangement.",
+      "ending_resolution": "",
+      "episode_id": "b5837e74-a9d8-40c1-937e-e6eefb048e15",
+      "goal": "Rhea answers without being made responsible for Owen's feelings.",
+      "hook": "Leah begins putting closing-sale labels on furniture she loves.",
+      "payoff": "He accepts the answer and a specific remaining payment schedule. Forgiveness and repayment stop being the same transaction.",
+      "requires": [
+        {
+          "key": "owen_repayment",
+          "value": "partial_payment_made"
+        },
+        {
+          "key": "rhea_boundary",
+          "value": "no_more_unfunded_promises"
+        }
+      ],
+      "turn": "Rhea thanks him for paying her and says she is not agreeing to live together again."
+    },
+    {
+      "changes": [
+        {
+          "from": "uncertain",
+          "key": "shop_future",
+          "to": "closing_day_14"
+        },
+        {
+          "from": "warming",
+          "key": "leah_trust",
+          "to": "personal"
+        },
+        {
+          "from": "3",
+          "key": "story_day",
+          "to": "4"
+        }
+      ],
+      "conflict": "Leah can discuss a chair's damage more easily than her own financial pressure.",
+      "ending_resolution": "",
+      "episode_id": "5eef2d7b-e058-4edb-b363-bf6faf1d33f0",
+      "goal": "Nora finds out why Leah is selling the pieces she meant to restore.",
+      "hook": "The shop closes on day fourteen, the week Nora is meant to leave with Ben.",
+      "payoff": "Leah accepts help cataloging the final sale rather than another reassuring speech.",
+      "requires": [
+        {
+          "key": "leah_trust",
+          "value": "warming"
+        }
+      ],
+      "turn": "Nora notices the closing date and Leah finally admits the inherited shop cannot keep going."
+    },
+    {
+      "changes": [
+        {
+          "from": null,
+          "key": "leah_help_request",
+          "to": "specific_help_rehearsed"
+        }
+      ],
+      "conflict": "She expects him to hear an admission of failure and wants Nora to rehearse a request for rescue.",
+      "ending_resolution": "",
+      "episode_id": "e393a657-646d-443c-b01e-524b8c1d9b67",
+      "goal": "Leah speaks to her father Martin, 54, about closing the inherited shop.",
+      "hook": "She still has to make the actual call.",
+      "payoff": "She decides to ask for practical help with the sale instead of hiding the accounts.",
+      "requires": [
+        {
+          "key": "shop_future",
+          "value": "closing_day_14"
+        }
+      ],
+      "turn": "The rehearsal reveals that what Leah wants most is permission to stop carrying an unaffordable legacy."
+    },
+    {
+      "changes": [
+        {
+          "from": "specific_help_rehearsed",
+          "key": "leah_help_request",
+          "to": "practical_help_accepted"
+        }
+      ],
+      "conflict": "She keeps converting a simple request into an explanation of why she should have done better.",
+      "ending_resolution": "",
+      "episode_id": "7f2ffe3a-8318-403b-ab57-0f51ee86bb42",
+      "goal": "Leah asks her father to help with the final sale.",
+      "hook": "He asks which pieces she cannot bear to sell.",
+      "payoff": "Martin agrees to help without offering a miraculous financial rescue.",
+      "requires": [
+        {
+          "key": "leah_help_request",
+          "value": "specific_help_rehearsed"
+        }
+      ],
+      "turn": "She asks whether he can come label and move stock, then lets him answer."
+    },
+    {
+      "changes": [
+        {
+          "from": null,
+          "key": "leah_family_legacy",
+          "to": "relationship_not_building"
+        },
+        {
+          "from": null,
+          "key": "leah_accepts_closure_help",
+          "to": "yes"
+        }
+      ],
+      "conflict": "They remember her grandmother differently; Leah has made the building stand in for the person.",
+      "ending_resolution": "",
+      "episode_id": "f46b2df7-6d71-4565-b23f-39a0b303c47d",
+      "goal": "Leah works beside her father without turning the day into a verdict on her life.",
+      "hook": "Ben comes to collect a chair for the home he thinks he and Nora will share.",
+      "payoff": "They finish an ordinary task together. The relationship survives the shop's failure.",
+      "requires": [
+        {
+          "key": "leah_help_request",
+          "value": "practical_help_accepted"
+        }
+      ],
+      "turn": "While measuring a chair, Martin admits he avoided helping earlier because he feared saying the wrong thing."
+    },
+    {
+      "changes": [
+        {
+          "from": null,
+          "key": "ben_gift",
+          "to": "chair_for_shared_home"
+        },
+        {
+          "from": null,
+          "key": "nora_move_cost",
+          "to": "emotionally_tangible"
+        }
+      ],
+      "conflict": "The carefully chosen chair is loving and thoughtful, making her private hesitation harder to say.",
+      "ending_resolution": "",
+      "episode_id": "1e476884-cea4-444c-a6e8-92ddd03edb3e",
+      "goal": "Ben gives Nora a tangible place in their proposed new home.",
+      "hook": "Her grateful response sounds more convincing than it feels.",
+      "payoff": "Nora sees that he has tried to make space for her ambition within the future he wants.",
+      "requires": [
+        {
+          "key": "move_response",
+          "value": "promised"
+        },
+        {
+          "key": "ben_assumes_business",
+          "value": "temporary_gig"
+        }
+      ],
+      "turn": "He explains why he chose a corner for her to read scripts in."
+    },
+    {
+      "changes": [
+        {
+          "from": null,
+          "key": "ben_need",
+          "to": "honesty_over_reassurance"
+        },
+        {
+          "from": null,
+          "key": "ben_rehearsal",
+          "to": "considered"
+        }
+      ],
+      "conflict": "He notices Nora's polished reassurance and is afraid that asking directly will cost the future he wants.",
+      "ending_resolution": "",
+      "episode_id": "68e5dbb7-2460-467e-9fd8-d4055608c6d3",
+      "goal": "Ben asks a question he has been avoiding.",
+      "hook": "He asks whether he can book a session himself.",
+      "payoff": "Ben acknowledges that he has been accepting a performance because he wants its answer.",
+      "requires": [
+        {
+          "key": "ben_gift",
+          "value": "chair_for_shared_home"
+        }
+      ],
+      "turn": "Leah declines to interpret Nora for him but offers to help him find his own question."
+    },
+    {
+      "changes": [
+        {
+          "from": "none",
+          "key": "ben_booking",
+          "to": "scheduled"
+        }
+      ],
+      "conflict": "Leah knows both of them and refuses to sell either person's confidence.",
+      "ending_resolution": "",
+      "episode_id": "ae495688-25f1-4086-9e1c-58dedff26093",
+      "goal": "Ben books a private rehearsal without asking Leah to report on Nora.",
+      "hook": "He arrives early and chooses the chair Nora normally uses.",
+      "payoff": "He pays the same twenty dollars as any customer.",
+      "requires": [
+        {
+          "key": "ben_rehearsal",
+          "value": "considered"
+        }
+      ],
+      "turn": "Ben agrees that the session will concern his own words."
+    },
+    {
+      "changes": [
+        {
+          "from": "scheduled",
+          "key": "ben_booking",
+          "to": "in_progress"
+        },
+        {
+          "from": "4",
+          "key": "story_day",
+          "to": "5"
+        }
+      ],
+      "conflict": "Leah can imitate a defensive answer, but cannot know Nora's real one.",
+      "ending_resolution": "",
+      "episode_id": "8cb6a89f-05f0-422f-81d3-28e6dbead2ba",
+      "goal": "Ben tries to ask his girlfriend whether she wants their proposed life.",
+      "hook": "He asks Leah to tell him what Nora would say.",
+      "payoff": "For once Ben names the problem as his need for truth, not Nora's talent for comforting him.",
+      "requires": [
+        {
+          "key": "ben_booking",
+          "value": "scheduled"
+        }
+      ],
+      "turn": "He says that reassurance has become the thing he is afraid to hear."
+    },
+    {
+      "changes": [
+        {
+          "from": "considered",
+          "key": "ben_rehearsal",
+          "to": "prediction_rejected"
+        }
+      ],
+      "conflict": "He asks for a convincing Nora performance to make the conversation feel safe.",
+      "ending_resolution": "",
+      "episode_id": "b1bc8e92-c2f1-4550-b055-7a9c23ec7a62",
+      "goal": "Leah gets Ben to distinguish preparation from predicting Nora.",
+      "hook": "Without a script, he cannot finish his first question.",
+      "payoff": "He stops asking Leah to stand in for Nora's actual answer.",
+      "requires": [
+        {
+          "key": "ben_booking",
+          "value": "in_progress"
+        }
+      ],
+      "turn": "Leah gives him a polished 'of course'; he recognizes how little he learns from it."
+    },
+    {
+      "changes": [
+        {
+          "from": null,
+          "key": "ben_questions",
+          "to": "open_not_persuasive"
+        }
+      ],
+      "conflict": "Every question starts with an argument for why Nora should come.",
+      "ending_resolution": "",
+      "episode_id": "ca9d165e-6b3f-4b41-8419-f15799cf02e1",
+      "goal": "Ben reduces a speech about the move to three questions he can actually hear answered.",
+      "hook": "He admits he already knows which answer he wants.",
+      "payoff": "He writes: What would you want if you weren't trying to keep me happy?",
+      "requires": [
+        {
+          "key": "ben_rehearsal",
+          "value": "prediction_rejected"
+        }
+      ],
+      "turn": "Leah asks which question permits an answer he dislikes."
+    },
+    {
+      "changes": [
+        {
+          "from": "in_progress",
+          "key": "ben_booking",
+          "to": "first_session_complete"
+        },
+        {
+          "from": "honesty_over_reassurance",
+          "key": "ben_need",
+          "to": "truth_with_own_needs"
+        }
+      ],
+      "conflict": "Calling himself supportive has let him hide his hope that Nora will choose his life.",
+      "ending_resolution": "",
+      "episode_id": "de9cbfca-3ab3-47c6-8370-2467cab8ffe8",
+      "goal": "Ben acknowledges his own stake without pretending to be indifferent.",
+      "hook": "He leaves with questions, while Nora's audition deadline approaches.",
+      "payoff": "He can ask honestly while retaining a real preference.",
+      "requires": [
+        {
+          "key": "ben_questions",
+          "value": "open_not_persuasive"
+        }
+      ],
+      "turn": "He admits that he wants her to move and will be hurt if she doesn't."
+    },
+    {
+      "changes": [
+        {
+          "from": null,
+          "key": "nora_calendar",
+          "to": "conflict_acknowledged"
+        }
+      ],
+      "conflict": "The callback would land in the week they plan to leave.",
+      "ending_resolution": "",
+      "episode_id": "b451159b-0b60-4140-b995-99a538153175",
+      "goal": "Nora checks the practical audition dates before calling her secret harmless.",
+      "hook": "Owen returns with the money she promised to refund.",
+      "payoff": "She can no longer pretend the application changes nothing.",
+      "requires": [
+        {
+          "key": "nora_audition",
+          "value": "application_hidden"
+        },
+        {
+          "key": "move_response",
+          "value": "promised"
+        }
+      ],
+      "turn": "She puts the two dates on the same page instead of keeping separate calendars."
+    },
+    {
+      "changes": [
+        {
+          "from": null,
+          "key": "nora_refund",
+          "to": "paid_without_endorsement"
+        }
+      ],
+      "conflict": "He offers to call the failed rehearsal a success because he has finally paid some rent back.",
+      "ending_resolution": "",
+      "episode_id": "394d6405-6b4d-4813-99e5-29021d0ead2b",
+      "goal": "Nora settles what she owes Owen without asking him to make her feel better.",
+      "hook": "Leah asks what they can honestly promise the next customer.",
+      "payoff": "The business accepts responsibility for its own promise, without taking credit for his later action.",
+      "requires": [
+        {
+          "key": "rehearsal_boundary",
+          "value": "sold_words_without_action"
+        }
+      ],
+      "turn": "She refunds the guaranteed-result fee anyway and refuses a flattering review."
+    },
+    {
+      "changes": [
+        {
+          "from": "sold_words_without_action",
+          "key": "rehearsal_boundary",
+          "to": "truth_and_action_before_technique"
+        },
+        {
+          "from": "application_hidden",
+          "key": "nora_audition",
+          "to": "callback_received"
+        },
+        {
+          "from": "5",
+          "key": "story_day",
+          "to": "6"
+        }
+      ],
+      "conflict": "A promise of the right response is easier to sell than help with an uncertain conversation.",
+      "ending_resolution": "",
+      "episode_id": "a92c464d-98e7-4653-bc7c-01b546f82503",
+      "goal": "Nora and Leah rewrite the offer they make to customers.",
+      "hook": "Nora receives a callback invitation just as she hangs it.",
+      "payoff": "The new sign promises practice, not control of someone else's answer.",
+      "requires": [
+        {
+          "key": "nora_refund",
+          "value": "paid_without_endorsement"
+        }
+      ],
+      "turn": "They require a truthful intention and a concrete action before polishing the words."
+    },
+    {
+      "changes": [
+        {
+          "from": "touring_again_private",
+          "key": "nora_desire",
+          "to": "audition_taken_seriously"
+        }
+      ],
+      "conflict": "Attending requires her to admit she may be available for a tour.",
+      "ending_resolution": "",
+      "episode_id": "9b83d5ea-b2ab-4cc2-a08b-dbf34ee959d9",
+      "goal": "Nora reads the callback as an actual invitation rather than a private fantasy.",
+      "hook": "Emma calls: her mother has asked whether the wedding invitation is still open.",
+      "payoff": "She chooses to take the audition seriously.",
+      "requires": [
+        {
+          "key": "nora_audition",
+          "value": "callback_received"
+        }
+      ],
+      "turn": "She marks herself available, then stops before sending Ben a routine moving reassurance."
+    },
+    {
+      "changes": [
+        {
+          "from": null,
+          "key": "emma_wedding",
+          "to": "mother_will_attend"
+        },
+        {
+          "from": "6",
+          "key": "story_day",
+          "to": "7"
+        }
+      ],
+      "conflict": "She is tempted to apologize for the dress decision to secure her mother's attendance.",
+      "ending_resolution": "",
+      "episode_id": "98f8ae98-3564-4268-8961-8b3084e04314",
+      "goal": "Emma answers her mother without bargaining away the wedding boundary.",
+      "hook": "Leah's calendar shows Ben has booked a second session.",
+      "payoff": "Her mother accepts the invitation without extracting a reversal.",
+      "requires": [
+        {
+          "key": "emma_boundary",
+          "value": "held_without_guarantee"
+        }
+      ],
+      "turn": "She says she wants her there and the decision remains hers."
+    },
+    {
+      "changes": [
+        {
+          "from": "first_session_complete",
+          "key": "ben_booking",
+          "to": "second_session_in_progress"
+        },
+        {
+          "from": null,
+          "key": "ben_listening",
+          "to": "silence_tolerated"
+        }
+      ],
+      "conflict": "He has practiced a generous opening but keeps supplying Nora's answer in the silence.",
+      "ending_resolution": "",
+      "episode_id": "87720f0f-c993-4bc4-bee9-efc131a389f2",
+      "goal": "Ben returns to rehearse how to listen after asking his question.",
+      "hook": "Nora realizes she left her audition pages at the shop.",
+      "payoff": "He rehearses waiting rather than managing the outcome.",
+      "requires": [
+        {
+          "key": "ben_booking",
+          "value": "first_session_complete"
+        },
+        {
+          "key": "ben_questions",
+          "value": "open_not_persuasive"
+        }
+      ],
+      "turn": "Leah lets the silence last; he notices his urge to fill it."
+    },
+    {
+      "changes": [
+        {
+          "from": "no",
+          "key": "nora_knows_ben_booking",
+          "to": "saw_without_overhearing"
+        }
+      ],
+      "conflict": "Through the window she sees Ben in the other chair and initially wants to know what he is saying.",
+      "ending_resolution": "",
+      "episode_id": "71e159ed-a211-4ee8-b952-783b039d0696",
+      "goal": "Nora returns for the pages without interrupting a paid session.",
+      "hook": "Ben comes out and sees her waiting.",
+      "payoff": "She respects the privacy rule even when it costs her certainty.",
+      "requires": [
+        {
+          "key": "ben_booking",
+          "value": "second_session_in_progress"
+        }
+      ],
+      "turn": "She steps back outside instead of listening at the door."
+    },
+    {
+      "changes": [
+        {
+          "from": "second_session_in_progress",
+          "key": "ben_booking",
+          "to": "disclosed_by_ben"
+        }
+      ],
+      "conflict": "She tries to turn her surprise into a light joke about Leah stealing her customer.",
+      "ending_resolution": "",
+      "episode_id": "dd7166bf-0ecf-434b-a664-c2e2e695516d",
+      "goal": "Ben tells Nora why he came before she can invent an explanation.",
+      "hook": "Nora asks him to try the question.",
+      "payoff": "His disclosure comes from him; Leah keeps the session private.",
+      "requires": [
+        {
+          "key": "nora_knows_ben_booking",
+          "value": "saw_without_overhearing"
+        }
+      ],
+      "turn": "He says he was practicing how to ask her something, not investigating her."
+    },
+    {
+      "changes": [
+        {
+          "from": "assumed_shared_future",
+          "key": "relationship",
+          "to": "honesty_requested"
+        },
+        {
+          "from": null,
+          "key": "nora_answer",
+          "to": "not_yet_spoken"
+        },
+        {
+          "from": "7",
+          "key": "story_day",
+          "to": "8"
+        }
+      ],
+      "conflict": "Nora starts to list the reasons his new job makes sense.",
+      "ending_resolution": "",
+      "episode_id": "45f565b9-a5ec-4c4e-9cf7-1f2ab22e0331",
+      "goal": "Ben asks which part of their planned future Nora has chosen for herself.",
+      "hook": "He says he still wants an answer.",
+      "payoff": "She admits she doesn't know how to answer without hurting him.",
+      "requires": [
+        {
+          "key": "ben_booking",
+          "value": "disclosed_by_ben"
+        },
+        {
+          "key": "move_response",
+          "value": "promised"
+        }
+      ],
+      "turn": "He asks about her want rather than the quality of his plan."
+    },
+    {
+      "changes": [
+        {
+          "from": "honesty_requested",
+          "key": "relationship",
+          "to": "conversation_agreed"
+        }
+      ],
+      "conflict": "Her practiced explanation turns every desire into a temporary inconvenience.",
+      "ending_resolution": "",
+      "episode_id": "10ee7976-f04c-499d-af82-d57ad5367e0c",
+      "goal": "Nora tries to begin their actual conversation on the walk home.",
+      "hook": "Nora calls her mother and asks whether choosing herself is selfish.",
+      "payoff": "They agree to talk after she can name what she means, with no promise of a painless answer.",
+      "requires": [
+        {
+          "key": "nora_answer",
+          "value": "not_yet_spoken"
+        }
+      ],
+      "turn": "She hears herself say 'once things settle' and stops."
+    },
+    {
+      "changes": [
+        {
+          "from": "audition_taken_seriously",
+          "key": "nora_desire",
+          "to": "spoken_as_own_want"
+        }
+      ],
+      "conflict": "Ruth initially offers practical advice, and Nora tries to turn it into a decision she can obey.",
+      "ending_resolution": "",
+      "episode_id": "84b332d9-b57c-4f91-92d8-dc08872e375b",
+      "goal": "Nora asks her mother Ruth, fifty-two, for permission to disappoint someone.",
+      "hook": "She asks Leah to help her say the bad version.",
+      "payoff": "Nora names that she wants to act again, without appending an apology.",
+      "requires": [
+        {
+          "key": "nora_desire",
+          "value": "audition_taken_seriously"
+        }
+      ],
+      "turn": "Ruth admits she cannot make this choice harmless or make it for her."
+    },
+    {
+      "changes": [
+        {
+          "from": null,
+          "key": "nora_rehearsal",
+          "to": "truth_without_prediction"
+        },
+        {
+          "from": "8",
+          "key": "story_day",
+          "to": "9"
+        }
+      ],
+      "conflict": "She wants Leah to play the Ben from his private sessions.",
+      "ending_resolution": "",
+      "episode_id": "463e72bd-774b-4091-815a-53e9f84a0319",
+      "goal": "Nora rehearses a truthful opening with Leah as a friend.",
+      "hook": "She decides Ben should hear about the callback from her.",
+      "payoff": "Nora says she applied for the tour because she wanted it, not because Ben's job was wrong.",
+      "requires": [
+        {
+          "key": "ben_booking",
+          "value": "disclosed_by_ben"
+        },
+        {
+          "key": "nora_desire",
+          "value": "spoken_as_own_want"
+        }
+      ],
+      "turn": "Leah refuses that shortcut and asks Nora to speak without predicting him."
+    },
+    {
+      "changes": [
+        {
+          "from": "callback_received",
+          "key": "nora_audition",
+          "to": "disclosed_to_ben"
+        },
+        {
+          "from": null,
+          "key": "ben_knows_audition",
+          "to": "yes"
+        }
+      ],
+      "conflict": "She wants to call it a harmless opportunity while he sees it overlaps their move.",
+      "ending_resolution": "",
+      "episode_id": "8f0184c2-3386-416c-8348-81435078b749",
+      "goal": "Nora shows Ben the callback invitation and its date.",
+      "hook": "He asks whether she is still promising to move.",
+      "payoff": "He learns the concealment from her voluntary disclosure, not a misplaced message.",
+      "requires": [
+        {
+          "key": "nora_rehearsal",
+          "value": "truth_without_prediction"
+        },
+        {
+          "key": "nora_audition",
+          "value": "callback_received"
+        }
+      ],
+      "turn": "She tells him she applied before she promised to come."
+    },
+    {
+      "changes": [
+        {
+          "from": "promised",
+          "key": "move_response",
+          "to": "withdrawn_honestly"
+        },
+        {
+          "from": "not_yet_spoken",
+          "key": "nora_answer",
+          "to": "wants_acting_not_move"
+        }
+      ],
+      "conflict": "She can make the explanation beautiful, but its beauty risks obscuring what she did.",
+      "ending_resolution": "",
+      "episode_id": "09672d4d-e000-4d38-bd64-38565a4bde00",
+      "goal": "Nora withdraws a promise she cannot honestly keep.",
+      "hook": "Now he must say what he wants without arranging himself around her.",
+      "payoff": "Ben hears a clear answer and a specific acknowledgment of harm.",
+      "requires": [
+        {
+          "key": "ben_knows_audition",
+          "value": "yes"
+        },
+        {
+          "key": "move_response",
+          "value": "promised"
+        }
+      ],
+      "turn": "She says she wanted both his certainty and her unspoken escape, and let him plan around her yes."
+    },
+    {
+      "changes": [
+        {
+          "from": null,
+          "key": "ben_future",
+          "to": "teaching_chosen_for_self"
+        }
+      ],
+      "conflict": "Nora offers to make his choice sound like a concession he can easily undo.",
+      "ending_resolution": "",
+      "episode_id": "dc99902e-f255-49eb-9d76-d74190662674",
+      "goal": "Ben states why he accepted the teaching post.",
+      "hook": "They ask whether three months apart could be a real compromise.",
+      "payoff": "Neither future is reduced to a test of who loves more.",
+      "requires": [
+        {
+          "key": "move_response",
+          "value": "withdrawn_honestly"
+        }
+      ],
+      "turn": "He says the school, his own classroom and a settled home are things he wants."
+    },
+    {
+      "changes": [
+        {
+          "from": null,
+          "key": "long_distance",
+          "to": "considered_no_shared_commitment"
+        }
+      ],
+      "conflict": "Uncertain touring dates, a new teaching job and the same deferred decisions make a reunion deadline hard to promise.",
+      "ending_resolution": "",
+      "episode_id": "08ffd976-7036-48ac-bff5-a2ce11e28fae",
+      "goal": "They give long distance a serious practical hearing.",
+      "hook": "Nora asks whether that means someone has failed.",
+      "payoff": "They reject a promise neither believes, rather than treating distance itself as impossible.",
+      "requires": [
+        {
+          "key": "ben_future",
+          "value": "teaching_chosen_for_self"
+        }
+      ],
+      "turn": "They discuss visits and money, then admit neither can commit to the assumed next step."
+    },
+    {
+      "changes": [
+        {
+          "from": "conversation_agreed",
+          "key": "relationship",
+          "to": "separation_chosen"
+        },
+        {
+          "from": null,
+          "key": "accountability",
+          "to": "specific_mutual"
+        }
+      ],
+      "conflict": "Calling the breakup nobody's fault would let Nora avoid owning the false yes.",
+      "ending_resolution": "",
+      "episode_id": "a51925d4-df4d-44fa-ad41-6cd7ccf83c22",
+      "goal": "Nora and Ben distinguish their incompatibility from the lie that delayed it.",
+      "hook": "Ben asks when he should collect his things.",
+      "payoff": "They accept responsibility without appointing a villain or demanding forgiveness on cue.",
+      "requires": [
+        {
+          "key": "long_distance",
+          "value": "considered_no_shared_commitment"
+        }
+      ],
+      "turn": "She apologizes for that specific choice; he admits he preferred reassurance to asking sooner."
+    },
+    {
+      "changes": [
+        {
+          "from": null,
+          "key": "keys",
+          "to": "returned"
+        },
+        {
+          "from": "chair_for_shared_home",
+          "key": "ben_gift",
+          "to": "ben_will_keep"
+        }
+      ],
+      "conflict": "Keys and a chair make the ending more real than their careful conversation.",
+      "ending_resolution": "",
+      "episode_id": "999ce436-8224-4110-9e1e-0c5116fd740a",
+      "goal": "They arrange the ordinary logistics of parting.",
+      "hook": "Before he leaves, Nora says there is one thing she wasn't performing.",
+      "payoff": "They divide possessions without using them to prolong negotiation.",
+      "requires": [
+        {
+          "key": "relationship",
+          "value": "separation_chosen"
+        },
+        {
+          "key": "ben_gift",
+          "value": "chair_for_shared_home"
+        }
+      ],
+      "turn": "Nora returns his key; Ben asks to keep the chair he chose for their home."
+    },
+    {
+      "changes": [
+        {
+          "from": "separation_chosen",
+          "key": "relationship",
+          "to": "loving_separation"
+        },
+        {
+          "from": "9",
+          "key": "story_day",
+          "to": "10"
+        }
+      ],
+      "conflict": "A final declaration could become one last demand to reverse the decision.",
+      "ending_resolution": "",
+      "episode_id": "eb42967e-a6de-46f3-bfe4-f928e670c923",
+      "goal": "They end the relationship without discrediting the love in it.",
+      "hook": "The shop opens tomorrow, and Nora has to decide whether she can work.",
+      "payoff": "They part believing each other, with no secret reunion bargain.",
+      "requires": [
+        {
+          "key": "keys",
+          "value": "returned"
+        },
+        {
+          "key": "accountability",
+          "value": "specific_mutual"
+        }
+      ],
+      "turn": "Nora says 'I love you'; Ben answers 'I know. I believe that part.'"
+    },
+    {
+      "changes": [
+        {
+          "from": null,
+          "key": "nora_rest",
+          "to": "accepted"
+        },
+        {
+          "from": "mother_will_attend",
+          "key": "emma_wedding",
+          "to": "mother_attended_boundary_held"
+        },
+        {
+          "from": "10",
+          "key": "story_day",
+          "to": "12"
+        }
+      ],
+      "conflict": "She expects a rest day to mean failing the business just as the shop closes.",
+      "ending_resolution": "",
+      "episode_id": "7d3a4bfb-c883-4102-aeba-58c4cd84c066",
+      "goal": "Nora tells Leah she cannot convincingly be anyone else today.",
+      "hook": "Ben messages a practical pickup time for the chair.",
+      "payoff": "Nora accepts care and sees a boundary survive beyond its rehearsal.",
+      "requires": [
+        {
+          "key": "relationship",
+          "value": "loving_separation"
+        },
+        {
+          "key": "emma_wedding",
+          "value": "mother_will_attend"
+        }
+      ],
+      "turn": "Leah handles the bookings; Emma sends a wedding photo with her mother beside her."
+    },
+    {
+      "changes": [
+        {
+          "from": "ben_will_keep",
+          "key": "ben_gift",
+          "to": "collected_for_own_home"
+        },
+        {
+          "from": "teaching_chosen_for_self",
+          "key": "ben_future",
+          "to": "preparing_classroom"
+        }
+      ],
+      "conflict": "Nora is tempted to read the pickup as an excuse to reopen their decision.",
+      "ending_resolution": "",
+      "episode_id": "34f39d70-45a4-4a2a-b628-615fbe8f44ed",
+      "goal": "Ben collects the chair for his own home.",
+      "hook": "Leah asks Nora to choose what the business can actually carry.",
+      "payoff": "The chair leaves with him; neither erases its history or uses it as a promise.",
+      "requires": [
+        {
+          "key": "ben_gift",
+          "value": "ben_will_keep"
+        },
+        {
+          "key": "relationship",
+          "value": "loving_separation"
+        }
+      ],
+      "turn": "They talk about the classroom he is preparing and keep the exchange kind and ordinary."
+    },
+    {
+      "changes": [
+        {
+          "from": null,
+          "key": "leah_legacy",
+          "to": "portable_care"
+        },
+        {
+          "from": null,
+          "key": "business_chairs",
+          "to": "two_repairable"
+        }
+      ],
+      "conflict": "Keeping every object would preserve the unaffordable problem along with the memories.",
+      "ending_resolution": "",
+      "episode_id": "16b01cfb-3909-4bd8-94ed-a51dc3d4d0b0",
+      "goal": "Leah chooses one repairable chair instead of trying to save the whole shop.",
+      "hook": "A community theatre replies about a room they can rent by the hour.",
+      "payoff": "She keeps a useful practice of care, not a room full of unsold proof.",
+      "requires": [
+        {
+          "key": "leah_family_legacy",
+          "value": "relationship_not_building"
+        },
+        {
+          "key": "shop_future",
+          "value": "closing_day_14"
+        }
+      ],
+      "turn": "Martin helps her fix a loose joint with tools her grandmother used."
+    },
+    {
+      "changes": [
+        {
+          "from": "informal_partnership",
+          "key": "business",
+          "to": "prepaid_room_trial"
+        },
+        {
+          "from": null,
+          "key": "business_rent",
+          "to": "one_afternoon_covered"
+        }
+      ],
+      "conflict": "An hourly room and limited deposits permit a trial, not a permanent rescue.",
+      "ending_resolution": "",
+      "episode_id": "2c36fac5-b122-4d2e-9706-9ca9dc3ea255",
+      "goal": "Leah prices a modest continuation of the rehearsal business.",
+      "hook": "She asks Nora what happens if the tour says yes.",
+      "payoff": "There is a specific, affordable next session after the shop closes.",
+      "requires": [
+        {
+          "key": "business_chairs",
+          "value": "two_repairable"
+        }
+      ],
+      "turn": "She books one prepaid afternoon and caps appointments to cover its actual cost."
+    },
+    {
+      "changes": [
+        {
+          "from": "personal",
+          "key": "leah_trust",
+          "to": "honest_flexible_partnership"
+        },
+        {
+          "from": null,
+          "key": "business_cover",
+          "to": "shared_sessions_and_notice"
+        }
+      ],
+      "conflict": "Her first instinct is to promise she will always be there.",
+      "ending_resolution": "",
+      "episode_id": "68c2a272-12d1-4fde-bdc7-f114c20c87af",
+      "goal": "Nora offers Leah a partnership that can survive changing plans.",
+      "hook": "It is time to turn off the showroom lights.",
+      "payoff": "They agree to train together and accept only work either can honestly deliver.",
+      "requires": [
+        {
+          "key": "business",
+          "value": "prepaid_room_trial"
+        },
+        {
+          "key": "nora_audition",
+          "value": "disclosed_to_ben"
+        }
+      ],
+      "turn": "Leah asks for notice and shared booking records instead of a comforting guarantee."
+    },
+    {
+      "changes": [
+        {
+          "from": "closing_day_14",
+          "key": "shop_future",
+          "to": "closed"
+        },
+        {
+          "from": "12",
+          "key": "story_day",
+          "to": "14"
+        }
+      ],
+      "conflict": "Locking the door feels final even after the practical arrangements.",
+      "ending_resolution": "",
+      "episode_id": "5334b234-4b51-486a-a019-710761ade633",
+      "goal": "Leah closes the shop and takes the business's two chairs out.",
+      "hook": "Their first customer at the borrowed room is Lily.",
+      "payoff": "The showroom ends; the small rehearsal practice has a real booked continuation.",
+      "requires": [
+        {
+          "key": "business_cover",
+          "value": "shared_sessions_and_notice"
+        },
+        {
+          "key": "leah_legacy",
+          "value": "portable_care"
+        }
+      ],
+      "turn": "Martin carries one chair; Leah carries the repaired one without apologizing for closing."
+    },
+    {
+      "changes": [
+        {
+          "from": null,
+          "key": "leah_work",
+          "to": "independent_session_completed"
+        },
+        {
+          "from": "14",
+          "key": "story_day",
+          "to": "15"
+        }
+      ],
+      "conflict": "The old service would give her an impressive speech; she now needs a request she will actually follow through on.",
+      "ending_resolution": "",
+      "episode_id": "6f7cedf1-0e55-43be-94eb-1b429cfb8e14",
+      "goal": "Lily returns to practice asking for a paid responsibility at work.",
+      "hook": "Nora's audition slot is called.",
+      "payoff": "Lily leaves with her own words; Leah can run a session while Nora attends the callback.",
+      "requires": [
+        {
+          "key": "shop_future",
+          "value": "closed"
+        },
+        {
+          "key": "business",
+          "value": "prepaid_room_trial"
+        }
+      ],
+      "turn": "Leah asks what she is offering and what she will do if the answer is no."
+    },
+    {
+      "changes": [
+        {
+          "from": "disclosed_to_ben",
+          "key": "nora_audition",
+          "to": "attended_truthfully"
+        }
+      ],
+      "conflict": "She is tempted to promise unlimited availability before knowing the terms.",
+      "ending_resolution": "",
+      "episode_id": "0a1a451a-5709-43e6-b285-aaadb0f1c7ef",
+      "goal": "Nora auditions without playing an easier person in the introduction.",
+      "hook": "The panel says they will email the result that evening.",
+      "payoff": "She has done the audition she wanted, without a guarantee of success.",
+      "requires": [
+        {
+          "key": "nora_audition",
+          "value": "disclosed_to_ben"
+        },
+        {
+          "key": "nora_desire",
+          "value": "spoken_as_own_want"
+        }
+      ],
+      "turn": "She performs and answers the actual scheduling questions truthfully."
+    },
+    {
+      "changes": [
+        {
+          "from": "attended_truthfully",
+          "key": "nora_audition",
+          "to": "rejected"
+        },
+        {
+          "from": null,
+          "key": "nora_needs",
+          "to": "support_requested"
+        }
+      ],
+      "conflict": "She is rejected and immediately starts composing a cheerful explanation for Leah.",
+      "ending_resolution": "",
+      "episode_id": "76eca5dc-85b4-4e70-968d-88c118ce4dae",
+      "goal": "Nora reads the audition result before deciding how to describe it.",
+      "hook": "Nora arrives at the borrowed room without a performance prepared.",
+      "payoff": "The audition outcome is known; choosing honestly did not buy a miraculous reward.",
+      "requires": [
+        {
+          "key": "nora_audition",
+          "value": "attended_truthfully"
+        }
+      ],
+      "turn": "She deletes 'all fine' and asks whether Leah has ten minutes."
+    },
+    {
+      "changes": [
+        {
+          "from": "spoken_as_own_want",
+          "key": "nora_desire",
+          "to": "owned_without_guarantee"
+        },
+        {
+          "from": "prepaid_room_trial",
+          "key": "business",
+          "to": "modest_booked_continuation"
+        },
+        {
+          "from": "honest_flexible_partnership",
+          "key": "leah_trust",
+          "to": "mutual_care"
+        }
+      ],
+      "conflict": "She wants to make the rejection funny before admitting it hurts.",
+      "ending_resolution": "Nora sits in the other chair as herself. Ben has his chosen future, the shop is closed, and the modest business has its next paid booking.",
+      "episode_id": "7215a513-c5cd-4b53-aa05-5b3ba51ff73c",
+      "goal": "Nora accepts the kind of listening she has sold to everyone else.",
+      "hook": "",
+      "payoff": "Nora sits in the other chair as herself. Ben has his chosen future, the shop is closed, and the modest business has its next paid booking.",
+      "requires": [
+        {
+          "key": "relationship",
+          "value": "loving_separation"
+        },
+        {
+          "key": "shop_future",
+          "value": "closed"
+        },
+        {
+          "key": "nora_audition",
+          "value": "rejected"
+        },
+        {
+          "key": "leah_work",
+          "value": "independent_session_completed"
+        }
+      ],
+      "turn": "She asks 'Can I be awful for a minute?' Leah checks the booking sheet: 'I've got ten.'"
+    }
+  ],
+  "genre": "Warm slice-of-life dramedy; glamorous cast, grounded behavior, sharp awkward humor and earned emotional turns.",
+  "initial_facts": [
+    {
+      "key": "business",
+      "value": "not_established"
+    },
+    {
+      "key": "move_response",
+      "value": "unanswered"
+    },
+    {
+      "key": "nora_audition",
+      "value": "not_applied"
+    },
+    {
+      "key": "nora_desire",
+      "value": "unspoken"
+    },
+    {
+      "key": "ben_job",
+      "value": "pending"
+    },
+    {
+      "key": "shop_future",
+      "value": "uncertain"
+    },
+    {
+      "key": "leah_trust",
+      "value": "transactional"
+    },
+    {
+      "key": "rehearsal_boundary",
+      "value": "unwritten"
+    },
+    {
+      "key": "ben_booking",
+      "value": "none"
+    },
+    {
+      "key": "nora_knows_ben_booking",
+      "value": "no"
+    },
+    {
+      "key": "relationship",
+      "value": "assumed_shared_future"
+    },
+    {
+      "key": "story_day",
+      "value": "1"
+    }
+  ],
+  "revision": 3,
+  "series_id": "fe1435c7-24f5-4c93-b310-c55f3fa004d5",
+  "theme": "The perfect words are worthless when they conceal the truth. Love and friendship need honest choices, not convincing performances.",
+  "threads": [
+    {
+      "payoff": "Nora withdraws her own false move promise and acknowledges the cost.",
+      "payoff_episode_id": "09672d4d-e000-4d38-bd64-38565a4bde00",
+      "setup": "Nora asks Emma for an honest sentence without an apologetic performance.",
+      "setup_episode_id": "10626b64-acc7-4dcb-aa27-47deed234db4"
+    },
+    {
+      "payoff": "Her mother attends; Emma has not purchased attendance by retracting her choice.",
+      "payoff_episode_id": "7d3a4bfb-c883-4102-aeba-58c4cd84c066",
+      "setup": "Emma holds her wedding boundary despite a threat of absence.",
+      "setup_episode_id": "26846ccf-21fd-43de-90a7-c8f5fadbca28"
+    },
+    {
+      "payoff": "Rhea refuses empty promises, actual repayment begins and the service adopts truth and action before technique.",
+      "payoff_episode_id": "a92c464d-98e7-4653-bc7c-01b546f82503",
+      "setup": "Owen buys a polished apology without a funded repayment action.",
+      "setup_episode_id": "fca8e9d5-5be6-4a7e-a495-83b333a46fee"
+    },
+    {
+      "payoff": "She closes on day fourteen with family help and carries the repaired chairs into a modest continuation.",
+      "payoff_episode_id": "5334b234-4b51-486a-a019-710761ade633",
+      "setup": "Leah equates closing the shop on day fourteen with losing her grandmother.",
+      "setup_episode_id": "5eef2d7b-e058-4edb-b363-bf6faf1d33f0"
+    },
+    {
+      "payoff": "They consider compromise, name their real needs and part without inventing a villain.",
+      "payoff_episode_id": "eb42967e-a6de-46f3-bfe4-f928e670c923",
+      "setup": "Nora promises the move while concealing her own uncertainty.",
+      "setup_episode_id": "9748fc74-3189-4cf7-ac2c-3f31884bbc1f"
+    },
+    {
+      "payoff": "He collects it for his own home without making it an excuse to renegotiate the separation.",
+      "payoff_episode_id": "34f39d70-45a4-4a2a-b628-615fbe8f44ed",
+      "setup": "Ben chooses a chair for a home he hopes they will share.",
+      "setup_episode_id": "1e476884-cea4-444c-a6e8-92ddd03edb3e"
+    },
+    {
+      "payoff": "She auditions honestly, is rejected and asks for support rather than pretending it did not matter.",
+      "payoff_episode_id": "76eca5dc-85b4-4e70-968d-88c118ce4dae",
+      "setup": "Nora applies secretly because she wants to act again.",
+      "setup_episode_id": "5b9ead6d-83f8-4142-bf98-22babc5d4f76"
+    },
+    {
+      "payoff": "Nora finally sits in it as herself and accepts honest care.",
+      "payoff_episode_id": "7215a513-c5cd-4b53-aa05-5b3ba51ff73c",
+      "setup": "The other chair lets Nora become someone else for a customer.",
+      "setup_episode_id": "10626b64-acc7-4dcb-aa27-47deed234db4"
+    }
+  ]
+}

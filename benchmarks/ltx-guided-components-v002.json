@@ -1,0 +1,17 @@
+{
+  "repository": "dgrauet/ltx-2.3-mlx-q8",
+  "revision": "69f8f11996b7b2ee54e82d0db7a5acad14b8685d",
+  "additional_bytes": 28202696805,
+  "status": "downloaded_and_verified",
+  "files": {
+    "transformer-dev.safetensors": {
+      "bytes": 20597189549,
+      "sha256": "bd28c73e333581a81c4b3e2213051bfcce989fdb40682d22f062cf8b691455e2"
+    },
+    "ltx-2.3-22b-distilled-lora-384.safetensors": {
+      "bytes": 7605507256,
+      "sha256": "2943ab994f3c9d88052e5a2a34cca14e4a2dfc36b1d8c407931d52d5c25dd72b"
+    }
+  },
+  "hypothesis": "Compare dev+CFG/modality-guided native A2V against weak distilled synchronization; not a production switch or CFG-only causal test."
+}

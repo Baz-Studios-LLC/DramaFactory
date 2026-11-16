@@ -1,0 +1,25 @@
+{
+  "version": "v002",
+  "scope": "Seedance HTTP roundtrip and accepted-job resume",
+  "environment": "Loopback provider, fake credential, disposable SQLite and actual FFmpeg-generated blue/sine fixture; no OpenRouter generation or Keychain access",
+  "verified": [
+    "POST submit once, save remote ID, poll in_progress then completed, download via fixed constructed content route",
+    "Ignore untrusted returned polling/content URLs rather than send credentials there",
+    "Actual FFmpeg validation, requested 10s/720p/9:16/audio validation and original-byte asset registration",
+    "Accepted remote ID resumes using GET only, with zero POST calls",
+    "Original returned fixture bytes retained and output unreviewed",
+    "Wrong duration/dimensions/framing fixture rejected"
+  ],
+  "checks": {
+    "all_tests": 42,
+    "explicit_http_ffmpeg_test": "Passed with DRAMAFACTORY_TEST_FFMPEG pointing to installed FFmpeg",
+    "clippy": "all targets warnings denied passed",
+    "mcp": "existing real stdio integration passed",
+    "bundle": "rebuilt strict ad-hoc signature passed"
+  },
+  "limits": [
+    "Synthetic tone/color media validates plumbing only, not acting or speech",
+    "No paid live Seedance request, real reference upload, end-to-end GUI generation, provider billing/cancel verification or full episode acceptance",
+    "Mock pending/accepted paths and output validation covered; additional timeout/redirect/late-cancel/download-recovery cases remain"
+  ]
+}

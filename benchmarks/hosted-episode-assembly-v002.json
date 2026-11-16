@@ -1,0 +1,32 @@
+{
+  "version": "v002",
+  "scope": "Hosted segment selection and actual episode assembly",
+  "test": "scripts/test-hosted-assembly.py",
+  "environment": "Disposable database/media; real MCP and FFmpeg worker, synthetic red/blue plus 440/880Hz clips; no provider generation",
+  "result": {
+    "status": "passed",
+    "duration": 1.0,
+    "soundtrack_frequencies": [
+      439.99999999999994,
+      876.6666666666665
+    ],
+    "checks": [
+      "unreviewed selection rejected",
+      "original picture order",
+      "each segment soundtrack preserved once",
+      "source hashes unchanged",
+      "stale segment export rejected"
+    ]
+  },
+  "implemented": [
+    "Approved same-segment/snapshot/series take selection with expected selection guard",
+    "Source hash/media/audio checks before selection and export",
+    "Assembly in saved segment order using each original generated soundtrack once",
+    "Generation workspace job list scoped to series/episode with bounded rows; history remains retained"
+  ],
+  "limits": [
+    "Synthetic fixtures do not prove acting quality",
+    "Final hosted-assembly GUI interactions and actual multi-segment model acceptance pending",
+    "No local portrait upload transport or complete sidekick editing across all pages yet"
+  ]
+}

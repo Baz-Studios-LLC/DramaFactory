@@ -1,0 +1,14 @@
+{
+  "version": "v002",
+  "purpose": "Approved Ben portrait: motion and dialogue quality evaluation",
+  "episode_id": "5b90ee1f-798e-4194-b84f-e685033dc0d3",
+  "source_asset_id": "e48013c9-4b1e-4773-a5fb-e61f94276fde",
+  "lipsync_asset_id": "9abe744d-f05e-4c04-ac17-7598da04c294",
+  "source_path": "/Users/brettbazaar/Library/Application Support/studio.DramaFactory.DramaFactory/jobs/cad57783-273a-4012-b089-1605b7f6e481/attempt-1/video.mp4",
+  "lipsync_path": "/Users/brettbazaar/Library/Application Support/studio.DramaFactory.DramaFactory/jobs/f97561d6-6a49-4e8c-bdb0-133b619cbdeb/attempt-1/lipsynced.mp4",
+  "review": {
+    "source": "Sampled frames preserve recognizable identity and show expression and raised-arm motion. Gesture and framing differ from restrained prompt; hand approaches edge. Not a multi-episode continuity pass.",
+    "lipsync": "Rejected for production: visible lower-face/mouth softness in sampled speaking frame. No objective sync score; technical success does not establish convincing performance."
+  },
+  "originals_preserved": true
+}

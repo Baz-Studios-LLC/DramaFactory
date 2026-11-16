@@ -1,0 +1,147 @@
+{
+  "as_of": "2026-11-15",
+  "purpose": "Guide original series development and production; popularity is distinct from storytelling quality.",
+  "evidence": [
+    {
+      "source": "Sensor Tower, State of Short Drama Apps 2026",
+      "url": "https://sensortower.com/blog/state-of-short-drama-apps-2026-report",
+      "type": "Primary market estimates",
+      "findings": [
+        "DramaBox and ReelShort each approached $140M in Q1 2026 in-app revenue.",
+        "FreeReels ranked eighth among all apps by worldwide downloads that quarter.",
+        "High-emotion romance, revenge, fantasy, family conflict and status reversal recur; episodes use cliffhangers."
+      ],
+      "limits": "IAP estimates are not total revenue or a ranking of artistic quality; region and monetization differ."
+    },
+    {
+      "source": "Adjust, Q3 2026 benchmarks",
+      "url": "https://www.adjust.com/blog/short-drama-app-trends-q3-2026/",
+      "type": "Primary aggregated app measurement",
+      "findings": [
+        "Sessions increased 67% from Q1 to Q3; installs 60%."
+      ],
+      "limits": "Tracked-app cohort; growth does not establish a causal recipe for a good story."
+    },
+    {
+      "source": "BingeTube catalog study, 30 October 2026",
+      "url": "https://binge.tube/short-drama-statistics",
+      "type": "Primary publisher catalog count",
+      "findings": [
+        "1,952 series; 88,311 episodes. Median episode 81 seconds; middle half 64\u2013103 seconds.",
+        "Median series 43 episodes, 63 minutes total."
+      ],
+      "limits": "One catalog, not a random sample of all platforms; no universal runtime requirement."
+    },
+    {
+      "source": "Definition, Nicola Foley, 1 May 2026",
+      "url": "https://definitionmagazine.com/features/the-rise-of-vertical-dramas/",
+      "type": "Production interviews",
+      "findings": [
+        "Director/producer Nathan Caselton describes editing around four or five seconds per cut.",
+        "9:16 framing favors expressive faces, reactions, meaningful props and deliberate blocking."
+      ],
+      "limits": "Interview guidance rather than a measured shot-length distribution or mandatory rule."
+    },
+    {
+      "source": "ReelShort official release",
+      "url": "https://www.youtube.com/watch?v=80RKGfvLr-A",
+      "type": "Official series synopsis and promotional video",
+      "title": "The Double Life of My Billionaire Husband",
+      "study_for": [
+        "Hidden identity",
+        "Marriage bargain",
+        "Information asymmetry",
+        "Emotional and status reversal"
+      ],
+      "limits": "Promotional views do not equal unique complete-series viewers or proof of quality."
+    },
+    {
+      "source": "ReelShort official series listing",
+      "url": "https://www.reelshort.com/movie/fated-to-my-forbidden-alpha-647ffff5be685964fe120217",
+      "type": "Official indexed series listing; direct fetch returned 403",
+      "title": "Fated to My Forbidden Alpha",
+      "study_for": [
+        "Fantasy-romance identity",
+        "Competing loyalties",
+        "Forbidden relationships"
+      ],
+      "limits": "Study candidate, not independently ranked best; full episodes not reviewed."
+    },
+    {
+      "source": "ShortMax official release",
+      "url": "https://www.youtube.com/watch?v=Is4h0rJIV-k",
+      "type": "Official synopsis and promotional video",
+      "title": "The Divorced Billionaire Heiress",
+      "study_for": [
+        "Humiliation-to-agency reversal",
+        "Delayed identity reveal",
+        "Revenge and romance"
+      ],
+      "limits": "Similarly named titles exist; identify by publisher/URL. Full episodes not reviewed."
+    }
+  ],
+  "study_platforms": {
+    "commercial_benchmarks": [
+      "ReelShort",
+      "DramaBox"
+    ],
+    "additional_comparisons": [
+      "NetShort",
+      "DramaWave",
+      "GoodShort",
+      "ShortMax"
+    ],
+    "download_and_ad_supported_comparison": [
+      "FreeReels",
+      "Melolo"
+    ],
+    "interpretation": "A research shortlist, not a subjective quality ranking or recommendation to purchase subscriptions."
+  },
+  "creative_hypotheses_not_proven_causality": [
+    "Immediate legible conflict reduces exposition.",
+    "Specific goals, injustice, longing and dramatic irony create an emotional reason to continue.",
+    "Each episode should change the situation, pay off something and open a consequential question.",
+    "A compelling ending must honor earlier setups rather than reset characters or rely on arbitrary twists."
+  ],
+  "product_defaults_not_industry_rules": {
+    "episode_seconds": 75,
+    "editable_episode_range_seconds": [
+      45,
+      180
+    ],
+    "typical_shot_seconds": [
+      2,
+      5
+    ],
+    "reaction_or_insert_seconds": [
+      1,
+      2
+    ],
+    "performance_hold_seconds": [
+      5,
+      8
+    ],
+    "note": "Choose cuts around dramatic beats and speech. Current tested Wan profile generates about five seconds per take; do not stretch footage to pretend longer supported acting."
+  },
+  "required_story_pipeline": [
+    "Idea and audience brief",
+    "Original premise, theme, central dramatic question and ending",
+    "Series bible with immutable character IDs, appearance/voice references, motivation, flaw, arc and relationships",
+    "Season/series beat map with causes, reversals, setups and scheduled payoffs",
+    "Ordered episode outlines with entry state, goal, conflict, turn, payoff, hook and exit state",
+    "Continuity validation against prior approved episodes: who knows what, secrets, relationships, injuries, wardrobe, props, location and story time",
+    "Screenplay and timed dialogue",
+    "Storyboard/shot plan linked to characters, locations and narrative beats",
+    "Reference imagery, performances, dialogue and lip sync",
+    "Review, edit, sound, subtitles and export",
+    "Approve delivered episode and commit resulting canon; next episode starts from this state"
+  ],
+  "acceptance_gates": [
+    "Do not call a series coherent merely because documents are nonempty.",
+    "Later episodes must inherit the approved predecessor state and reuse character/voice identities.",
+    "A revised earlier episode invalidates dependent continuity approvals and identifies affected downstream work.",
+    "Every planned major setup has an intended payoff; finale resolves the central dramatic question.",
+    "Generated media must be checked against the screenplay and continuity, not just the immediately preceding prompt.",
+    "Autonomous orchestration must be resumable and distinguish proposed story changes from committed canon."
+  ]
+}

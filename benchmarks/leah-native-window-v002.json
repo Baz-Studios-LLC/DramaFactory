@@ -1,0 +1,211 @@
+{
+  "version": "v002",
+  "job_id": "887f2eef-7dd3-46c7-a7d2-d7a9dc0cd802",
+  "status": "completed_rejected_after_visual_review",
+  "purpose": "One complete real windowed path on a second cast reference; preserve first canceled attempt. No prompt sweep or automatic approval.",
+  "job": {
+    "attempts": 2,
+    "error": "",
+    "id": "887f2eef-7dd3-46c7-a7d2-d7a9dc0cd802",
+    "output_id": "7e1aba02-09e0-4085-b88d-2d2455710821",
+    "phase": "Native performance ready for review",
+    "progress": 1.0,
+    "prompt": "Native dialogue performance \u00b7 experimental",
+    "status": "completed"
+  },
+  "asset": {
+    "duration": 3.04,
+    "hash": "23c1cf61fe720f169a451e06d3821459633305c84a987c95313a936432cdd0c4",
+    "height": 1280,
+    "id": "7e1aba02-09e0-4085-b88d-2d2455710821",
+    "job_id": "887f2eef-7dd3-46c7-a7d2-d7a9dc0cd802",
+    "metadata": {
+      "experimental": true,
+      "info": {
+        "audio": true,
+        "duration": 3.04,
+        "fps": 24.0,
+        "height": 1280,
+        "width": 704
+      },
+      "kind": "performance",
+      "quality": "Technical validation does not establish acting, identity or synchronization quality",
+      "request": {
+        "audio": "/Users/brettbazaar/Library/Application Support/studio.DramaFactory.DramaFactory/jobs/0ebf0d1e-0188-4055-b942-4f90d9f2e34b/attempt-1/dialogue.wav",
+        "audio_hash": "5a46370422079797a0cd595a9955b67a03ff2e81d84a0bceaa73fcbd56248324",
+        "audio_start": 0.10000000000000142,
+        "audio_window": {
+          "source_start": 0.0
+        },
+        "context": {
+          "camera": {
+            "eyeline": "Leah looks frame left to Nora",
+            "framing": "Medium close-up of Leah beside the right rehearsal chair",
+            "id": "427c2bd6-2f21-506f-a055-b80582fe7639",
+            "location_id": "12688f82-56e2-4a32-a732-7eb3ed05a277",
+            "name": "L2",
+            "placement": "Aisle side near Nora\u2019s left chair, matching N2",
+            "revision": 1,
+            "screen_axis": "Nora screen left, Leah screen right; table and lamp remain between chair positions."
+          },
+          "cast": [
+            {
+              "entry": {
+                "description": "Age 26. Exceptionally beautiful adult furniture restorer and young shop owner; long copper-auburn waves, green eyes, fair peach complexion. Forest-green silk shirt, cream tailored trousers, brown leather watch. Recently inherited the shop and its financial pressure; composed, funny, guarded. Provisional casting concept.",
+                "id": "44bc00e6-115f-4d96-b5f1-66bc08b3c22b",
+                "kind": "character",
+                "name": "Leah Sloane",
+                "reference": "/Users/brettbazaar/Library/Application Support/studio.DramaFactory.DramaFactory/references/44bc00e6-115f-4d96-b5f1-66bc08b3c22b.png",
+                "series_id": "fe1435c7-24f5-4c93-b310-c55f3fa004d5",
+                "voice": "af_heart"
+              },
+              "reference_hash": "df00dc224bd7bb240d397a4ebe58d51f3615ac930b6c77925142330d8e329755"
+            }
+          ],
+          "creative_profile": {
+            "casting_brief": "Exceptionally attractive adult leads and supporting cast with soap-opera polish. Usually around 25; script-appropriate ages for parents, children and other roles. Story-led casting through believable relationships, setting, chemistry and family resemblance. Across a large catalog, racial/ethnic representation should roughly reflect U.S. population proportions; each series is not a demographic lineup. Ben Ortiz's exact portrait is user-approved and must be preserved. Other portraits are provisional.",
+            "episode_seconds": 90.0,
+            "max_shot_seconds": 4.0,
+            "min_shot_seconds": 1.0,
+            "style": "slice_of_life",
+            "target_episodes": 67
+          },
+          "direction": {
+            "camera_setup_id": "427c2bd6-2f21-506f-a055-b80582fe7639",
+            "character_ids": [
+              "44bc00e6-115f-4d96-b5f1-66bc08b3c22b"
+            ],
+            "dramatic_beat": "Leah counts the real costs on her fingers, amused but serious. No grand gesture.",
+            "location_id": "12688f82-56e2-4a32-a732-7eb3ed05a277",
+            "performance": "Small motivated actions and clear listening. Off-screen dialogue must never animate a visible listener\u2019s mouth.",
+            "revision": 1,
+            "wardrobe": "Same day-one costumes: Nora plum blazer/ivory T-shirt, Leah forest-green shirt/cream trousers. Receipt, twenty-dollar bill, two cups and phone continuity."
+          },
+          "episode_outline": {
+            "changes": [
+              {
+                "from": "terms_proposed",
+                "key": "business",
+                "to": "informal_partnership"
+              },
+              {
+                "from": null,
+                "key": "customer_privacy",
+                "to": "no_recordings_or_disclosure"
+              }
+            ],
+            "conflict": "Nora wants a room to perform in; Leah needs income without promising to solve customers' lives.",
+            "ending_resolution": "",
+            "episode_id": "8290815f-74db-424a-90ab-359ab5a3773f",
+            "goal": "Nora and Leah turn the first payment into a workable arrangement.",
+            "hook": "Emma returns to the door: she still has not made the call.",
+            "payoff": "The first booking card has both their names on it.",
+            "requires": [
+              {
+                "key": "business",
+                "value": "terms_proposed"
+              }
+            ],
+            "turn": "They agree on a split and a short session, with no recordings and no promise about another person's response."
+          },
+          "location": {
+            "description": "Warm afternoon light from tall windows at camera left. Nora chair left, Emma chair right; amber lamp and small table between them. Aisle behind Nora leads toward till and front door. Secondhand furniture, honest wear, small price tags. Preserve floor plan, window direction and props across cuts.",
+            "id": "12688f82-56e2-4a32-a732-7eb3ed05a277",
+            "kind": "location",
+            "name": "Sloane's Secondhand \u2014 display room",
+            "reference": "/Users/brettbazaar/Library/Application Support/studio.DramaFactory.DramaFactory/jobs/db06f63b-fc30-4a84-a4d7-dd9355aa5d4f/attempt-1/image.png",
+            "series_id": "fe1435c7-24f5-4c93-b310-c55f3fa004d5",
+            "voice": "af_heart"
+          },
+          "shot_id": "859a3996-62c8-442e-9592-d0d8957ee737",
+          "shot_plan": {
+            "camera": "Medium close-up of Leah beside the right rehearsal chair",
+            "duration": 3.0,
+            "prompt": "Live-action grounded slice-of-life scene in Sloane\u2019s Secondhand. Leah counts the real costs on her fingers, amused but serious. No grand gesture. Preserve the selected room layout, late-afternoon left-window light, amber lamp, receipt, bill and two coffee cups. Same continuous afternoon; stable wardrobe and eyelines. No cuts inside the take."
+          },
+          "story_revision": 3
+        },
+        "frames": 73,
+        "height": 1280,
+        "prompt": "Live-action dialogue performance. Follow only the supplied speech segment, including words already in progress at the start. Do not invent or compress unheard words. Keep natural mouth shapes synchronized with that segment and listen when it ends. Live-action grounded slice-of-life scene in Sloane\u2019s Secondhand. Leah counts the real costs on her fingers, amused but serious. No grand gesture. Preserve the selected room layout, late-afternoon left-window light, amber lamp, receipt, bill and two coffee cups. Same continuous afternoon; stable wardrobe and eyelines. No cuts inside the take.\nMedium close-up of Leah beside the right rehearsal chair\nRecognizable everyday behavior and small emotional stakes. Understated reactions, awkward pauses and warm or tense relationship subtext. Avoid exaggerated melodramatic gestures.\nCharacter Leah Sloane: Age 26. Exceptionally beautiful adult furniture restorer and young shop owner; long copper-auburn waves, green eyes, fair peach complexion. Forest-green silk shirt, cream tailored trousers, brown leather watch. Recently inherited the shop and its financial pressure; composed, funny, guarded. Provisional casting concept.. Preserve the established face, age and identity.\nLocation: Sloane's Secondhand \u2014 display room. Warm afternoon light from tall windows at camera left. Nora chair left, Emma chair right; amber lamp and small table between them. Aisle behind Nora leads toward till and front door. Secondhand furniture, honest wear, small price tags. Preserve floor plan, window direction and props across cuts.\nCamera L2: Medium close-up of Leah beside the right rehearsal chair. Placement: Aisle side near Nora\u2019s left chair, matching N2. Eyeline: Leah looks frame left to Nora. Screen axis: Nora screen left, Leah screen right; table and lamp remain between chair positions.. Keep this geometry consistent with other shots in this setup.\nDramatic beat: Leah counts the real costs on her fingers, amused but serious. No grand gesture.\nPerformance: Small motivated actions and clear listening. Off-screen dialogue must never animate a visible listener\u2019s mouth.\nWardrobe continuity: Same day-one costumes: Nora plum blazer/ivory T-shirt, Leah forest-green shirt/cream trousers. Receipt, twenty-dollar bill, two cups and phone continuity.",
+        "reference": "/Users/brettbazaar/Library/Application Support/studio.DramaFactory.DramaFactory/references/44bc00e6-115f-4d96-b5f1-66bc08b3c22b.png",
+        "reference_hash": "df00dc224bd7bb240d397a4ebe58d51f3615ac930b6c77925142330d8e329755",
+        "seed": 186,
+        "setup": {
+          "ffmpeg": "/Users/brettbazaar/Code/DramaFactory/.venv/lib/python3.12/site-packages/imageio_ffmpeg/binaries/ffmpeg-macos-aarch64-v9.0",
+          "image_model": "/Users/brettbazaar/Library/Application Support/studio.DramaFactory.DramaFactory/models/flux2-klein-4b-q4",
+          "image_python": "/Users/brettbazaar/Code/DramaFactory/.venv-images/bin/python",
+          "lipsync_model": "/Users/brettbazaar/Library/Application Support/studio.DramaFactory.DramaFactory/models/musetalk-q4",
+          "lipsync_python": "/Users/brettbazaar/Code/DramaFactory/.venv-lipsync/bin/python",
+          "model": "/Users/brettbazaar/Library/Application Support/studio.DramaFactory.DramaFactory/models/wan22-5b-q8",
+          "performance_encoder": "/Users/brettbazaar/Library/Application Support/studio.DramaFactory.DramaFactory/models/ltx-gemma3-encoder-evaluation",
+          "performance_model": "/Users/brettbazaar/Library/Application Support/studio.DramaFactory.DramaFactory/models/ltx-2.3-q8-evaluation",
+          "performance_python": "/Users/brettbazaar/Code/DramaFactory/.venv-ltx-eval/bin/python",
+          "python": "/Users/brettbazaar/Code/DramaFactory/.venv/bin/python",
+          "speech_model": ""
+        },
+        "shot_id": "859a3996-62c8-442e-9592-d0d8957ee737",
+        "source_line": {
+          "asset_id": "8033eb49-420f-4c42-ab26-ade0f6e8cf12",
+          "id": "225f3c4e-aab0-53d2-92ae-91eb430d119b",
+          "revision": 4,
+          "shot_id": "859a3996-62c8-442e-9592-d0d8957ee737",
+          "speed": 1.0,
+          "text": "And the rent. And the electricity. And explaining why a bride is shouting at a woman she met eight minutes ago.",
+          "timeline_start": 16.35,
+          "voice": "af_heart"
+        },
+        "width": 704
+      },
+      "selection": "manual_review_required",
+      "telemetry": {
+        "adapter": "ltx-2.3-q8-native-a2v-experimental-v2-windowed",
+        "conditioned_audio_sha256": "8fd261a70de8e5d7055e55398fd3736fd6dfa8fa9e1b2023f3e87c0171d32ba9",
+        "delay_samples": 4800,
+        "fps": 24,
+        "frames": 73,
+        "memory_limit_bytes": 40000000000,
+        "peak_memory_bytes": 26756547622,
+        "phase": "Validating performance take",
+        "progress": 0.95,
+        "prompt_enhancement": false,
+        "source_start_sample": 0,
+        "wall_seconds": 78.87871529199765
+      }
+    },
+    "path": "/Users/brettbazaar/Library/Application Support/studio.DramaFactory.DramaFactory/jobs/887f2eef-7dd3-46c7-a7d2-d7a9dc0cd802/attempt-2/performance.mp4",
+    "review": "rejected",
+    "width": 704
+  },
+  "selected": false,
+  "conditioned_audio_hash_verified": true,
+  "source_files_hash_verified": true,
+  "review": {
+    "asset_id": "7e1aba02-09e0-4085-b88d-2d2455710821",
+    "decision": "rejected",
+    "note": "Rejected: green shirt changes to a plum blazer, framing jumps wide to a tabletop, and sampled mouth remains smiling/closed during recorded speech. Off-screen Nora wardrobe was included in the prompt. Preserve this failed take; no selection.",
+    "revision": 2
+  },
+  "sync_diagnostic": {
+    "tracks": [
+      {
+        "offset_frames_at_25fps": -15,
+        "confidence_raw": 1.969,
+        "min_embedding_distance": 11.069,
+        "search_edge": true,
+        "scored_frame_count": 50,
+        "scored_fps": 25.0,
+        "scored_seconds": 2.0
+      }
+    ],
+    "scope": "Official crop tracks are 2.0s/1.92s after the framing change; these short, non-duration-matched raw scores are diagnostic only. Search-edge offsets must not be applied."
+  },
+  "conditioned_audio_sha256": "8fd261a70de8e5d7055e55398fd3736fd6dfa8fa9e1b2023f3e87c0171d32ba9",
+  "conditioned_audio_rms": 0.03983957151571129,
+  "visual_review": "Rejected: green shirt changes to a plum blazer, framing jumps wide to a tabletop, and sampled mouth remains smiling/closed during recorded speech. Off-screen Nora wardrobe was included in the prompt. Preserve this failed take; no selection.",
+  "limitations": [
+    "Sampled-frame and aligned-face review only; no full playback/listening or moving-hand anatomy acceptance.",
+    "No take selected or episode/canon approved.",
+    "Clothing cleanup result is one controlled sample, not a model-wide identity guarantee."
+  ]
+}

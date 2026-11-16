@@ -1,0 +1,20 @@
+{
+  "version": "v002",
+  "features": [
+    "Persisted picture in-point and duration with expected selected take/range",
+    "Final MP4 uses selected source interval; audio timing remains independent",
+    "Source files preserved",
+    "Changed trim invalidates downstream canon; restoring range restores matching canon",
+    "Late render completion cannot replace intervening selections or shot/reference/trim edits"
+  ],
+  "verification": {
+    "real_media": "scripts/test-production.py: red then blue source, in-point 2.25s / length 1.25s; actual first output pixel is blue, expected duration and unchanged source SHA-256",
+    "continuity": "scripts/test-story.py: trim invalidates two committed episodes and restored range restores them",
+    "registration": "src/takes.rs test: unchanged auto-selection, newer deselection, trim edit and late cancellation; explicit fixtures, no inference claim",
+    "native_ui": "Pending: Mac is locked"
+  },
+  "limitations": [
+    "Picture trimming does not retime speech or guarantee lip sync",
+    "No transitions or complete advanced editor yet"
+  ]
+}

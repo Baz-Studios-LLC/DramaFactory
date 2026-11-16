@@ -1,0 +1,156 @@
+{
+  "version": "v002",
+  "reports": [
+    {
+      "elapsed_seconds": 0.6687775,
+      "errors": [],
+      "ffmpeg": "ffmpeg version 9.0 Copyright (c) 2000-2026 the FFmpeg developers",
+      "imports": {
+        "architecture": "arm64",
+        "checks": [
+          {
+            "error": null,
+            "module": "mlx.core",
+            "version": "0.32.4"
+          },
+          {
+            "error": null,
+            "module": "mlx_video.models.wan_2.generate",
+            "version": "0.0.1"
+          }
+        ],
+        "python_version": "3.12.14"
+      },
+      "model_id": "wan22-ti2v-5b-q8",
+      "passed": true,
+      "python": "/Users/brettbazaar/Code/DramaFactory/.venv/bin/python",
+      "scope": "Import/executable check only. No checkpoint loaded, integrity check, generation, download, or acting/synchronization approval. Versions are reported, not certified compatible."
+    },
+    {
+      "elapsed_seconds": 0.426254167,
+      "errors": [],
+      "ffmpeg": null,
+      "imports": {
+        "architecture": "arm64",
+        "checks": [
+          {
+            "error": null,
+            "module": "mlx.core",
+            "version": "0.32.4"
+          },
+          {
+            "error": null,
+            "module": "mflux.models.flux2.variants",
+            "version": "0.24.0"
+          },
+          {
+            "error": null,
+            "module": "mflux.models.flux2.variants",
+            "version": "0.24.0"
+          }
+        ],
+        "python_version": "3.12.14"
+      },
+      "model_id": "flux2-klein-4b-q4",
+      "passed": true,
+      "python": "/Users/brettbazaar/Code/DramaFactory/.venv-images/bin/python",
+      "scope": "Import/executable check only. No checkpoint loaded, integrity check, generation, download, or acting/synchronization approval. Versions are reported, not certified compatible."
+    },
+    {
+      "elapsed_seconds": 0.1006485,
+      "errors": [],
+      "ffmpeg": null,
+      "imports": {
+        "architecture": "arm64",
+        "checks": [
+          {
+            "error": null,
+            "module": "kokoro_onnx",
+            "version": "0.6.1"
+          },
+          {
+            "error": null,
+            "module": "soundfile",
+            "version": "0.14.0"
+          },
+          {
+            "error": null,
+            "module": "onnxruntime",
+            "version": "1.31.1"
+          }
+        ],
+        "python_version": "3.12.14"
+      },
+      "model_id": "kokoro-int8",
+      "passed": true,
+      "python": "/Users/brettbazaar/Code/DramaFactory/.venv/bin/python",
+      "scope": "Import/executable check only. No checkpoint loaded, integrity check, generation, download, or acting/synchronization approval. Versions are reported, not certified compatible."
+    },
+    {
+      "elapsed_seconds": 0.376757541,
+      "errors": [],
+      "ffmpeg": "ffmpeg version 9.0 Copyright (c) 2000-2026 the FFmpeg developers",
+      "imports": {
+        "architecture": "arm64",
+        "checks": [
+          {
+            "error": null,
+            "module": "mlx.core",
+            "version": "0.32.4"
+          },
+          {
+            "error": null,
+            "module": "musetalk_mlx.pipeline_mlx",
+            "version": "0.1.0"
+          },
+          {
+            "error": null,
+            "module": "mediapipe",
+            "version": "1.2.2"
+          },
+          {
+            "error": null,
+            "module": "cv2",
+            "version": "5.0.0.93"
+          },
+          {
+            "error": null,
+            "module": "soundfile",
+            "version": "0.14.0"
+          }
+        ],
+        "python_version": "3.12.14"
+      },
+      "model_id": "musetalk-q4-experimental",
+      "passed": true,
+      "python": "/Users/brettbazaar/Code/DramaFactory/.venv-lipsync/bin/python",
+      "scope": "Import/executable check only. No checkpoint loaded, integrity check, generation, download, or acting/synchronization approval. Versions are reported, not certified compatible."
+    },
+    {
+      "elapsed_seconds": 0.225146459,
+      "errors": [],
+      "ffmpeg": "ffmpeg version 9.0 Copyright (c) 2000-2026 the FFmpeg developers",
+      "imports": {
+        "architecture": "arm64",
+        "checks": [
+          {
+            "error": null,
+            "module": "mlx.core",
+            "version": "0.32.4"
+          },
+          {
+            "error": null,
+            "module": "ltx_pipelines_mlx",
+            "version": "0.18.0"
+          }
+        ],
+        "python_version": "3.12.14"
+      },
+      "model_id": "ltx-2.3-q8-performance-experimental",
+      "passed": true,
+      "python": "/Users/brettbazaar/Code/DramaFactory/.venv-ltx-eval/bin/python",
+      "scope": "Import/executable check only. No checkpoint loaded, integrity check, generation, download, or acting/synchronization approval. Versions are reported, not certified compatible."
+    }
+  ],
+  "limits": "Import/executable snapshot only; no checkpoint validation, numerical parity, generation or acting acceptance. Installation/provisioning for a fresh machine remains incomplete."
+}

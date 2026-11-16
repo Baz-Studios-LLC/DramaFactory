@@ -1,0 +1,27 @@
+{
+  "version": "v002",
+  "scope": "Seedance durable remote job foundation",
+  "implemented": [
+    "OpenRouter video queue kind and worker",
+    "Persistent prepared/submitting/accepted/terminal/downloaded remote state and job ID",
+    "Atomic once-only submit gate; uncertain no-ID submission refuses retry",
+    "Accepted ID resumes monitoring through Retry without reposting",
+    "Fixed-origin authenticated poll/download with redirects disabled",
+    "Bounded responses/download, retained original takes and media validation",
+    "Manual unreviewed output registration with cancellation-aware terminal commit",
+    "Explicit paid MCP entry point"
+  ],
+  "verification": {
+    "tests": 40,
+    "clippy": "passed all targets warnings denied",
+    "mcp": "existing integration passed; paid tool NOT called",
+    "bundle": "rebuilt strict ad-hoc signature passed"
+  },
+  "limits": [
+    "No live or loopback end-to-end video API execution yet; state persistence/retry guards unit-tested only",
+    "UI paid submit/monitor mapping and per-episode result linkage still pending",
+    "Local cast reference upload transport incomplete",
+    "No claimed remote cancellation, billing reconciliation, identity/acting/word accuracy or seamless segment joining",
+    "Credentials not supplied or paid generations invoked"
+  ]
+}

@@ -1,0 +1,64 @@
+{
+  "version": "v002",
+  "status": "real_mcp_preflight_canceled_before_inference",
+  "episode_id": "8290815f-74db-424a-90ab-359ab5a3773f",
+  "source_speech_seconds": 6.505958333333333,
+  "requests": [
+    {
+      "job": {
+        "attempts": 0,
+        "error": "",
+        "id": "84c73cb0-e084-4c95-9ebc-c99ae757b34b",
+        "output_id": null,
+        "phase": "",
+        "progress": 0.0,
+        "prompt": "Native dialogue performance \u00b7 experimental",
+        "status": "canceled"
+      },
+      "shot_title": "02.07 \u00b7 The overheads",
+      "frames": 73,
+      "audio_start": 0.10000000000000142,
+      "audio_window": {
+        "source_start": 0.0
+      },
+      "source_line_id": "225f3c4e-aab0-53d2-92ae-91eb430d119b",
+      "source_audio_sha256": "5a46370422079797a0cd595a9955b67a03ff2e81d84a0bceaa73fcbd56248324"
+    },
+    {
+      "job": {
+        "attempts": 0,
+        "error": "",
+        "id": "ae34f5b1-85e1-4223-bf61-7a3a78e4495a",
+        "output_id": null,
+        "phase": "",
+        "progress": 0.0,
+        "prompt": "Native dialogue performance \u00b7 experimental",
+        "status": "canceled"
+      },
+      "shot_title": "02.09 \u00b7 Eight minutes",
+      "frames": 33,
+      "audio_start": 0.0,
+      "audio_window": {
+        "source_start": 5.899999999999999
+      },
+      "source_line_id": "225f3c4e-aab0-53d2-92ae-91eb430d119b",
+      "source_audio_sha256": "5a46370422079797a0cd595a9955b67a03ff2e81d84a0bceaa73fcbd56248324"
+    }
+  ],
+  "scope": "Actual queued first/continuation requests against the 65s edit; worker lock held, canceled at attempt zero, no new assets or model inference. Does not demonstrate acting or lip synchronization.",
+  "earlier_failed_preflight": {
+    "job_id": "887f2eef-7dd3-46c7-a7d2-d7a9dc0cd802",
+    "status": "canceled",
+    "attempts": 1,
+    "output_id": null,
+    "error": "Native performance canceled or timed out; attempt inputs and originals preserved",
+    "new_assets": 0,
+    "subprocess_pid": 53865,
+    "subprocess_exit_verified": true,
+    "cause": "Preflight helper namespace collision released its lock before cleanup; inference started and was canceled after detection. Fixed helper isolates RPC names and cancels created jobs in finally before lock release.",
+    "historical_snapshot_before_intentional_retry": true,
+    "observed_attempt": 1,
+    "attempt_1_created_assets": 0,
+    "intentional_followup": "Same job deliberately retried as attempt 2; completed rejected take 7e1aba02-09e0-4085-b88d-2d2455710821. The canceled status/assets-zero fields describe the earlier attempt-1 observation."
+  }
+}

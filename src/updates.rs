@@ -1,8 +1,12 @@
 //! Release discovery runs away from the UI thread. Installation is deliberately
 //! gated on a future signed-artifact verifier; release metadata is not trusted code.
 use serde::Deserialize;
+use std::path::PathBuf;
 use std::sync::mpsc::{self, Receiver};
-pub const CURRENT: u32 = 1;
+pub struct UpdateStatus {
+    pub message: String,
+}
+pub const CURRENT: u32 = 2;
 pub const REPOSITORY: &str = "Baz-Studios-LLC/DramaFactory";
 #[derive(Deserialize)]
 struct Release {
@@ -17,7 +21,7 @@ pub fn version(tag: &str) -> Option<u32> {
     }
     digits.parse().ok().filter(|v| *v > 0)
 }
-pub fn check() -> Receiver<String> {
+pub fn check(root: PathBuf, automatic: bool) -> Receiver<UpdateStatus> {
     let (tx, rx) = mpsc::channel();
     std::thread::spawn(move || {
         let result = (|| -> anyhow::Result<String> {
@@ -29,14 +33,14 @@ pub fn check() -> Receiver<String> {
                 .get(&format!(
                     "https://api.github.com/repos/{REPOSITORY}/releases/latest"
                 ))
-                .header("User-Agent", "DramaFactory-v001")
+                .header("User-Agent", "DramaFactory-v002")
                 .header("Accept", "application/vnd.github+json")
                 .call();
             let mut response = match response {
                 Ok(response) => response,
                 Err(ureq::Error::StatusCode(404)) => {
                     return Ok(
-                        "No published releases are available yet. Development build: v001.".into(),
+                        "No published releases are available yet. Development build: v002.".into(),
                     );
                 }
                 Err(error) => return Err(error.into()),
@@ -48,17 +52,28 @@ pub fn check() -> Receiver<String> {
                 anyhow::bail!("No stable release available");
             }
             Ok(if latest > CURRENT {
-                format!(
-                    "{} is available. Automatic installation awaits signed release packages.",
-                    release.tag_name
-                )
+                if automatic {
+                    let manifest = crate::updater::stage(&release.tag_name, &root)?;
+                    crate::updater::schedule_install(&manifest, &root.join("studio.sqlite"))?;
+                    format!(
+                        "{} verified and staged. It will install after exit and render completion.",
+                        release.tag_name
+                    )
+                } else {
+                    format!(
+                        "{} is available. Automatic installation is disabled.",
+                        release.tag_name
+                    )
+                }
             } else {
                 "You are running the latest published version.".into()
             })
         })();
-        let _ = tx.send(match result {
-            Ok(s) => s,
-            Err(e) => format!("Update check unavailable: {e}"),
+        let _ = tx.send(UpdateStatus {
+            message: match result {
+                Ok(s) => s,
+                Err(e) => format!("Update check unavailable: {e}"),
+            },
         });
     });
     rx

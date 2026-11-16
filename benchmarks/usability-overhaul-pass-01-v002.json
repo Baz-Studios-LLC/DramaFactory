@@ -1,0 +1,30 @@
+{
+  "version": "v002",
+  "scope": "First usability-overhaul pass; not full app acceptance",
+  "implemented": [
+    "Five-stage starting guide and navigation grouped by production flow",
+    "One sidebar Current series selector; remembered across restart; per-series episode memory",
+    "Searchable numbered episode browser ordered by saved story plan, independent screenplay pane, saved/dirty state and save/reload/plan toolbar",
+    "Previous/next/browse episode navigation replaces repeated all-episode dropdowns",
+    "Larger cast/location reference layout, collapsed add-entry forms, assigned voice label and full-size image inspector",
+    "Screenplay editor has bounded scroll area; unsupported decorative arrow glyph removed"
+  ],
+  "actual_mac_review": [
+    "Selected The Other Chair in sidebar and opened Episodes & scripts with 67 ordered entries",
+    "Opened episode 01 and observed the saved screenplay and editing toolbar",
+    "Navigated to Cast without reselecting the series",
+    "Restarted latest bundle and observed persisted Current series",
+    "Found initial max-size image layout still tiny; corrected explicit sizing and visually verified large portraits",
+    "Opened Nora reference inspector and observed fitted full-size image and zoom controls"
+  ],
+  "not_yet_verified": [
+    "Episode search typing and all previous/next interactions",
+    "Image zoom/100% interactions beyond visible controls",
+    "Location landscape layout on actual screen",
+    "Complete usability pass on story, shots, dialogue, generation, review, timeline and preferences"
+  ],
+  "limits": [
+    "Shared asset library and queue still include all projects; global selection establishes authoring context, not universal media filtering.",
+    "No automatic show generation or acting quality approval."
+  ]
+}

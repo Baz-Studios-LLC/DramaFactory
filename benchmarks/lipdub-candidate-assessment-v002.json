@@ -1,0 +1,12 @@
+{
+  "date": "2026-11-16",
+  "version": "v002",
+  "candidate": "Lightricks/LTX-2.3-22b-IC-LoRA-LipDub",
+  "revision": "cc18226c909e87aa8a1a079896ad46a4ec01e4d1",
+  "gated": "auto",
+  "status": "not_downloaded_no_terms_accepted",
+  "source": "https://huggingface.co/Lightricks/LTX-2.3-22b-IC-LoRA-LipDub",
+  "upstream_port": "https://github.com/dgrauet/ltx-2-mlx/blob/747b30ef10e92a011e85b2aa0f6c4ee86ced5218/docs/PIPELINE_MATURITY.md",
+  "reason": "Official weights require an agreement/privacy and marketing-consent gate. No gate acceptance or alternate weight mirror used. Existing local pipeline is experimental and unverified for this scenario.",
+  "next_action": "Continue independent production work; no repeated anchor/prompt sweeps justified by retained sync results."
+}

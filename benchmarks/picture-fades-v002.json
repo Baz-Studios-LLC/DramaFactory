@@ -1,0 +1,27 @@
+{
+  "version": "v002",
+  "status": "implemented_verified_export_visual_ui_pending",
+  "kind": "picture_fades_within_existing_shot_time",
+  "tests": {
+    "command": "python3 scripts/test-production.py",
+    "result": "passed",
+    "fixture": "Disposable synthetic red/blue video, trimmed to blue and mixed with imported test tone. Not AI footage.",
+    "pixel_assertions": "First RGB all <15; middle blue >180; near-end RGB all <70.",
+    "duration_assertion": "Difference from matching no-fade cut <0.01 seconds.",
+    "audio_assertion": "Decoded mono 48kHz float sample counts identical; maximum absolute sample difference <0.0001.",
+    "source": "Original SHA-256 unchanged.",
+    "edit_gates": [
+      "identical retry",
+      "stale expected-state conflict",
+      "fade sum must fit shot",
+      "shorter trim must accommodate fades"
+    ]
+  },
+  "canon": "scripts/test-story.py passed; changes stale dependent commits, zero restoration matches previous canon",
+  "native_footage_export": "scripts/test-performance-export.py passed without changing rejected source take approval",
+  "limits": [
+    "Not overlapping cross-dissolves.",
+    "No actual Mac control visual QA while screen remains locked.",
+    "Does not improve acting/lip synchronization."
+  ]
+}

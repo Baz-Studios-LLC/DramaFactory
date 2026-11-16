@@ -1,0 +1,24 @@
+{
+  "version": "v002",
+  "scope": "Saved cast-portrait links for episode segments",
+  "implemented": [
+    "Same-series character picker with selected-portrait preview",
+    "Persistent exact character/name/path/hash snapshot on each segment",
+    "Save checks selected reference integrity and same-series membership; duplicate links rejected",
+    "Inactive cast selections preserved when switching to frame mode",
+    "Local portraits block remote preview until transport exists; no silent omission",
+    "Read-only prepare_cast_reference MCP plus shared saved-plan validation"
+  ],
+  "verification": {
+    "tests": 39,
+    "clippy": "all targets warnings denied passed",
+    "mcp": "Real stdio exact-reference prepare/save roundtrip with explicit disposable image fixture and existing integration passed",
+    "bundle": "rebuilt and strict ad-hoc signature passed"
+  },
+  "limits": [
+    "GUI character picker interaction still unverified",
+    "No uploads or paid generation",
+    "Video inline-data support/upload path needs verified provider implementation",
+    "Provider reference counts and combined modes not inferred from direct ByteDance capabilities"
+  ]
+}

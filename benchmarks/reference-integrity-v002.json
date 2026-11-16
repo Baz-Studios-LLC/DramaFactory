@@ -1,0 +1,21 @@
+{
+  "version": "v002",
+  "status": "verified_local_reference_integrity_not_acting_quality",
+  "implementation": [
+    "src/inputs.rs",
+    "src/production.rs",
+    "src/worker.rs"
+  ],
+  "verification": {
+    "worker_integration": "scripts/test-reference-inputs.py passed, using disposable bytes/model filenames and a runtime sentinel; no real inference",
+    "mcp": "scripts/test-mcp.py passed, including image reference and library-context queue snapshots",
+    "unit": "20 passed, including immutable input copies, changed bytes, legacy marker, stale brief and same-path reference replacement approval",
+    "story": "scripts/test-story.py passed",
+    "production": "scripts/test-production.py passed, real FFmpeg and Kokoro"
+  },
+  "limitations": [
+    "Legacy requests have no recoverable queue-time hash; consumed hashes are recorded without inventing one.",
+    "This hardening does not improve generation quality or approve existing takes.",
+    "Newer UI controls still await unlocked Mac visual verification."
+  ]
+}

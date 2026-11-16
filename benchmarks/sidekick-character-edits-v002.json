@@ -1,0 +1,25 @@
+{
+  "version": "v002",
+  "scope": "Sidekick character and portrait prompt drafts",
+  "implemented": [
+    "Typed character edit with exact series-specific captured brief/prompt snapshot",
+    "Unsaved brief/prompt application preserves saved baselines; character card displays draft text",
+    "Guarded character+prompt Undo",
+    "Portrait prompt SQLite persistence with expected-text conflicts/idempotent saves",
+    "Explicit prompt Save/Reload and exit snapshots",
+    "Prompt read/save through real MCP"
+  ],
+  "verification": {
+    "tests": 38,
+    "clippy": "all targets warnings denied passed",
+    "mcp": "Existing integration plus real prompt read/save/stale-conflict passed",
+    "bundle": "rebuilt and strict ad-hoc signature verified"
+  },
+  "limits": [
+    "No paid model or image call",
+    "Generated character-edit application/Undo and new prompt controls require packaged GUI interaction review",
+    "Prompt default changes do not automatically track later brief edits",
+    "Other document edit targets, Grok reference editing and Seedance durable submission pending",
+    "Reply durability and restart recovery UI remain incomplete"
+  ]
+}

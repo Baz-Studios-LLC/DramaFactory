@@ -1,0 +1,18 @@
+{
+  "version": "v002",
+  "mac_unlocked": true,
+  "observed": [
+    "Gracefully closed older running GUI and reopened latest target/DramaFactory.app",
+    "Observed latest screening room with 78 assets, 24-item paging and search/media/review controls",
+    "Found full generation prompt burying playback controls; changed to a collapsed per-asset section, wrapped actions and visible rejection excerpt",
+    "Restarted fixed packaged app and visually verified compact screening cards and accessible playback actions",
+    "Observed runtime diagnostic panel and its check/configure controls"
+  ],
+  "not_verified": [
+    "Search/filter input interaction: CUA actions rejected due to concurrent user changes",
+    "Runtime button result in GUI",
+    "New directing/dialogue/timeline/sound draft flows",
+    "Full playback/listening and acting acceptance"
+  ],
+  "limits": "Partial visual review only. Automation yielded control after repeated user-change guards; no acting review or media selection/approval changed by this work."
+}

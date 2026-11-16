@@ -1,0 +1,61 @@
+{
+  "version": "v002",
+  "kind": "actual_location_reference_study",
+  "job_id": "db06f63b-fc30-4a84-a4d7-dd9355aa5d4f",
+  "location_id": "12688f82-56e2-4a32-a732-7eb3ed05a277",
+  "prompt": "Photorealistic film location scout photograph, wide eye-level interior of a small, beautiful but financially struggling secondhand furniture shop in an American neighborhood. A coherent practical floor plan for a dialogue scene. Foreground: exactly two elegant mismatched vintage upholstered conversation chairs, one on the left and one on the right, angled slightly toward each other with empty seats and enough space for two adults to face each other. A small low wooden side table and one warm amber-shaded practical lamp between them. Tall old shop windows along the LEFT wall cast soft late-afternoon daylight across worn timber floors. An unobstructed aisle behind the left chair leads farther back to a small wooden sales counter and a glazed front entrance. A few curated secondhand tables and stacked chairs deeper in the shop, real worn edges, tiny blank hanging price tags, tasteful everyday clutter, warm wood and muted plum/olive upholstery. Inviting, intimate and lived in, not a luxury hotel, not a vast warehouse. Camera at seated eye level from the open side of the two-chair arrangement, clearly showing both chairs, floor spacing and aisle. Natural material detail and plausible furniture geometry. No people, no human silhouettes, no readable text, no logos, no watermark. Premium grounded slice-of-life drama cinematography.",
+  "width": 1280,
+  "height": 704,
+  "seed": 408,
+  "steps": 4,
+  "status": "visually_reviewed_location_reference_selected",
+  "asset": {
+    "duration": 0.0,
+    "hash": "f61c7a4b3c62823ff319036d7d18a39e99b722e003e33893516af9e0a2568fef",
+    "height": 704,
+    "id": "d21fa814-6c1b-4ece-b9e7-cc2267366f2e",
+    "job_id": "db06f63b-fc30-4a84-a4d7-dd9355aa5d4f",
+    "metadata": {
+      "kind": "image",
+      "model": "/Users/brettbazaar/Library/Application Support/studio.DramaFactory.DramaFactory/models/flux2-klein-4b-q4",
+      "request": {
+        "height": 704,
+        "library_context_before": {
+          "description": "Warm afternoon light from tall windows at camera left. Nora chair left, Emma chair right; amber lamp and small table between them. Aisle behind Nora leads toward till and front door. Secondhand furniture, honest wear, small price tags. Preserve floor plan, window direction and props across cuts.",
+          "name": "Sloane's Secondhand \u2014 display room",
+          "reference_hash": null
+        },
+        "library_id": "12688f82-56e2-4a32-a732-7eb3ed05a277",
+        "library_reference_before": null,
+        "prompt": "Photorealistic film location scout photograph, wide eye-level interior of a small, beautiful but financially struggling secondhand furniture shop in an American neighborhood. A coherent practical floor plan for a dialogue scene. Foreground: exactly two elegant mismatched vintage upholstered conversation chairs, one on the left and one on the right, angled slightly toward each other with empty seats and enough space for two adults to face each other. A small low wooden side table and one warm amber-shaded practical lamp between them. Tall old shop windows along the LEFT wall cast soft late-afternoon daylight across worn timber floors. An unobstructed aisle behind the left chair leads farther back to a small wooden sales counter and a glazed front entrance. A few curated secondhand tables and stacked chairs deeper in the shop, real worn edges, tiny blank hanging price tags, tasteful everyday clutter, warm wood and muted plum/olive upholstery. Inviting, intimate and lived in, not a luxury hotel, not a vast warehouse. Camera at seated eye level from the open side of the two-chair arrangement, clearly showing both chairs, floor spacing and aisle. Natural material detail and plausible furniture geometry. No people, no human silhouettes, no readable text, no logos, no watermark. Premium grounded slice-of-life drama cinematography.",
+        "reference": null,
+        "reference_hash": null,
+        "seed": 408,
+        "steps": 4,
+        "width": 1280
+      },
+      "telemetry": {
+        "adapter": "mflux-flux2-klein-4b-q4",
+        "peak_memory_bytes": 5356508244,
+        "phase": "Validating image",
+        "progress": 0.95,
+        "reference_conditioned": false,
+        "wall_seconds": 4.301475167012541
+      }
+    },
+    "path": "/Users/brettbazaar/Library/Application Support/studio.DramaFactory.DramaFactory/jobs/db06f63b-fc30-4a84-a4d7-dd9355aa5d4f/attempt-1/image.png",
+    "review": "approved",
+    "width": 1280
+  },
+  "review": {
+    "asset_id": "d21fa814-6c1b-4ece-b9e7-cc2267366f2e",
+    "decision": "approved",
+    "note": "Visually reviewed as a location design reference: two distinct chairs angled toward conversation, small table and amber lamp between, left-wall windows, clear aisle toward counter/front entrance. No people or obvious foreground furniture failures. Approved for set planning only; not evidence of generated-shot geography or multi-shot continuity.",
+    "revision": 1
+  },
+  "limitations": [
+    "No cast in this image; this is set-design approval only.",
+    "Current Wan adapter conditions on one primary character image, not both character and location images.",
+    "Geography, furniture and lighting must still be checked in generated coverage."
+  ]
+}

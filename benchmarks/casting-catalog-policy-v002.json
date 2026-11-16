@@ -1,0 +1,9 @@
+{
+  "scope": "Unique fictional characters across a large catalog, e.g. 100 series",
+  "reference": "U.S. Census Bureau national population estimates, Vintage 2025",
+  "source": "https://www.census.gov/data/tables/time-series/demo/popest/2020s-national-detail.html",
+  "as_of": "2026-11-16",
+  "guidance": "Approximate U.S. racial/ethnic population proportions over the catalog. Each individual cast should fit its setting, relationships and family resemblance. Age-25 default and role-specific age exceptions are separate creative choices.",
+  "classification": "Track explicitly authored character backgrounds; do not infer race/ethnicity from portraits. Keep race and Hispanic ethnicity separate, or use an explicitly defined mutually exclusive combined table. Unknown/unassigned backgrounds remain separate.",
+  "implementation_status": "User preference and source recorded. Automated catalog demographic tracking/targets are not yet implemented; no percentages guessed from current cast images."
+}

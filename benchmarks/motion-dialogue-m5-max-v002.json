@@ -1,0 +1,78 @@
+{
+  "date": "2026-11-08",
+  "hardware": "Apple M5 Max / 64 GB / 40-core GPU",
+  "version": "v002",
+  "workflow": "Reference edit, body-motion video, dialogue, experimental lip sync, two-shot episode export; real local MCP jobs",
+  "assets": {
+    "reference": {
+      "sha256": "e67760b9c96f3aad1e59c6fec07ab708f044e54139b26fe8a35eba34bcf461f5",
+      "width": 704,
+      "height": 1280,
+      "duration": 0.0,
+      "telemetry": {
+        "adapter": "mflux-flux2-klein-4b-q4",
+        "peak_memory_bytes": 6338074636,
+        "phase": "Validating image",
+        "progress": 0.95,
+        "reference_conditioned": true,
+        "wall_seconds": 7.566921125049703
+      }
+    },
+    "speech": {
+      "sha256": "c7df5a0994cd8c8c2483cde2c81aed8bf9e209636e44d9648dd394f21f63c579",
+      "width": 0,
+      "height": 0,
+      "duration": 3.0353333333333334,
+      "telemetry": {
+        "adapter": "kokoro-onnx-int8",
+        "duration": 3.0353333333333334,
+        "progress": 0.95,
+        "sample_rate": 24000,
+        "wall_seconds": 0.5025092909345403
+      }
+    },
+    "video": {
+      "sha256": "b0f8e476effd95e46f30bbb4be816997731aaef9cf0593d6f18c023b6aa0c420",
+      "width": 704,
+      "height": 1280,
+      "duration": 5.04,
+      "telemetry": {
+        "adapter": "mlx-video-wan2.2",
+        "peak_memory_bytes": 55962717376,
+        "phase": "Validating output",
+        "progress": 0.95,
+        "wall_seconds": 1221.158471499919
+      }
+    },
+    "lipsync": {
+      "sha256": "9cc4afa03ecebee077b7705b752dc1b0891b6d4751734e9aa3fd75e5927e2619",
+      "width": 704,
+      "height": 1280,
+      "duration": 5.04,
+      "telemetry": {
+        "adapter": "musetalk-mlx-q4-experimental-v2",
+        "fps": 24.0,
+        "frames": 121,
+        "peak_memory_bytes": 4268054454,
+        "phase": "Validating lip-sync output",
+        "progress": 0.97,
+        "wall_seconds": 12.727595207979904
+      }
+    },
+    "finished_export": {
+      "sha256": "2820a128f2100440db4b8c69143ca485b4e37f700cc789cb0d618361235c31f6",
+      "width": 1080,
+      "height": 1920,
+      "duration": 6.5,
+      "telemetry": {}
+    }
+  },
+  "review": [
+    "Visible approach and raised open-palm stop gesture; face and hand samples reviewed.",
+    "Model does not follow every staging instruction: hand stays raised and camera/framing also changes.",
+    "Lower-face softness from experimental lip sync remains visible. No objective synchronization score.",
+    "First lip-sync attempt failed face detection at full-body opening. Overlapping square-tile fallback recovered face tracking; retry completed.",
+    "Wide trimmed to 3.5 seconds after 3.035-second warning, followed by 3-second prior close-up.",
+    "Final video and audio fully decoded successfully; original takes preserved."
+  ]
+}

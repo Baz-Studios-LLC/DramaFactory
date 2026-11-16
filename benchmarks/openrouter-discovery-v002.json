@@ -1,0 +1,26 @@
+{
+  "version": "v002",
+  "scope": "OpenRouter public model discovery",
+  "implemented": [
+    "Bounded public HTTPS image/video catalog reads; no credentials or project transmission",
+    "Background Settings refresh; last successful catalog retained on failure",
+    "Shared dramafactory_get_openrouter_catalog MCP tool",
+    "Malformed catalog rejected instead of misreported as empty availability"
+  ],
+  "verification": {
+    "unit_tests": 29,
+    "clippy": "all targets warnings denied passed",
+    "bundle": "rebuilt; strict ad-hoc signature passed",
+    "mcp": "Existing integration passed; real isolated stdio get_openrouter_catalog returned Seedance 2.5 and Grok Imagine Image 2.0 from public endpoints",
+    "visual": "Deferred current packaged panel interaction; running app was in active review workspace, not restarted"
+  },
+  "observed": {
+    "seedance": "4\u201330s, 480p/720p, 9:16, native audio, first/last frame roles",
+    "grok": "Image input/output; current union lists 0\u20133 image references, 1K/2K, low/medium quality. Per-endpoint verification remains required."
+  },
+  "limits": [
+    "No authenticated key validation or paid generation",
+    "Catalog metadata is not proof of valid reference combinations or creative quality",
+    "Five-page rewrite, remote jobs and deletion of remaining obsolete local services/UI still pending"
+  ]
+}

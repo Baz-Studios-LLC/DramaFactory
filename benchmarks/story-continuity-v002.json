@@ -1,0 +1,44 @@
+{
+  "date": "2026-11-16",
+  "version": "v002",
+  "scope": "Series development editor and declared continuity/canon services; not autonomous episode generation",
+  "verified": [
+    "cargo fmt --check",
+    "cargo clippy --all-targets -- -D warnings",
+    "cargo test: 10 passed",
+    "scripts/test-story.py: real MCP plus FFmpeg, disposable database",
+    "scripts/test-production.py: real Kokoro, FFmpeg assembly and measured music/SFX mix",
+    "scripts/test-mcp.py against packaged Mac executable",
+    "codesign --verify --deep --strict target/DramaFactory.app",
+    "Native visual review: series bible, ordered episode arc and continuity tabs"
+  ],
+  "story_integration_assertions": [
+    "Stale plan revision rejected; immutable revision history retained",
+    "Same-series stable cast/episode IDs required",
+    "Two-episode projected facts checked while canon stays at approved prefix",
+    "Contradictory episode requirement reported and canon commit rejected",
+    "Later episode cannot be committed before its predecessor",
+    "Approved export from an earlier screenplay rejected as current",
+    "Current reviewed cuts can commit declared facts in sequence",
+    "Repeated commit of the same current cut is idempotent",
+    "Earlier screenplay revision invalidates both its commit and downstream commits",
+    "Recommitting an earlier episode leaves downstream approvals stale until reviewed again",
+    "Changed source bytes or character voice invalidate commits",
+    "Rejected final cut invalidates dependent canon",
+    "New story-plan revision invalidates old approvals without deleting history/cuts"
+  ],
+  "retained_example": {
+    "title": "The Last Guest",
+    "episodes": 6,
+    "cast": 4,
+    "locations": 2,
+    "state": "Original authored development plan, no episode screenplay/footage or committed canon yet"
+  },
+  "limitations": [
+    "Declared facts are manually/agent supplied; no automatic semantic extraction or visual continuity scoring",
+    "Story checks are structural and cannot establish literary quality",
+    "Autonomous local writing and resumable full production orchestration remain unfinished",
+    "Per-shot cast/location links and generated multi-episode identity evaluation remain unfinished",
+    "Lip-sync visual softness remains experimental; no new video render in this development step"
+  ]
+}

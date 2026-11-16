@@ -1,0 +1,38 @@
+{
+  "version": "v002",
+  "official_source": {
+    "commit": "2362161611a61154d342e02724fb8fe58efd455d",
+    "url": "https://raw.githubusercontent.com/Lightricks/LTX-2/2362161611a61154d342e02724fb8fe58efd455d/packages/ltx-core/src/ltx_core/model/audio_vae/ops.py",
+    "sha256": "a3830dacb366dc6414b42754b4b450b71117db65b140b130d8e3eb69b8668321"
+  },
+  "source_conditioned_audio_sha256": "8fd261a70de8e5d7055e55398fd3736fd6dfa8fa9e1b2023f3e87c0171d32ba9",
+  "waveform_shape": [
+    1,
+    2,
+    48667
+  ],
+  "mel_shape": [
+    1,
+    2,
+    305,
+    64
+  ],
+  "mel_absolute_error": {
+    "mean": 0.000691097870003432,
+    "p99": 0.0010242462158203125,
+    "maximum": 0.001239776611328125
+  },
+  "tokens_shape": [
+    1,
+    76,
+    128
+  ],
+  "speech_silence_token_rms_difference": 1.514416217803955,
+  "tokens_finite": true,
+  "both_stage_hooks_preserve_frozen_speech": true,
+  "audio_encoder_seconds": 0.12741841698880307,
+  "peak_mlx_memory_bytes": 741202358,
+  "new_video_inference": false,
+  "source_preserved": true,
+  "limits": "Preprocessor parity and encoder sensitivity only. Does not establish full encoder numerical parity, transformer attention efficacy, intelligibility or synchronized acting."
+}

@@ -1,3 +1,23 @@
 /target
 *.sqlite*
 .DS_Store
+.venv/
+__pycache__/
+*.pyc
+/benchmarks/local/
+*.pem
+*.key
+.venv-images/
+*.local.json
+.venv-lipsync/
+
+.venv-writer/
+.venv-ltx-eval/
+.venv-sync-eval/
+
+# Local credentials and development environments
+.env
+.env.*
+!.env.example
+*.p12
+*.pfx

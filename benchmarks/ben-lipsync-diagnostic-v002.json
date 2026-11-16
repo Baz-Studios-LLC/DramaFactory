@@ -1,0 +1,22 @@
+{
+  "version": "v002",
+  "purpose": "Isolate Ben mouth softness without new Wan generation or model downloads",
+  "source_asset_id": "e48013c9-4b1e-4773-a5fb-e61f94276fde",
+  "rejected_lipsync_asset_id": "9abe744d-f05e-4c04-ac17-7598da04c294",
+  "frame": 30,
+  "vae_comparison": "ben-vae-diagnostic-v002.png",
+  "crop_comparison": "ben-crop-comparison-v002.png",
+  "observations": [
+    "At this sampled frame, the VAE-only reconstruction retains substantially more stubble, skin and lip edge detail than the synchronized composite.",
+    "All four raw generated crop variants have visibly soft mouths; no variant is promoted.",
+    "This comparison implicates the inpainting stage beyond simple VAE round-trip loss or edge feathering. It does not isolate quantization, alignment, conditioning or the model architecture as the sole cause."
+  ],
+  "scope": "One-frame diagnostic. No temporal identity, lip-sync accuracy, comparative fp16 test, objective synchronization score or production-quality claim.",
+  "adapter_changed": false,
+  "originals_preserved": true,
+  "sources": [
+    "https://github.com/TMElyralab/MuseTalk/blob/main/musetalk/utils/preprocessing.py",
+    "https://github.com/TMElyralab/MuseTalk/blob/main/assets/BBOX_SHIFT.md",
+    "https://github.com/xocialize/musetalk-mlx"
+  ]
+}
