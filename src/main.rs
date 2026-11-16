@@ -28,6 +28,7 @@ mod orchestration;
 mod performance;
 mod performance_window;
 mod portrait_prompt;
+mod portrait_style;
 mod portrait_ui;
 mod preview;
 mod production;
@@ -375,6 +376,22 @@ impl Studio {
                     if let Some(p) = &self.library_reference {
                         ui.label(p.file_name().unwrap_or_default().to_string_lossy());
                     }
+                    if kind == "character" && ui.add_enabled(
+                        !self.library_name.trim().is_empty() && !self.library_description.trim().is_empty(),
+                        egui::Button::new("Create character & generate image · paid"),
+                    ).clicked() {
+                        let result=self.store.add_library(&series,kind,&self.library_name,&self.library_description,self.library_reference.as_deref());
+                        match result {
+                            Ok(entry)=>{
+                                self.library_name.clear();self.library_description.clear();self.library_reference=None;
+                                let result=self.store.portrait_prompt(&entry).and_then(|draft|self.store.enqueue_grok_portrait(&entry.id,&draft.prompt));
+                                match result {
+                                    Ok(_)=>{let start=crate::worker::spawn_detached(&self.store.path);self.result(start,"Character created and portrait queued; review before choosing it");},
+                                    Err(error)=>self.message=format!("Character created; image was not queued: {error}"),
+                                }
+                            },Err(error)=>self.message=error.to_string(),
+                        }
+                    }
                     if ui
                         .button(RichText::new("Add to library").color(GOLD))
                         .clicked()
@@ -443,28 +460,6 @@ impl Studio {
                         }
                         self.library_brief_editor(ui, &entry);
                         self.grok_portrait_controls(ui, &entry);
-                        if kind == "character" {
-                            ui.label(RichText::new("Assigned voice").size(11.).color(MUTED));
-                            let mut voice = entry.voice.clone();
-                            egui::ComboBox::from_id_salt(&entry.id)
-                                .selected_text(&voice)
-                                .show_ui(ui, |ui| {
-                                    for name in [
-                                        "af_heart",
-                                        "af_bella",
-                                        "am_adam",
-                                        "am_michael",
-                                        "bf_emma",
-                                        "bm_george",
-                                    ] {
-                                        ui.selectable_value(&mut voice, name.into(), name);
-                                    }
-                                });
-                            if voice != entry.voice {
-                                let r = self.store.set_voice(&entry.id, &voice);
-                                self.result(r, "Character voice saved");
-                            }
-                        }
                     });
                 });
             });
@@ -1133,7 +1128,7 @@ impl Studio {
                 let r = self.store.set_automatic_updates(self.automatic_updates);
                 self.result(r, "Update preference saved");
             }
-            ui.label("v002 · MIT · Baz-Studios-LLC / DramaFactory");
+            ui.label("v003 · MIT · Baz-Studios-LLC / DramaFactory");
             ui.label(&self.update_status);
             if ui
                 .add_enabled(
@@ -1208,7 +1203,7 @@ impl eframe::App for Studio {
                         .size(11.),
                     );
                     ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                        ui.label(RichText::new("v002 / DEVELOPMENT").color(MUTED).size(10.));
+                        ui.label(RichText::new("v003 / DEVELOPMENT").color(MUTED).size(10.));
                     });
                 });
             });
@@ -1499,7 +1494,7 @@ fn run() -> anyhow::Result<()> {
     let args: Vec<String> = std::env::args().collect();
     if args.get(1).is_some_and(|x| x == "--help") {
         println!(
-            "DramaFactory v002\n\n(no arguments) Launch studio\n--mcp Start local stdio MCP\n--worker Drain durable queue\n--worker-once Drain if no other worker owns the queue\n--data-path Print database path\n--configure-worker PYTHON WAN_MODEL FFMPEG KOKORO_MODEL\n--configure-images PYTHON FLUX_MODEL\n--configure-lipsync PYTHON MUSETALK_MODEL\n--configure-performance PYTHON LTX_MODEL ENCODER\n--version Print public version"
+            "DramaFactory v003\n\n(no arguments) Launch studio\n--mcp Start local stdio MCP\n--worker Drain durable queue\n--worker-once Drain if no other worker owns the queue\n--data-path Print database path\n--configure-worker PYTHON WAN_MODEL FFMPEG KOKORO_MODEL\n--configure-images PYTHON FLUX_MODEL\n--configure-lipsync PYTHON MUSETALK_MODEL\n--configure-performance PYTHON LTX_MODEL ENCODER\n--version Print public version"
         );
         return Ok(());
     }
@@ -1522,7 +1517,7 @@ fn run() -> anyhow::Result<()> {
         anyhow::bail!("Unknown option '{flag}'. Use --help");
     }
     if args.get(1).is_some_and(|x| x == "--version") {
-        println!("v002");
+        println!("v003");
         return Ok(());
     }
     if args.get(1).is_some_and(|x| x == "--install-staged-update") {
@@ -1602,7 +1597,7 @@ fn run() -> anyhow::Result<()> {
         return mcp::run(store);
     }
     let viewport = egui::ViewportBuilder::default()
-        .with_title("DramaFactory · v002")
+        .with_title("DramaFactory · v003")
         .with_inner_size([1380., 900.])
         .with_min_inner_size([1100., 740.]);
     // macOS resolves the system-rendered Icon Composer asset from the bundle.

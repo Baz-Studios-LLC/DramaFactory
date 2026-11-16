@@ -1,0 +1,24 @@
+{
+  "version": "v002",
+  "checks": [
+    "46 unit/integration tests passed",
+    "clippy warnings denied",
+    "real stdio MCP smoke passed",
+    "packaged Mac build and strict signature passed",
+    "public Gemini endpoint structured-output capability confirmed"
+  ],
+  "implemented": [
+    "process-local authorized credential reuse",
+    "strict structured reply request",
+    "malformed/truncated reply retention without edits",
+    "per-series unsent composer persistence and stale-write rejection"
+  ],
+  "visual_evidence": "Actual running Mac app: empty Copper & Crown cast, New series button, user bubbles right and sidekick left",
+  "limits": [
+    "Latest build not relaunched while user reply pending",
+    "No paid model call",
+    "No actual Keychain authorization/cache acceptance test",
+    "Cache is process-local; new workers and rebuilt apps can still prompt",
+    "Sidekick cannot create a new character yet"
+  ]
+}

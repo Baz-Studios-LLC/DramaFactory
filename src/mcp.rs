@@ -324,6 +324,18 @@ fn definitions() -> Vec<Tool> {
         vec!["current", "expected", "edit"],
     );
     add(
+        "get_portrait_style",
+        "Read saved image style; does not generate an image",
+        json!({"library_id":string()}),
+        vec!["library_id"],
+    );
+    add(
+        "save_portrait_style",
+        "Set Photo, Cinematic, Animation or Illustration for future images; existing images and queued requests are unchanged",
+        json!({"library_id":string(),"style":{"type":"string","enum":["photo","cinematic","animation","illustration"]}}),
+        vec!["library_id", "style"],
+    );
+    add(
         "get_portrait_prompt",
         "Read a character/location portrait prompt and saved baseline",
         json!({"library_id":string()}),
@@ -340,6 +352,24 @@ fn definitions() -> Vec<Tool> {
         "PAID: explicitly queue one Grok portrait via OpenRouter. No automatic reference replacement. Requires user spending authorization.",
         json!({"library_id":string(),"prompt":string()}),
         vec!["library_id", "prompt"],
+    );
+    add(
+        "create_character_with_prompt",
+        "Create a saved character brief and portrait prompt atomically. No image generation or provider call. Caller-generated character_id makes exact replay idempotent.",
+        json!({"series_id":string(),"character_id":string(),"name":string(),"description":string(),"portrait_prompt":string()}),
+        vec![
+            "series_id",
+            "character_id",
+            "name",
+            "description",
+            "portrait_prompt",
+        ],
+    );
+    add(
+        "change_user_message",
+        "Edit or delete one user chat message using expected text and series guards. replacement null deletes. Does not call a model, change replies or undo document edits.",
+        json!({"series_id":string(),"message":{"type":"object"},"replacement":{"type":["string","null"]}}),
+        vec!["series_id", "message", "replacement"],
     );
     add(
         "get_sidekick_messages",
@@ -889,6 +919,13 @@ fn dispatch(path: PathBuf, name: String, a: Value) -> Result<Value> {
             let before = crate::sidekick_edit::apply(&mut current, &expected, &edit)?;
             json!({"draft":current,"undo_before":before,"saved":false})
         }
+        "dramafactory_get_portrait_style" => json!({"style":s.portrait_style(req("library_id")?)?}),
+        "dramafactory_save_portrait_style" => {
+            let style =
+                serde_json::from_value(a.get("style").cloned().context("style is required")?)?;
+            s.save_portrait_style(req("library_id")?, style)?;
+            json!({"saved":true,"image_generated":false})
+        }
         "dramafactory_get_portrait_prompt" => {
             let id = req("library_id")?;
             let (series, kind): (String, String) = s.conn.query_row(
@@ -910,6 +947,26 @@ fn dispatch(path: PathBuf, name: String, a: Value) -> Result<Value> {
             let job = s.enqueue_grok_portrait(req("library_id")?, req("prompt")?)?;
             crate::worker::spawn_detached(&s.path)?;
             json!(job)
+        }
+        "dramafactory_create_character_with_prompt" => {
+            let proposal = crate::character_edit::NewCharacter {
+                name: req("name")?.into(),
+                description: req("description")?.into(),
+                portrait_prompt: req("portrait_prompt")?.into(),
+                generate_portrait: false,
+            };
+            s.create_sidekick_character(req("series_id")?, req("character_id")?, &proposal)?;
+            json!({"created":true,"character_id":req("character_id")?,"image_generated":false})
+        }
+        "dramafactory_change_user_message" => {
+            let message =
+                serde_json::from_value(a.get("message").cloned().context("message is required")?)?;
+            let replacement = a.get("replacement").context("replacement is required")?;
+            if !replacement.is_null() && !replacement.is_string() {
+                bail!("replacement must be text or null");
+            }
+            s.change_user_message(req("series_id")?, &message, replacement.as_str())?;
+            json!({"changed":true,"model_called":false})
         }
         "dramafactory_get_sidekick_messages" => json!(s.sidekick_messages(req("series_id")?)?),
         "dramafactory_select_segment_take" => {
@@ -979,7 +1036,7 @@ struct Server {
 impl ServerHandler for Server {
     fn get_info(&self) -> ServerConfig {
         ServerConfig::new(ServerCapabilities::builder().enable_tools().build())
-            .with_server_info(Implementation::new("DramaFactory", "v002"))
+            .with_server_info(Implementation::new("DramaFactory", "v003"))
     }
     fn get_tool(&self, name: &str) -> Option<Tool> {
         definitions().into_iter().find(|t| t.name == name)

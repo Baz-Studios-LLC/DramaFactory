@@ -119,3 +119,118 @@ mod tests {
         assert!(apply(&draft, &draft, &edit).is_err());
     }
 }
+
+#[derive(Clone, Deserialize, Serialize)]
+#[serde(deny_unknown_fields)]
+pub struct NewCharacter {
+    #[serde(default)]
+    pub generate_portrait: bool,
+    pub name: String,
+    pub description: String,
+    pub portrait_prompt: String,
+}
+impl crate::store::Store {
+    pub(crate) fn create_sidekick_character(
+        &self,
+        series: &str,
+        id: &str,
+        proposal: &NewCharacter,
+    ) -> Result<()> {
+        use rusqlite::{OptionalExtension, params};
+        if proposal.name.trim().is_empty()
+            || proposal.name.len() > 200
+            || proposal.description.len() > 12000
+            || proposal.portrait_prompt.trim().is_empty()
+            || proposal.portrait_prompt.len() > 65536
+        {
+            bail!("Character proposal is empty or exceeds supported bounds");
+        }
+        let tx = self.conn.unchecked_transaction()?;
+        tx.query_row("SELECT id FROM series WHERE id=?1", [series], |r| {
+            r.get::<_, String>(0)
+        })?;
+        let existing: Option<(String,String,String,Option<String>)>=tx.query_row(
+            "SELECT l.series_id,l.name,l.description,p.prompt FROM library l LEFT JOIN portrait_prompts p ON p.library_id=l.id WHERE l.id=?1",[id],
+            |r|Ok((r.get(0)?,r.get(1)?,r.get(2)?,r.get(3)?))).optional()?;
+        if let Some(existing) = existing {
+            if existing
+                != (
+                    series.into(),
+                    proposal.name.clone(),
+                    proposal.description.clone(),
+                    Some(proposal.portrait_prompt.clone()),
+                )
+            {
+                bail!("Character creation conflicts with an existing record");
+            }
+            return Ok(());
+        }
+        let duplicate:bool=tx.query_row("SELECT EXISTS(SELECT 1 FROM library WHERE series_id=?1 AND kind='character' AND lower(trim(name))=lower(trim(?2)))",params![series,proposal.name],|r|r.get(0))?;
+        if duplicate {
+            bail!(
+                "A character with this name already exists. Ask the sidekick to edit that character instead."
+            );
+        }
+        tx.execute("INSERT INTO library(id,series_id,kind,name,description) VALUES(?1,?2,'character',?3,?4)",params![id,series,proposal.name,proposal.description])?;
+        tx.execute(
+            "INSERT INTO portrait_prompts(library_id,prompt) VALUES(?1,?2)",
+            params![id, proposal.portrait_prompt],
+        )?;
+        tx.commit()?;
+        Ok(())
+    }
+}
+
+#[cfg(test)]
+mod creation_tests {
+    use super::*;
+    #[test]
+    fn character_and_prompt_create_atomically_without_images_and_without_duplicate_replay() {
+        let root = std::env::temp_dir().join(format!("df-new-character-{}", uuid::Uuid::new_v4()));
+        std::fs::create_dir_all(&root).unwrap();
+        let path = root.join("studio.sqlite");
+        let store = crate::store::Store::open(path.clone()).unwrap();
+        let a = store.create_series("A", "").unwrap();
+        let b = store.create_series("B", "").unwrap();
+        let proposal = NewCharacter {
+            generate_portrait: false,
+            name: "Tamsin".into(),
+            description: "Clever adult market trader".into(),
+            portrait_prompt: "Cinematic portrait, village market".into(),
+        };
+        store
+            .create_sidekick_character(&a.id, "fixture-character", &proposal)
+            .unwrap();
+        store
+            .create_sidekick_character(&a.id, "fixture-character", &proposal)
+            .unwrap();
+        assert!(
+            store
+                .create_sidekick_character(&b.id, "fixture-character", &proposal)
+                .is_err()
+        );
+        assert!(
+            store
+                .create_sidekick_character(&a.id, "duplicate", &proposal)
+                .is_err()
+        );
+        assert!(store.library(&b.id, "character").unwrap().is_empty());
+        drop(store);
+        let store = crate::store::Store::open(path).unwrap();
+        let entries = store.library(&a.id, "character").unwrap();
+        assert_eq!(entries.len(), 1);
+        assert!(entries[0].reference.is_none());
+        let job = store
+            .enqueue_grok_portrait(&entries[0].id, &proposal.portrait_prompt)
+            .unwrap();
+        assert_eq!(job.status, "queued");
+        // Queue construction only: no worker or provider call is started in this test.
+
+        assert_eq!(
+            store.portrait_prompt(&entries[0]).unwrap().prompt,
+            proposal.portrait_prompt
+        );
+        drop(store);
+        std::fs::remove_dir_all(root).unwrap();
+    }
+}

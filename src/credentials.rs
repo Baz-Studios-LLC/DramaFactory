@@ -1,17 +1,47 @@
 //! Native credential boundary. Never serialize or expose key bytes in diagnostics.
 use anyhow::{Result, bail};
+// Process-local only: a successful authorization is reused until quit or key replacement.
+#[cfg(any(target_os = "macos", test))]
+#[derive(Default)]
+struct SessionKey(Option<String>);
+#[cfg(any(target_os = "macos", test))]
+impl SessionKey {
+    fn read(&mut self, load: impl FnOnce() -> Result<Option<String>>) -> Result<Option<String>> {
+        if let Some(key) = &self.0 {
+            return Ok(Some(key.clone()));
+        }
+        let key = load()?;
+        self.0 = key.clone();
+        Ok(key)
+    }
+}
+#[cfg(target_os = "macos")]
+static SESSION: std::sync::Mutex<SessionKey> = std::sync::Mutex::new(SessionKey(None));
+#[cfg(target_os = "macos")]
+fn session() -> Result<std::sync::MutexGuard<'static, SessionKey>> {
+    SESSION
+        .lock()
+        .map_err(|_| anyhow::anyhow!("Credential session unavailable; restart the app."))
+}
 #[cfg(target_os = "macos")]
 const SERVICE: &str = "studio.bazstudios.dramafactory.openrouter";
 #[cfg(target_os = "macos")]
 const ACCOUNT: &str = "api-key";
 #[cfg(target_os = "macos")]
 pub fn save(key: &str) -> Result<()> {
+    let mut cache = session()?;
     security_framework::passwords::set_generic_password(SERVICE, ACCOUNT, key.as_bytes()).map_err(
         |error| anyhow::anyhow!("Keychain could not save the key (code {}).", error.code()),
-    )
+    )?;
+    cache.0 = Some(key.to_owned());
+    Ok(())
 }
 #[cfg(target_os = "macos")]
 pub fn read() -> Result<Option<String>> {
+    session()?.read(read_keychain)
+}
+#[cfg(target_os = "macos")]
+fn read_keychain() -> Result<Option<String>> {
     use security_framework::passwords::{PasswordOptions, generic_password};
     match generic_password(PasswordOptions::new_generic_password(SERVICE, ACCOUNT)) {
         Ok(bytes) => Ok(Some(String::from_utf8(bytes).map_err(|_| {
@@ -23,11 +53,16 @@ pub fn read() -> Result<Option<String>> {
 }
 #[cfg(target_os = "macos")]
 pub fn remove() -> Result<()> {
-    match security_framework::passwords::delete_generic_password(SERVICE, ACCOUNT) {
+    let mut cache = session()?;
+    let result = match security_framework::passwords::delete_generic_password(SERVICE, ACCOUNT) {
         Ok(()) => Ok(()),
         Err(error) if error.code() == -25300 => Ok(()),
         Err(error) => bail!("Keychain could not remove the key (code {}).", error.code()),
+    };
+    if result.is_ok() {
+        cache.0 = None;
     }
+    result
 }
 #[cfg(not(target_os = "macos"))]
 pub fn save(_: &str) -> Result<()> {
@@ -71,4 +106,39 @@ pub fn test_connection() -> Result<String> {
         bail!("OpenRouter returned an unexpected key status.");
     }
     Ok("OpenRouter accepted the saved key. No generation was started; model access and spending limits are checked separately.".into())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    #[test]
+    fn session_reuses_authorization_and_does_not_cache_failure() {
+        let mut cache = SessionKey::default();
+        assert!(cache.read(|| bail!("denied")).is_err());
+        assert!(cache.read(|| Ok(None)).unwrap().is_none());
+        assert_eq!(
+            cache
+                .read(|| Ok(Some("fixture".into())))
+                .unwrap()
+                .as_deref(),
+            Some("fixture")
+        );
+        assert_eq!(
+            cache
+                .read(|| panic!("must not access Keychain again"))
+                .unwrap()
+                .as_deref(),
+            Some("fixture")
+        );
+        cache.0 = Some("replacement".into());
+        assert_eq!(
+            cache
+                .read(|| panic!("must reuse saved key"))
+                .unwrap()
+                .as_deref(),
+            Some("replacement")
+        );
+        cache.0 = None;
+        assert!(cache.read(|| Ok(None)).unwrap().is_none());
+    }
 }

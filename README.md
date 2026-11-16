@@ -1,6 +1,6 @@
-# DramaFactory · v002
+# DramaFactory · v003
 
-A Rust-native, Mac-first studio for developing a coherent short drama series, from synopsis and cast to generated episodes. MIT licensed. **v002 is a work in progress, not a finished production release.**
+A Rust-native, Mac-first studio for developing a coherent short drama series, from synopsis and cast to generated episodes. MIT licensed. **v003 is a work in progress, not a finished production release.**
 
 ## Workflow
 
@@ -48,3 +48,5 @@ cargo run -- --worker
 The MCP server uses stdio and shares application services with the desktop. The worker drains queued jobs then exits. FFmpeg is required for local assembly; historical integration scripts may also require dependencies from the retired local workflow. See `DESIGN.md`, `ROADMAP.md` and `benchmarks/` for design, evidence and open work.
 
 Signed update verification and staging exist, with an external private signing key. The current updater targets the developer bundle; complete signed/notarized bundle updates are required before production distribution. A GitHub source update does not publish an app release or an update artifact.
+
+Portraits support per-character Photo, Cinematic, Animation and Illustration styles. The chosen style is saved and captured in each generation request; existing images remain unchanged. Style prompts guide the provider but do not guarantee photographic realism.

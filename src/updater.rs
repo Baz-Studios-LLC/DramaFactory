@@ -323,9 +323,9 @@ mod tests {
     fn rejects_tampering_and_downgrades() {
         let key = SigningKey::from_bytes(&[7; 32]);
         let mut m = Manifest {
-            version: "v003".into(),
+            version: "v004".into(),
             target: TARGET.into(),
-            binary: format!("DramaFactory-v003-{TARGET}"),
+            binary: format!("DramaFactory-v004-{TARGET}"),
             sha256: "ab".repeat(32),
             size: 123,
             signature: String::new(),

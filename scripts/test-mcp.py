@@ -174,6 +174,30 @@ with tempfile.TemporaryDirectory(prefix="dramafactory-mcp-") as temporary:
     assert tool('list_dialogue',shot_id=shot['id'])[0]['revision']==changed_line['revision']
     conflict=request('tools/call',dict(name='dramafactory_set_dialogue_visibility',arguments=dict(line_id=current_line['id'],speaker_visible=True,expected_visible=True)))
     assert conflict.get('isError'),conflict
+    # Hosted cast creation and chat mutation exercise shared services, without AI calls.
+    new_series=tool("create_series",name="Hosted cast isolation",premise="Fixture")
+    character_id=str(uuid.uuid4())
+    args=dict(series_id=new_series["id"],character_id=character_id,name="Tamsin fixture",description="Adult village trader",portrait_prompt="Cinematic village portrait")
+    tool("create_character_with_prompt",**args)
+    tool("create_character_with_prompt",**args)
+    assert tool("get_portrait_style",library_id=character_id)["style"]=="photo"
+    tool("save_portrait_style",library_id=character_id,style="animation")
+    assert tool("get_portrait_style",library_id=character_id)["style"]=="animation"
+    prompt=tool("get_portrait_prompt",library_id=character_id)
+    assert prompt["prompt"]==args["portrait_prompt"]
+    foreign=tool("create_series",name="Other fixture",premise="")
+    result=request("tools/call",dict(name="dramafactory_create_character_with_prompt",arguments={**args,"series_id":foreign["id"]}))
+    assert result.get("isError"),result
+    message=dict(id=str(uuid.uuid4()),role="user",text="Original text",context="Characters")
+    with sqlite3.connect(env["DRAMAFACTORY_DATABASE"]) as connection:
+        connection.execute("INSERT INTO sidekick_messages(id,series_id,role,text,context) VALUES(?,?,?,?,?)",(message["id"],new_series["id"],message["role"],message["text"],message["context"]))
+    tool("change_user_message",series_id=new_series["id"],message=message,replacement="Edited text")
+    stale=request("tools/call",dict(name="dramafactory_change_user_message",arguments=dict(series_id=new_series["id"],message=message,replacement=None)))
+    assert stale.get("isError"),stale
+    message["text"]="Edited text"
+    assert tool("get_sidekick_messages",series_id=new_series["id"])[0]["text"]==message["text"]
+    tool("change_user_message",series_id=new_series["id"],message=message,replacement=None)
+    assert not tool("get_sidekick_messages",series_id=new_series["id"])
     process.stdin.close()
     assert process.wait(timeout=10) == 0
     print("MCP integration passed: initialize, discovery, series, episode, screenplay, render request, cancellation, saved camera geometry, linked shot direction, prepared render and explicit pacing notes.")

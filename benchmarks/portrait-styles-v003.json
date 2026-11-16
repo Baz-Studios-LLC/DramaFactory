@@ -1,0 +1,22 @@
+{
+  "version": "v003",
+  "styles": [
+    "photo",
+    "cinematic",
+    "animation",
+    "illustration"
+  ],
+  "tests": [
+    "49 tests passed",
+    "Clippy warnings denied",
+    "real MCP integration with style read/write and character creation/message edits",
+    "disposable signed updater integration passed",
+    "strict Mac bundle verification"
+  ],
+  "visual": "Actual v003 Mac app: style buttons, Photo selected, portrait completion status and gallery visible",
+  "limits": [
+    "No paid style-generation comparison",
+    "Prompt style is not guaranteed photographic realism",
+    "Full production studio goal remains incomplete"
+  ]
+}

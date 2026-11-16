@@ -7,11 +7,22 @@ use serde_json::{Value, json};
 #[derive(Serialize, Deserialize)]
 pub struct PortraitRequest {
     pub prompt: String,
+    #[serde(default)]
+    pub source_prompt: Option<String>,
+    #[serde(default)]
+    pub style: Option<crate::portrait_style::PortraitStyle>,
     pub library_id: String,
     pub library_reference_before: Option<String>,
     pub library_context_before: Value,
 }
 impl Store {
+    pub(crate) fn portrait_jobs(&self, entry: &str) -> Result<Vec<crate::store::Job>> {
+        let mut query=self.conn.prepare("SELECT id FROM jobs WHERE kind='openrouter_image' AND CASE WHEN json_valid(request) THEN json_extract(request,'$.library_id') END=?1 ORDER BY rowid DESC LIMIT 5")?;
+        let ids = query
+            .query_map([entry], |row| row.get::<_, String>(0))?
+            .collect::<rusqlite::Result<Vec<_>>>()?;
+        ids.iter().map(|id| self.job(id)).collect()
+    }
     pub fn enqueue_grok_portrait(&self, entry: &str, prompt: &str) -> Result<crate::store::Job> {
         if prompt.trim().is_empty() || prompt.len() > 65536 {
             bail!("Portrait prompt must contain 1–65536 bytes");
@@ -26,8 +37,11 @@ impl Store {
             .as_ref()
             .map(|path| crate::worker::hash_file(std::path::Path::new(path)))
             .transpose()?;
+        let style = self.portrait_style(entry)?;
         let request = PortraitRequest {
-            prompt: prompt.into(),
+            prompt: style.prompt(prompt),
+            source_prompt: Some(prompt.into()),
+            style: Some(style),
             library_id: entry.into(),
             library_reference_before: reference,
             library_context_before: json!({"name":name,"description":description,"reference_hash":hash}),
