@@ -15,6 +15,39 @@ pub struct AssetReview {
 mod tests {
     use super::*;
     #[test]
+    fn explicit_portrait_choice_allows_old_images_but_rejects_stale_ui_and_changed_bytes() {
+        let root =
+            std::env::temp_dir().join(format!("df-select-portrait-{}", uuid::Uuid::new_v4()));
+        let store = Store::open(root.join("db.sqlite")).unwrap();
+        let series = store.create_series("Series", "").unwrap();
+        let entry = store
+            .add_library(&series.id, "character", "Actor", "New bio", None)
+            .unwrap();
+        let file = root.join("portrait.png");
+        image::RgbaImage::new(8, 8).save(&file).unwrap();
+        let hash = crate::worker::hash_file(&file).unwrap();
+        let metadata = serde_json::json!({"kind":"image","request":{"library_id":entry.id,"library_reference_before":null,"library_context_before":{"name":"Old name","description":"Old bio","reference_hash":null}}});
+        store
+            .conn
+            .execute(
+                "INSERT INTO assets VALUES('old','job',?1,?2,8,8,0,?3,'unreviewed')",
+                params![file.to_string_lossy(), hash, metadata.to_string()],
+            )
+            .unwrap();
+        assert!(store.review("old", "approved").is_err());
+        store.select_portrait(&entry, "old").unwrap();
+        let current = store.library(&series.id, "character").unwrap().remove(0);
+        assert_eq!(current.reference.as_ref(), Some(&file));
+        assert_eq!(current.description, "New bio");
+        assert_eq!(store.asset_review("old").unwrap().decision, "approved");
+        assert!(store.select_portrait(&entry, "old").is_err());
+        store.select_portrait(&current, "old").unwrap();
+        image::RgbaImage::new(10, 10).save(&file).unwrap();
+        assert!(store.select_portrait(&current, "old").is_err());
+        drop(store);
+        std::fs::remove_dir_all(root).unwrap();
+    }
+    #[test]
     fn changed_library_brief_blocks_old_image_reference_approval() {
         let root = std::env::temp_dir().join(format!("df-review-brief-{}", uuid::Uuid::new_v4()));
         let store = Store::open(root.join("studio.sqlite")).unwrap();
@@ -122,6 +155,56 @@ pub struct ReviewHistory {
     pub created_at: String,
 }
 impl Store {
+    pub(crate) fn select_portrait(
+        &self,
+        expected: &crate::production::LibraryEntry,
+        asset: &str,
+    ) -> Result<()> {
+        let tx = rusqlite::Transaction::new_unchecked(
+            &self.conn,
+            rusqlite::TransactionBehavior::Immediate,
+        )?;
+        self.ensure_character_not_deleted(&expected.id)?;
+        if self.deleted_portraits()?.contains(asset) {
+            bail!("Restore this portrait before selecting it");
+        }
+        let (path, hash, metadata): (String, String, String) = self.conn.query_row(
+            "SELECT path,hash,metadata FROM assets WHERE id=?1",
+            [asset],
+            |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)),
+        )?;
+        let metadata: serde_json::Value = serde_json::from_str(&metadata)?;
+        if metadata["kind"] != "image" || metadata["request"]["library_id"] != expected.id {
+            bail!("This image does not belong to this character or location");
+        }
+        if crate::worker::hash_file(std::path::Path::new(&path))? != hash {
+            bail!("The portrait file has changed; selection was not saved");
+        }
+        let current: (String, String, Option<String>) = self.conn.query_row(
+            "SELECT name,description,reference FROM library WHERE id=?1",
+            [&expected.id],
+            |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)),
+        )?;
+        if current.0 != expected.name
+            || current.1 != expected.description
+            || current.2.as_deref() != expected.reference.as_ref().and_then(|p| p.to_str())
+        {
+            bail!(
+                "This character changed in another window. Review the latest card, then select the portrait again"
+            );
+        }
+        // The explicit user selection supersedes generation-time reference/brief snapshots.
+        // Ordinary approval still retains its existing stale-result protection.
+        self.conn.execute(
+            "UPDATE library SET reference=?2 WHERE id=?1",
+            params![expected.id, path],
+        )?;
+        let mut review = self.asset_review(asset)?;
+        review.decision = "approved".into();
+        self.write_asset_review(&review, true)?;
+        tx.commit()?;
+        Ok(())
+    }
     pub fn asset_review(&self, id: &str) -> Result<AssetReview> {
         self.conn.query_row("SELECT a.review,COALESCE(n.revision,0),COALESCE(n.note,'') FROM assets a LEFT JOIN asset_review_notes n ON n.asset_id=a.id WHERE a.id=?1",[id],|row|Ok(AssetReview {asset_id:id.into(),decision:row.get(0)?,revision:row.get(1)?,note:row.get(2)?})).context("Asset not found")
     }

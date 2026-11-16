@@ -6,6 +6,13 @@ pub struct Inspector {
     zoom: Option<f32>,
 }
 impl Studio {
+    pub(crate) fn inspect_portrait(&mut self, path: &Path) {
+        self.image_inspector = Some(Inspector {
+            path: path.to_owned(),
+            zoom: None,
+        });
+    }
+
     pub(crate) fn reference_preview(&mut self, ui: &mut egui::Ui, path: &Path, size: egui::Vec2) {
         if ui
             .add(

@@ -3,15 +3,99 @@ use crate::Studio;
 pub struct VideoPlanner {
     pub(crate) drafts: std::collections::HashMap<String, crate::generation_plan::SavedPlan>,
     pub(crate) section: u8,
+    pub(crate) show_old_attempts: bool,
+    pub(crate) player: Option<crate::media::Preview>,
+    pub(crate) player_visible: bool,
+    player_asset: Option<String>,
+    player_error: Option<String>,
+    thumbnails: crate::take_gallery::Thumbnails,
+    open_take: Option<String>,
+    delete_take: Option<String>,
+    credits: Option<Result<crate::credit_status::Credits, String>>,
+    credits_pending:
+        Option<std::sync::mpsc::Receiver<Result<crate::credit_status::Credits, String>>>,
+    credits_checked: Option<std::time::Instant>,
     catalog: Option<crate::openrouter::Catalog>,
     catalog_pending: Option<std::sync::mpsc::Receiver<anyhow::Result<crate::openrouter::Catalog>>>,
     catalog_error: Option<String>,
-    preview_source: Option<(String, crate::generation_plan::SegmentDraft)>,
+    generation_error: Option<String>,
     selected: std::collections::HashMap<String, usize>,
-    pending: Option<std::sync::mpsc::Receiver<Result<serde_json::Value, String>>>,
-    preview: Option<Result<serde_json::Value, String>>,
 }
 impl Studio {
+    fn video_credit_status(&mut self, ui: &mut eframe::egui::Ui) {
+        let state = &mut self.video_planner;
+        if let Some(rx) = &state.credits_pending {
+            match rx.try_recv() {
+                Ok(result) => {
+                    state.credits = Some(result);
+                    state.credits_checked = Some(std::time::Instant::now());
+                    state.credits_pending = None;
+                }
+                Err(std::sync::mpsc::TryRecvError::Disconnected) => {
+                    state.credits = Some(Err("Credit check stopped".into()));
+                    state.credits_checked = Some(std::time::Instant::now());
+                    state.credits_pending = None;
+                }
+                Err(std::sync::mpsc::TryRecvError::Empty) => {}
+            }
+        }
+        let mut refresh = state
+            .credits_checked
+            .is_none_or(|time| time.elapsed().as_secs() >= 60);
+        ui.horizontal_wrapped(|ui| {
+            ui.strong("Credits");
+            if state.credits_pending.is_some() {
+                ui.spinner();
+            }
+            if let Some(result) = &state.credits {
+                match result {
+                    Ok(credits) => {
+                        if let Some(balance) = credits.balance {
+                            ui.label(format!("${balance:.2} available"));
+                        }
+                        if let Some(allowance) = credits.allowance {
+                            ui.label(format!("Key limit: ${allowance:.2}"));
+                        }
+                        if let Some(note) = &credits.balance_note {
+                            ui.weak(note);
+                        }
+                        if credits.balance.is_some_and(|n| n <= 0.)
+                            || credits.allowance.is_some_and(|n| n <= 0.)
+                        {
+                            ui.colored_label(
+                                eframe::egui::Color32::from_rgb(255, 150, 120),
+                                "Credits or key allowance exhausted",
+                            );
+                        }
+                    }
+                    Err(error) => {
+                        ui.label(error);
+                    }
+                }
+            }
+            if ui
+                .add_enabled(
+                    state.credits_pending.is_none(),
+                    eframe::egui::Button::new("Refresh").small(),
+                )
+                .clicked()
+            {
+                refresh = true;
+            }
+            ui.hyperlink_to("Manage credits", "https://openrouter.ai/settings/credits");
+        });
+        if refresh && state.credits_pending.is_none() {
+            let (tx, rx) = std::sync::mpsc::channel();
+            state.credits_pending = Some(rx);
+            std::thread::spawn(move || {
+                let _ = tx.send(crate::credit_status::fetch().map_err(|error| error.to_string()));
+            });
+        }
+        ui.ctx()
+            .request_repaint_after(std::time::Duration::from_secs(1));
+        ui.add_space(8.);
+    }
+
     pub(crate) fn snapshot_generation_plans(&self) -> anyhow::Result<()> {
         if !self.video_planner.drafts.is_empty() {
             let directory = self.store.root().join("drafts");
@@ -31,10 +115,11 @@ impl Studio {
     }
 
     pub(crate) fn hosted_video_planner(&mut self, ui: &mut eframe::egui::Ui) {
+        ui.spacing_mut().item_spacing.y = 8.;
+        self.video_credit_status(ui);
         ui.horizontal_wrapped(|ui| {
             ui.selectable_value(&mut self.video_planner.section, 0, "Prepare");
             ui.selectable_value(&mut self.video_planner.section, 1, "Takes");
-            ui.selectable_value(&mut self.video_planner.section, 2, "Finished episode");
         });
         ui.add_space(12.);
         self.episode_picker(ui);
@@ -147,8 +232,15 @@ impl Studio {
                 *index = plan.segments.len() - 1;
             }
         });
+        let total_seconds: u32 = plan.segments.iter().map(|segment| segment.duration).sum();
+        let saved = self.store.generation_plan(&episode).ok();
+        let dirty = saved.as_ref().is_none_or(|saved| {
+            saved.revision == 0
+                || saved.revision != plan.revision
+                || saved.segments != plan.segments
+        });
         ui.horizontal_wrapped(|ui| {
-            if ui.button("Save episode plan").clicked() {
+            if ui.button("Save plan").clicked() {
                 match self.store.save_generation_plan(plan) {
                     Ok(saved) => {
                         *plan = saved;
@@ -157,7 +249,14 @@ impl Studio {
                     Err(error) => self.message = error.to_string(),
                 }
             }
-            if ui.button("Reload saved plan").clicked() {
+            ui.small(format!(
+                "{} segments · ~{}m {:02}s planned · {}",
+                plan.segments.len(),
+                total_seconds / 60,
+                total_seconds % 60,
+                if dirty { "Unsaved changes" } else { "Saved" }
+            ));
+            if ui.small_button("Reload").clicked() {
                 let reload = (|| -> anyhow::Result<_> {
                     let directory = self.store.root().join("drafts");
                     std::fs::create_dir_all(&directory)?;
@@ -178,45 +277,32 @@ impl Studio {
                     Err(error) => self.message = error.to_string(),
                 }
             }
-            ui.small(format!(
-                "Saved revision {} · edits require Save",
-                plan.revision
-            ));
         });
-        let total_seconds: u32 = plan.segments.iter().map(|segment| segment.duration).sum();
-        ui.label(format!(
-            "Planned episode: {} segments · {}m {:02}s",
-            plan.segments.len(),
-            total_seconds / 60,
-            total_seconds % 60
-        ));
-        let saved = self.store.generation_plan(&episode).ok();
-        let dirty = saved.as_ref().is_none_or(|saved| {
-            saved.revision == 0
-                || saved.revision != plan.revision
-                || saved.segments != plan.segments
-        });
-        ui.label(
-            eframe::egui::RichText::new(if dirty {
-                "Unsaved generation plan"
-            } else {
-                "Generation plan saved"
-            })
-            .color(if dirty { crate::GOLD } else { crate::MUTED }),
-        );
+        let cast_error = match self.store.current_plan_cast(plan) {
+            Ok(current) => {
+                *plan = current;
+                None
+            }
+            Err(error) => Some(format!("{error:#}")),
+        };
+        if let Some(error) = &cast_error {
+            ui.colored_label(crate::GOLD, error);
+        }
         if state.section == 0 {
+            ui.collapsing("Generate all segments", |ui| {
             let validation = state
                 .catalog
                 .as_ref()
                 .ok_or_else(|| anyhow::anyhow!("Checking Seedance capabilities…"))
                 .and_then(|catalog| {
-                    for segment in &plan.segments {
-                        segment.video_plan()?.preview(catalog)?;
+                    for (number, segment) in plan.segments.iter().enumerate() {
+                        segment.video_plan().and_then(|request| request.preview(catalog))
+                            .map_err(|error| anyhow::anyhow!("Segment {}: {error}", number + 1))?;
                     }
                     Ok(())
                 });
             ui.horizontal_wrapped(|ui| {
-                if ui.add_enabled(validation.is_ok(), crate::theme::primary(&format!("Generate episode · {} segments · paid", plan.segments.len())))
+                if ui.add_enabled(validation.is_ok(), crate::theme::primary(&format!("Generate {} segments", plan.segments.len())))
                     .on_hover_text("Saves this plan and queues segments without an existing identical request. Existing requests are not retried.").clicked() {
                     match self.store.enqueue_generation_plan(plan, state.catalog.as_ref().expect("validated catalog")) {
                         Ok((saved, count)) => {
@@ -236,97 +322,37 @@ impl Studio {
             if let Err(error) = validation {
                 ui.small(error.to_string());
             }
-            ui.small("Generates all missing segments using your paid OpenRouter account. Actual usage determines the cost.");
-        }
-        if state.section == 2 {
-            Self::card(ui, |ui| {
-                ui.heading("Episode assembly");
-                ui.label("Selected takes play in this order, with their original sound.");
-                let mut missing = 0;
-                for (number, segment) in plan.segments.iter().enumerate() {
-                    let selected = self
-                        .store
-                        .selected_segment_take(&episode, &segment.id)
-                        .ok()
-                        .flatten();
-                    if selected.is_none() {
-                        missing += 1;
-                    }
-                    ui.label(format!(
-                        "{:02} · {} seconds · {}",
-                        number + 1,
-                        segment.duration,
-                        if selected.is_some() {
-                            "Take selected"
-                        } else {
-                            "Choose an approved take"
-                        }
-                    ));
-                }
-                if dirty {
-                    ui.label("Save the plan before assembling this episode.");
-                }
-                if ui
-                    .add_enabled(
-                        !dirty && missing == 0,
-                        crate::theme::primary("Assemble episode · MP4"),
-                    )
-                    .clicked()
-                {
-                    self.message = match self
-                        .store
-                        .enqueue_hosted_episode_export(&episode)
-                        .and_then(|_| crate::worker::spawn_detached(&self.store.path))
-                    {
-                        Ok(()) => {
-                            "Episode assembly queued with original segment soundtracks".into()
-                        }
-                        Err(error) => error.to_string(),
-                    };
-                }
-                ui.small("Review dialogue, music and continuity across each cut before approving the finished episode.");
             });
-            return;
         }
         if state.section == 0 {
-            ui.horizontal_wrapped(|ui| {
-                if ui
-                    .add_enabled(*index > 0, eframe::egui::Button::new("Move earlier"))
-                    .clicked()
-                {
-                    plan.segments.swap(*index, *index - 1);
-                    *index -= 1;
-                }
-                if ui
-                    .add_enabled(
-                        *index + 1 < plan.segments.len(),
-                        eframe::egui::Button::new("Move later"),
-                    )
-                    .clicked()
-                {
-                    plan.segments.swap(*index, *index + 1);
-                    *index += 1;
-                }
+            ui.collapsing("Reorder segment", |ui| {
+                ui.horizontal_wrapped(|ui| {
+                    if ui
+                        .add_enabled(*index > 0, eframe::egui::Button::new("Move earlier"))
+                        .clicked()
+                    {
+                        plan.segments.swap(*index, *index - 1);
+                        *index -= 1;
+                    }
+                    if ui
+                        .add_enabled(
+                            *index + 1 < plan.segments.len(),
+                            eframe::egui::Button::new("Move later"),
+                        )
+                        .clicked()
+                    {
+                        plan.segments.swap(*index, *index + 1);
+                        *index += 1;
+                    }
+                });
             });
         }
+        let mut generate_segment = false;
         let draft = &mut plan.segments[*index];
-        if let Some(receiver) = &state.pending {
-            match receiver.try_recv() {
-                Ok(result) => {
-                    state.preview = Some(result);
-                    state.pending = None;
-                }
-                Err(std::sync::mpsc::TryRecvError::Disconnected) => {
-                    state.preview = Some(Err("Preview check stopped. Try again.".into()));
-                    state.pending = None;
-                }
-                Err(std::sync::mpsc::TryRecvError::Empty) => {}
-            }
-        }
         Self::card(ui, |ui| {
             if state.section == 0 {
                 ui.heading(format!("Segment {} · Seedance 2.5", *index + 1));
-                ui.label("Describe the action, dialogue, camera, music and sound in one prompt.");
+
                 Self::field(ui, "SEGMENT PROMPT", &mut draft.prompt, 4);
                 let model = state.catalog.as_ref().and_then(|catalog| {
                     catalog
@@ -336,26 +362,6 @@ impl Studio {
                 });
                 ui.add_enabled_ui(model.is_some(), |ui| {
                     ui.horizontal_wrapped(|ui| {
-                        ui.label("Clip length");
-                        eframe::egui::ComboBox::from_id_salt("seedance_duration")
-                            .selected_text(format!("{} seconds", draft.duration))
-                            .show_ui(ui, |ui| {
-                                if let Some(values) =
-                                    model.and_then(|m| m["supported_durations"].as_array())
-                                {
-                                    for duration in values
-                                        .iter()
-                                        .filter_map(|v| v.as_u64())
-                                        .filter(|v| (4..=30).contains(v))
-                                    {
-                                        ui.selectable_value(
-                                            &mut draft.duration,
-                                            duration as u32,
-                                            format!("{duration} seconds"),
-                                        );
-                                    }
-                                }
-                            });
                         ui.label("Resolution");
                         if let Some(values) =
                             model.and_then(|m| m["supported_resolutions"].as_array())
@@ -377,107 +383,67 @@ impl Studio {
                 if model.is_none() {
                     ui.small("Checking available Seedance settings…");
                 }
-                ui.small("Vertical 9:16 · picture, dialogue and sound generated together");
+                ui.small("30 seconds · 9:16 · Sound on");
                 ui.horizontal_wrapped(|ui| {
                     ui.selectable_value(&mut draft.mode, 0, "Prompt only");
-                    ui.selectable_value(&mut draft.mode, 1, "Character & scene references");
+                    ui.selectable_value(&mut draft.mode, 1, "Reference images");
                     ui.selectable_value(&mut draft.mode, 2, "First / last frame");
                 });
                 match draft.mode {
                     1 => {
                         ui.label("Characters in this segment");
-                        for entry in &cast {
-                            let mut selected = draft
-                                .cast
-                                .iter()
-                                .any(|reference| reference.character_id == entry.id);
-                            if ui
-                                .add_enabled(
-                                    entry.reference.is_some(),
-                                    eframe::egui::Checkbox::new(&mut selected, &entry.name),
-                                )
-                                .changed()
-                            {
-                                if selected {
-                                    match self.store.prepare_cast_reference(&episode, &entry.id) {
-                                        Ok(reference) => draft.cast.push(reference),
-                                        Err(error) => self.message = error.to_string(),
-                                    }
-                                } else {
-                                    draft
+                        let columns = ((ui.available_width() / 124.).floor() as usize).clamp(1, 8);
+                        let width = ((ui.available_width() - 10. * (columns - 1) as f32)
+                            / columns as f32)
+                            .min(120.);
+                        eframe::egui::Grid::new(("segment-cast", &draft.id))
+                            .num_columns(columns)
+                            .spacing([10., 10.])
+                            .show(ui, |ui| {
+                                for (number, entry) in cast.iter().enumerate() {
+                                    let selected = draft
                                         .cast
-                                        .retain(|reference| reference.character_id != entry.id);
-                                }
-                            }
-                        }
-                        for reference in &draft.cast {
-                            ui.horizontal(|ui| {
-                                ui.add(
-                                    eframe::egui::Image::from_uri(format!(
-                                        "file://{}",
-                                        reference.path.display()
-                                    ))
-                                    .fit_to_exact_size(eframe::egui::vec2(90., 120.)),
-                                );
-                                ui.vertical(|ui| {
-                                    ui.label(&reference.name);
-                                    ui.small("Selected portrait linked");
-                                    if let Err(error) =
-                                        self.store.validate_cast_reference(&episode, reference)
-                                    {
-                                        ui.label(error.to_string());
+                                        .iter()
+                                        .any(|reference| reference.character_id == entry.id);
+                                    if crate::character_grid::cast_choice(
+                                        ui, entry, selected, width,
+                                    ) {
+                                        if selected {
+                                            draft.cast.retain(|reference| {
+                                                reference.character_id != entry.id
+                                            });
+                                        } else {
+                                            match self
+                                                .store
+                                                .prepare_cast_reference(&episode, &entry.id)
+                                            {
+                                                Ok(reference) => draft.cast.push(reference),
+                                                Err(error) => self.message = error.to_string(),
+                                            }
+                                        }
                                     }
-                                });
+                                    if (number + 1) % columns == 0 {
+                                        ui.end_row();
+                                    }
+                                }
                             });
-                        }
-                        if !draft.cast.is_empty() {
-                            ui.label("Local portraits need a delivery connection before they can be used. For now, unlink these and supply public HTTPS references to generate.");
-                        }
-                        ui.label("Public HTTPS reference image URLs, one per line (required if no local portraits are linked).");
-                        Self::field(ui, "REFERENCES", &mut draft.references, 3);
                     }
                     2 => {
-                        ui.label("Only the frame anchors below are sent in this mode. To continue a previous take, use its ending-frame HTTPS image URL. Automatic frame handoff is not connected yet.");
+                        ui.small(
+                            "Add frame image URLs. Previous takes are not linked automatically.",
+                        );
                         ui.label("First frame HTTPS URL");
                         ui.text_edit_singleline(&mut draft.first);
                         ui.label("Last frame HTTPS URL (optional)");
                         ui.text_edit_singleline(&mut draft.last);
                     }
-                    _ => {
-                        ui.label("No image inputs will be sent.");
-                    }
+                    _ => {}
                 }
-                ui.small(format!(
-                    "Seedance 2.5 · {} seconds · {} · 9:16 · sound on",
-                    draft.duration, draft.resolution
-                ));
-                if ui
-                    .add_enabled(
-                        state.pending.is_none()
-                            && !draft.prompt.trim().is_empty()
-                            && (draft.mode != 1 || draft.cast.is_empty()),
-                        eframe::egui::Button::new("Validate request preview"),
-                    )
-                    .clicked()
-                {
-                    let plan = match draft.video_plan() {
-                        Ok(plan) => plan,
-                        Err(error) => {
-                            state.preview = Some(Err(error.to_string()));
-                            return;
-                        }
-                    };
-                    let (sender, receiver) = std::sync::mpsc::channel();
-                    state.preview_source = Some((episode.clone(), draft.clone()));
-                    state.pending = Some(receiver);
-                    state.preview = None;
-                    std::thread::spawn(move || {
-                        let result = crate::openrouter::discover()
-                            .and_then(|catalog| plan.preview(&catalog));
-                        let _ = sender.send(result.map_err(|error| error.to_string()));
-                    });
-                }
+
                 let valid = draft.video_plan().and_then(|request| {
+                    if let Some(error) = &cast_error {
+                        anyhow::bail!("{error}");
+                    }
                     request.preview(
                         state
                             .catalog
@@ -486,63 +452,138 @@ impl Studio {
                     )
                 });
                 if let Err(error) = &valid {
-                    ui.small(error.to_string());
+                    ui.colored_label(crate::GOLD, error.to_string());
                 }
-                ui.small("One paid request for this segment. OpenRouter bills actual usage.");
-                ui.collapsing("Current provider pricing", |ui| {
-                    if let Some(model) = model {
-                        ui.code(
-                            serde_json::to_string_pretty(&model["pricing_skus"])
-                                .unwrap_or_default(),
-                        );
-                    }
-                    ui.small("Token rates do not establish an exact per-segment estimate.");
-                });
                 if ui
-                    .add_enabled(
-                        !dirty
-                            && saved
-                                .as_ref()
-                                .is_some_and(|saved| saved.segments.get(*index) == Some(draft))
-                            && valid.is_ok(),
-                        eframe::egui::Button::new("Generate saved segment · paid"),
-                    )
+                    .add_enabled(valid.is_ok(), crate::theme::primary("Generate video"))
                     .clicked()
                 {
-                    let result = self
-                        .store
-                        .enqueue_episode_segment(&episode, plan.revision, draft)
-                        .and_then(|job| {
-                            if job.status == "queued" {
-                                crate::worker::spawn_detached(&self.store.path)?;
-                            }
-                            Ok(job)
-                        });
-                    match result {
-                        Ok(job) => {
-                            self.message =
-                                format!("Segment request {} · {}", &job.id[..8], job.status);
-                            state.section = 1;
-                        }
-                        Err(error) => self.message = error.to_string(),
-                    }
+                    state.generation_error = None;
+                    generate_segment = true;
                 }
+
+                if let Some(error) = &state.generation_error {
+                    ui.colored_label(crate::GOLD, error);
+                }
+                ui.collapsing("Technical details", |ui| {
+                    if let Ok(value) = &valid {
+                        ui.code(serde_json::to_string_pretty(value).unwrap_or_default());
+                    }
+                });
             }
             if state.section == 1 {
                 ui.heading(format!("Segment {} · Take review", *index + 1));
-                ui.small("Watch at full size. Check words, voices, faces, hands, wardrobe and continuity before approving.");
+
                 match self.store.segment_generation_jobs(&episode, &draft.id) {
                     Ok(jobs) => {
                         if jobs.is_empty() {
                             ui.label("No takes yet. Prepare and generate this segment first.");
                         }
-                        for job in jobs {
-                            ui.small(format!(
-                                "Plan revision {} · {} · {}",
-                                job["plan_revision"],
-                                job["status"].as_str().unwrap_or("unknown"),
-                                job["stage"].as_str().unwrap_or("")
-                            ));
+                        let episode_label = self
+                            .selected
+                            .as_deref()
+                            .and_then(|series| self.store.ordered_gui_episodes(series).ok())
+                            .and_then(|episodes| {
+                                episodes.iter().position(|item| item.id == episode)
+                            })
+                            .map(|number| format!("Episode {}", number + 1))
+                            .unwrap_or_else(|| "Episode".into());
+                        let assets = self.store.assets().unwrap_or_default();
+                        let selected_clip = self
+                            .store
+                            .selected_segment_take(&episode, &draft.id)
+                            .ok()
+                            .flatten();
+                        let take_numbers: std::collections::HashMap<String, usize> = jobs
+                            .iter()
+                            .rev()
+                            .filter(|job| job["status"] == "completed")
+                            .enumerate()
+                            .filter_map(|(number, job)| {
+                                job["asset_id"]
+                                    .as_str()
+                                    .map(|id| (id.to_owned(), number + 1))
+                            })
+                            .collect();
+                        let clips: Vec<_> = jobs
+                            .iter()
+                            .filter_map(|job| job["asset_id"].as_str())
+                            .filter_map(|id| assets.iter().find(|asset| asset.id == id))
+                            .collect();
+                        let columns =
+                            ((ui.available_width() + 12.) / 180.).floor().clamp(1., 6.) as usize;
+                        let width = ((ui.available_width() - 12. * (columns - 1) as f32)
+                            / columns as f32)
+                            .min(200.);
+                        let ffmpeg = self
+                            .store
+                            .config()
+                            .map(|config| config.ffmpeg)
+                            .unwrap_or_default();
+                        let mut clicked_clip = None;
+                        eframe::egui::Grid::new(("take-gallery", &episode, &draft.id))
+                            .num_columns(columns)
+                            .spacing([12., 12.])
+                            .show(ui, |ui| {
+                                for (position, asset) in clips.iter().enumerate() {
+                                    let title = format!(
+                                        "{episode_label} · Segment {} · Take {}",
+                                        *index + 1,
+                                        take_numbers[&asset.id]
+                                    );
+                                    let thumbnail = state.thumbnails.get(
+                                        ui,
+                                        asset,
+                                        &self.store.root(),
+                                        &ffmpeg,
+                                    );
+                                    let (play, delete) = crate::take_gallery::card(
+                                        ui,
+                                        asset,
+                                        &title,
+                                        thumbnail,
+                                        width,
+                                        selected_clip.as_deref() == Some(&asset.id),
+                                        state.open_take.as_deref() == Some(&asset.id),
+                                    );
+                                    if delete {
+                                        state.open_take = Some(asset.id.clone());
+                                        state.delete_take = Some(asset.id.clone());
+                                    }
+                                    if play {
+                                        state.open_take = Some(asset.id.clone());
+                                        clicked_clip = Some(asset.id.clone());
+                                        state.delete_take = None;
+                                    }
+                                    if (position + 1) % columns == 0 {
+                                        ui.end_row();
+                                    }
+                                }
+                            });
+                        for (number, job) in jobs.into_iter().enumerate() {
+                            if number > 0
+                                && !job["asset_id"].is_string()
+                                && !state.show_old_attempts
+                                && !matches!(job["status"].as_str(), Some("queued" | "running"))
+                            {
+                                continue;
+                            }
+                            if let Some(id) = job["asset_id"].as_str()
+                                && state.open_take.as_deref() != Some(id)
+                            {
+                                continue;
+                            }
+                            if let Some(id) = job["asset_id"].as_str() {
+                                let take_number = take_numbers[id];
+                                ui.separator();
+                                ui.strong(format!(
+                                    "{episode_label} · Segment {} · Take {take_number}",
+                                    *index + 1
+                                ));
+                            }
+                            if !job["asset_id"].is_string() {
+                                ui.small(job["stage"].as_str().unwrap_or(""));
+                            }
                             if let Some(asset_id) = job["asset_id"].as_str() {
                                 let selected = self
                                     .store
@@ -554,11 +595,10 @@ impl Studio {
                                         assets.iter().find(|asset| asset.id == asset_id)
                                 {
                                     ui.label(format!(
-                                        "{} × {} · {:.1}s · {}{}",
+                                        "{} × {} · {:.1}s{}",
                                         asset.width,
                                         asset.height,
                                         asset.duration,
-                                        asset.review,
                                         if selected.as_deref() == Some(asset_id) {
                                             " · SELECTED"
                                         } else {
@@ -567,40 +607,41 @@ impl Studio {
                                     ));
                                 }
                                 ui.horizontal_wrapped(|ui| {
-                                    if ui.button("Open take").clicked()
-                                        && let Ok(assets) = self.store.assets()
-                                        && let Some(asset) =
-                                            assets.iter().find(|asset| asset.id == asset_id)
+                                    if (state.player.is_none()
+                                        && ui.button("Play in app").clicked())
+                                        || clicked_clip.as_deref() == Some(asset_id)
                                     {
-                                        #[cfg(target_os = "macos")]
-                                        {
-                                            let result =
-                                                std::process::Command::new("/usr/bin/open")
-                                                    .arg(&asset.path)
-                                                    .spawn()
-                                                    .map(|_| ())
-                                                    .map_err(anyhow::Error::from);
-                                            self.message = result
-                                                .err()
-                                                .map(|error| error.to_string())
-                                                .unwrap_or_else(|| {
-                                                    "Opened original take in system player".into()
-                                                });
+                                        state.player = None;
+                                        state.player_asset = Some(asset_id.to_owned());
+                                        state.player_error = None;
+                                        let result =
+                                            (|| -> anyhow::Result<crate::media::Preview> {
+                                                let asset = self
+                                                    .store
+                                                    .assets()?
+                                                    .into_iter()
+                                                    .find(|asset| asset.id == asset_id)
+                                                    .ok_or_else(|| {
+                                                        anyhow::anyhow!(
+                                                            "Take is no longer available"
+                                                        )
+                                                    })?;
+                                                crate::media::Preview::open(
+                                                    self.store.config()?.ffmpeg,
+                                                    asset.path,
+                                                    asset.width as f32 / asset.height.max(1) as f32,
+                                                    true,
+                                                )
+                                            })();
+                                        match result {
+                                            Ok(player) => state.player = Some(player),
+                                            Err(error) => {
+                                                state.player_error = Some(error.to_string())
+                                            }
                                         }
                                     }
-                                    if ui.button("Approve take").clicked() {
-                                        self.message = match self.store.review(asset_id, "approved")
-                                        {
-                                            Ok(()) => "Take approved after your review".into(),
-                                            Err(error) => error.to_string(),
-                                        };
-                                    }
-                                    if ui.button("Reject take").clicked() {
-                                        self.message = match self.store.review(asset_id, "rejected")
-                                        {
-                                            Ok(()) => "Take rejected; original retained".into(),
-                                            Err(error) => error.to_string(),
-                                        };
+                                    if ui.button("Delete clip…").clicked() {
+                                        state.delete_take = Some(asset_id.to_owned());
                                     }
                                     if ui
                                         .button(if selected.as_deref() == Some(asset_id) {
@@ -621,6 +662,38 @@ impl Studio {
                                         };
                                     }
                                 });
+                                if state.delete_take.as_deref() == Some(asset_id) {
+                                    ui.horizontal_wrapped(|ui| {
+                                        ui.label("Permanently delete this clip?");
+                                        if ui.button("Cancel").clicked() {
+                                            state.delete_take = None;
+                                        }
+                                        if ui.button("Delete permanently").clicked() {
+                                            state.player = None;
+                                            match self
+                                                .store
+                                                .delete_segment_clip(&episode, &draft.id, asset_id)
+                                            {
+                                                Ok(()) => {
+                                                    state.open_take = None;
+                                                    state.delete_take = None;
+                                                    self.message = "Clip deleted".into();
+                                                }
+                                                Err(error) => self.message = error.to_string(),
+                                            }
+                                        }
+                                    });
+                                }
+                                if state.player_asset.as_deref() == Some(asset_id) {
+                                    if let Some(error) = &state.player_error {
+                                        ui.colored_label(crate::GOLD, error);
+                                    }
+                                    if let Some(player) = &mut state.player {
+                                        state.player_visible = true;
+                                        ui.add_space(8.);
+                                        player.ui(ui);
+                                    }
+                                }
                             }
                         }
                     }
@@ -629,29 +702,36 @@ impl Studio {
                     }
                 }
             }
-            if state.section == 0
-                && state
-                    .preview_source
-                    .as_ref()
-                    .is_some_and(|(id, snapshot)| id == &episode && snapshot == draft)
-            {
-                if state.pending.is_some() {
-                    ui.label("Checking current model capabilities…");
+        });
+        if generate_segment {
+            let result = state
+                .catalog
+                .as_ref()
+                .ok_or_else(|| anyhow::anyhow!("Still checking model capabilities"))
+                .and_then(|catalog| self.store.save_and_enqueue_segment(plan, *index, catalog));
+            match result {
+                Ok((saved, job)) => {
+                    *plan = saved;
+                    self.message = if job.status == "queued" {
+                        match crate::worker::spawn_detached(&self.store.path) {
+                            Ok(()) => "Options saved; video queued".into(),
+                            Err(error) => {
+                                format!("Video queued but worker could not start: {error}")
+                            }
+                        }
+                    } else {
+                        format!(
+                            "This exact request already exists ({}). Showing its result; no duplicate submitted.",
+                            job.status
+                        )
+                    };
+                    state.section = 1;
                 }
-                if let Some(result) = &state.preview {
-                    match result {
-                        Ok(value) => {
-                            ui.label("Last checked request snapshot — changes above require another check. Not submitted.");
-                            ui.collapsing("Inspect payload", |ui| {
-                                ui.code(serde_json::to_string_pretty(value).unwrap_or_default());
-                            });
-                        }
-                        Err(error) => {
-                            ui.label(error);
-                        }
-                    }
+                Err(error) => {
+                    state.generation_error = Some(error.to_string());
+                    self.message = error.to_string();
                 }
             }
-        });
+        }
     }
 }

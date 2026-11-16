@@ -17,7 +17,7 @@ Rust-native, Mac-first production studio. Visual quality is a primary requiremen
 - Creative direction: strikingly attractive adult women may lead or support, with distinct identities, natural skin and strong acting. Support slice-of-life stories as a core genre alongside melodrama. Start shot planning with a 1–4-second cut guide, varied motivated coverage and longer emotional holds where useful; recurring cameras must preserve framing/eyelines/screen axis.
 - The clarified product target is an end-to-end original series creator: develop an idea into a full coherent plot, produce complete episodes, and continue with the same characters and causally consistent story. Series bible, arcs, episode planning and continuity are core scope, not optional extras. See benchmarks/short-drama-research-2026-11-15.json.
 - The user wants human quality tests to show people visibly moving and talking; prioritize acting and body-motion tests over subtle portrait animation.
-- Current development version: **v005**. Public version labels increment by whole numbers: v001, v002, v003. Cargo semver and integer macOS bundle numbers are packaging metadata.
+- Current development version: **v006**. Public version labels increment by whole numbers: v001, v002, v003. Cargo semver and integer macOS bundle numbers are packaging metadata.
 - **Do not push commits or tags, publish releases, or upload source until the user explicitly says to do so.** Local changes, builds, tests, and commits are permitted.
 - Eventual GitHub home: `Baz-Studios-LLC/DramaFactory`, public, MIT.
 - macOS first; keep services portable for future platforms.

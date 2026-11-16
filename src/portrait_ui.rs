@@ -1,5 +1,68 @@
 use crate::{Studio, production::LibraryEntry};
 impl Studio {
+    pub(crate) fn portrait_select_button(
+        &mut self,
+        ui: &mut eframe::egui::Ui,
+        entry: &LibraryEntry,
+        asset: &str,
+    ) {
+        let id = ui.make_persistent_id(("portrait-selection-error", asset));
+        if ui.button("Use this portrait").clicked() {
+            let result = self.store.select_portrait(entry, asset);
+            match &result {
+                Ok(()) => {
+                    ui.ctx().data_mut(|data| data.remove::<String>(id));
+                    ui.ctx().request_repaint();
+                }
+                Err(error) => {
+                    ui.ctx()
+                        .data_mut(|data| data.insert_temp(id, error.to_string()));
+                }
+            }
+            self.result(result, "Character portrait selected");
+        }
+        if let Some(error) = ui.ctx().data_mut(|data| data.get_temp::<String>(id)) {
+            ui.colored_label(crate::GOLD, error);
+        }
+    }
+    pub(crate) fn portrait_delete_button(
+        &mut self,
+        ui: &mut eframe::egui::Ui,
+        entry: &str,
+        asset: &str,
+    ) {
+        let id = ui.make_persistent_id(("permanent-portrait-delete", asset));
+        let confirming = ui
+            .ctx()
+            .data_mut(|data| data.get_temp::<bool>(id).unwrap_or(false));
+        if confirming {
+            ui.group(|ui| {
+                ui.label("Permanently delete this portrait?");
+                ui.small("The image file will be erased. This cannot be undone.");
+                ui.horizontal(|ui| {
+                    if ui.button("Cancel").clicked() {
+                        ui.ctx().data_mut(|data| data.remove::<bool>(id));
+                    }
+                    if ui
+                        .button(
+                            eframe::egui::RichText::new("Delete permanently")
+                                .color(eframe::egui::Color32::from_rgb(239, 149, 126)),
+                        )
+                        .clicked()
+                    {
+                        let result = self.store.permanently_delete_portrait(entry, asset);
+                        if result.is_ok() {
+                            ui.ctx().data_mut(|data| data.remove::<bool>(id));
+                        }
+                        self.result(result, "Portrait permanently deleted");
+                    }
+                });
+            });
+        } else if ui.small_button("Delete portrait…").clicked() {
+            ui.ctx().data_mut(|data| data.insert_temp(id, true));
+        }
+    }
+
     pub(crate) fn grok_portrait_controls(
         &mut self,
         ui: &mut eframe::egui::Ui,
@@ -7,6 +70,7 @@ impl Studio {
         displayed_portrait: Option<&std::path::Path>,
     ) {
         let jobs = self.load(self.store.portrait_jobs(&entry.id));
+        let deleted = self.store.deleted_portraits().unwrap_or_default();
         if let Some(reference) = displayed_portrait {
             let label = match jobs.first() {
                 Some(job) if job.status == "queued" => "Manage portrait · queued",
@@ -18,6 +82,7 @@ impl Studio {
                     if job.status == "completed"
                         && self.load(self.store.assets()).iter().any(|asset| {
                             Some(&asset.id) == job.output_id.as_ref()
+                                && !deleted.contains(&asset.id)
                                 && asset.review == "unreviewed"
                                 && asset.path != reference
                         }) =>
@@ -79,7 +144,7 @@ impl Studio {
                 "Save or reload Character profile before generating an image.",
             );
         }
-        if let Some(job) = jobs.first() {
+        if let Some(job) = jobs.first().filter(|job| job.status != "completed") {
             ui.horizontal(|ui| {
                 if matches!(job.status.as_str(), "queued" | "running") {
                     ui.add(eframe::egui::Spinner::new().size(14.));
@@ -113,7 +178,7 @@ impl Studio {
             && ui
                 .add_enabled(
                     profile_ready,
-                    eframe::egui::Button::new("Generate image · paid"),
+                    eframe::egui::Button::new("Generate portrait"),
                 )
                 .clicked()
         {
@@ -136,37 +201,71 @@ impl Studio {
             self.result(result, "Portrait queued; review it before choosing it");
         }
         let assets = self.load(self.store.assets());
+        let deleted = self.store.deleted_portraits().unwrap_or_default();
         let portraits: Vec<_> = assets
             .iter()
             .filter(|asset| {
-                asset.metadata["provider"] == "openrouter"
+                !deleted.contains(&asset.id)
+                    && asset.metadata["provider"] == "openrouter"
                     && asset.metadata["request"]["library_id"] == entry.id
-                    && displayed_portrait != Some(asset.path.as_path())
             })
             .collect();
         if !portraits.is_empty() {
             ui.add_space(10.);
             ui.label(
-                eframe::egui::RichText::new(if displayed_portrait.is_some() {
-                    "Other portraits"
-                } else {
-                    "Generated portraits"
-                })
-                .strong(),
+                eframe::egui::RichText::new(format!("Generated portraits ({})", portraits.len()))
+                    .strong(),
             );
-            ui.horizontal_wrapped(|ui| {
-                for asset in portraits {
-                    ui.push_id(&asset.id, |ui| {
-                        ui.vertical(|ui| {
-                            self.reference_preview(ui, &asset.path, eframe::egui::vec2(260., 340.));
-                            if ui.button("Use this portrait").clicked() {
-                                let result = self.store.review(&asset.id, "approved");
-                                self.result(result, "Character portrait selected");
-                            }
+            let columns = ((ui.available_width() + 12.) / 192.).floor().clamp(1., 4.) as usize;
+            let width =
+                ((ui.available_width() - 12. * (columns - 1) as f32) / columns as f32).min(210.);
+            eframe::egui::Grid::new((&entry.id, "portrait-choices"))
+                .num_columns(columns)
+                .spacing(eframe::egui::vec2(12., 16.))
+                .show(ui, |ui| {
+                    for (index, asset) in portraits.iter().enumerate() {
+                        ui.push_id(&asset.id, |ui| {
+                            ui.vertical(|ui| {
+                                ui.set_width(width);
+                                self.portrait_gallery_tile(ui, entry, asset, width);
+                            });
                         });
+                        if (index + 1) % columns == 0 {
+                            ui.end_row();
+                        }
+                    }
+                });
+        }
+
+        let trashed: Vec<_> = assets
+            .iter()
+            .filter(|asset| {
+                deleted.contains(&asset.id) && asset.metadata["request"]["library_id"] == entry.id
+            })
+            .collect();
+        if !trashed.is_empty() {
+            eframe::egui::CollapsingHeader::new(format!("Deleted portraits ({})", trashed.len()))
+                .id_salt((&entry.id, "deleted-portraits"))
+                .show(ui, |ui| {
+                    ui.horizontal_wrapped(|ui| {
+                        for asset in trashed {
+                            ui.push_id(&asset.id, |ui| {
+                                ui.vertical(|ui| {
+                                    self.reference_preview(
+                                        ui,
+                                        &asset.path,
+                                        eframe::egui::vec2(140., 180.),
+                                    );
+                                    if ui.small_button("Restore portrait").clicked() {
+                                        let result = self.store.restore_portrait(&asset.id);
+                                        self.result(result, "Portrait restored");
+                                    }
+                                    self.portrait_delete_button(ui, &entry.id, &asset.id);
+                                });
+                            });
+                        }
                     });
-                }
-            });
+                });
         }
         eframe::egui::CollapsingHeader::new("Portrait prompt & settings")
             .id_salt((&entry.id, "grok-portrait"))

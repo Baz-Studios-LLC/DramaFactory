@@ -1,6 +1,6 @@
 """Exercise real macOS signing + deferred installation in disposable bundles.
-The signed 'v006' payload is a deliberate test fixture containing the current
-v005 executable. Nothing is uploaded or installed into a real application.
+The signed 'v007' payload is a deliberate test fixture containing the current
+v006 executable. Nothing is uploaded or installed into a real application.
 """
 import fcntl
 import hashlib
@@ -28,12 +28,12 @@ def fixture(root):
     target.parent.mkdir(parents=True)
     shutil.copy2(binary,target)
     info=target.parent.parent/"Info.plist"
-    info.write_bytes(plistlib.dumps(dict(CFBundleExecutable="DramaFactory",CFBundleIdentifier="studio.dramafactory.updater-fixture",CFBundlePackageType="APPL",CFBundleVersion="5",CFBundleShortVersionString="5")))
+    info.write_bytes(plistlib.dumps(dict(CFBundleExecutable="DramaFactory",CFBundleIdentifier="studio.dramafactory.updater-fixture",CFBundlePackageType="APPL",CFBundleVersion="6",CFBundleShortVersionString="6")))
     resources=info.parent/"Resources";resources.mkdir();(resources/"fixture.txt").write_text("Disposable sealed resource")
     sign(info.parent.parent);verify(info.parent.parent)
-    staged=root/"DramaFactory-v006-aarch64-apple-darwin";shutil.copy2(binary,staged)
+    staged=root/"DramaFactory-v007-aarch64-apple-darwin";shutil.copy2(binary,staged)
     content=staged.read_bytes()
-    manifest=dict(version="v006",target="aarch64-apple-darwin",binary=staged.name,sha256=hashlib.sha256(content).hexdigest(),size=len(content))
+    manifest=dict(version="v007",target="aarch64-apple-darwin",binary=staged.name,sha256=hashlib.sha256(content).hexdigest(),size=len(content))
     message="".join(str(manifest[k])+"\n" for k in ["version","target","binary","sha256","size"]).encode()
     manifest["signature"]=key.sign(message).hex()
     path=root/"manifest.json";path.write_text(json.dumps(manifest))
@@ -53,18 +53,18 @@ with tempfile.TemporaryDirectory(prefix="df-update-test-") as temporary:
     time.sleep(.3)
     assert target.read_bytes()==original,"Installer ignored the active worker lock"
     helper=next(root.glob("installer-*"));verify(helper)
-    assert subprocess.check_output([str(helper),"--version"],text=True).strip()=="v005","Copied helper cannot launch outside the sealed bundle"
+    assert subprocess.check_output([str(helper),"--version"],text=True).strip()=="v006","Copied helper cannot launch outside the sealed bundle"
     fcntl.flock(lock,fcntl.LOCK_UN);lock.close()
     deadline=time.monotonic()+15
     while not (root/"installed.json").exists() and time.monotonic()<deadline:time.sleep(.1)
     assert (root/"installed.json").exists(),(root/"install.log").read_text()
-    assert (root/"previous-v005").read_bytes()==original
-    assert plistlib.loads(info.read_bytes())["CFBundleVersion"]=="6"
+    assert (root/"previous-v006").read_bytes()==original
+    assert plistlib.loads(info.read_bytes())["CFBundleVersion"]=="7"
     verify(info.parent.parent)
     receipt=json.loads((root/"installed.json").read_text())
     assert receipt["release"]["sha256"]==manifest["sha256"]
     assert receipt["installed_executable_sha256"]==hashlib.sha256(target.read_bytes()).hexdigest()
-    assert subprocess.check_output([str(target),"--version"],text=True).strip()=="v005"
+    assert subprocess.check_output([str(target),"--version"],text=True).strip()=="v006"
     # Independently verify the actual helper waits for its parent to exit.
     second=root/"parent-test";second.mkdir()
     t2,i2,m2,s2,_=fixture(second);before=t2.read_bytes()

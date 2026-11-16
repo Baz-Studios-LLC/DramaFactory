@@ -17,6 +17,15 @@ pub struct PortraitRequest {
     pub library_reference_before: Option<String>,
     pub library_context_before: Value,
 }
+fn validate_prompt_length(prompt: &str) -> Result<()> {
+    let length = prompt.chars().count();
+    if length > 8000 {
+        bail!(
+            "Portrait prompt is {length} characters; Grok allows 8,000. Shorten the portrait direction or profile prose. All profile fields are preserved; nothing was submitted."
+        );
+    }
+    Ok(())
+}
 impl Store {
     pub(crate) fn portrait_jobs(&self, entry: &str) -> Result<Vec<crate::store::Job>> {
         let mut query=self.conn.prepare("SELECT id FROM jobs WHERE kind='openrouter_image' AND CASE WHEN json_valid(request) THEN json_extract(request,'$.library_id') END=?1 ORDER BY rowid DESC LIMIT 5")?;
@@ -91,19 +100,21 @@ impl Store {
             .map(|path| crate::worker::hash_file(std::path::Path::new(path)))
             .transpose()?;
         let style = self.portrait_style(entry)?;
+        // A default direction may already be the entire brief; include that text only once.
+        let direction = if prompt.trim() == description.trim() {
+            ""
+        } else {
+            prompt.trim()
+        };
         let subject = if kind == "character" {
             format!(
-                "ADDITIONAL PORTRAIT DIRECTION:\n{prompt}\n\nCOMPLETE SAVED PROFILE — {name}:\n{description}\n\nUse the entire saved profile as context for this subject. Its specified identity, age, measurements, build, facial features, hair, eyes, wardrobe and other traits take precedence over conflicting details in the additional portrait direction. Convey personality, background, goals and relationships through appropriate expression, posture, styling and setting; do not add other people or written labels to illustrate them. Episode-specific exceptions apply only when the portrait direction explicitly requests that episode or scene; do not combine conflicting episode outfits or states. Unspecified traits remain open creative choices."
+                "PORTRAIT DIRECTION:\n{direction}\n\nCOMPLETE SAVED PROFILE — {name}:\n{description}\n\nUse the entire profile. Saved traits take precedence over conflicting details in portrait direction. Express personality and story through pose, expression and setting; no extra people or labels. Apply episode-specific outfits/states only for an explicitly requested scene; otherwise do not combine them."
             )
         } else {
             prompt.to_owned()
         };
         let full_prompt = style.prompt(&subject);
-        if full_prompt.len() > 65536 {
-            bail!(
-                "The combined profile and portrait direction exceed 65536 bytes. Shorten the portrait direction; no profile details were truncated."
-            );
-        }
+        validate_prompt_length(&full_prompt)?;
         let request = PortraitRequest {
             prompt: full_prompt,
             source_prompt: Some(prompt.into()),
@@ -164,6 +175,7 @@ fn execute_with_transport(store: &Store, id: &str, endpoint: &str, key: &str) ->
         |row| Ok((row.get(0)?, row.get(1)?)),
     )?;
     let request: PortraitRequest = serde_json::from_str(&request)?;
+    validate_prompt_length(&request.prompt)?;
     let directory = store
         .root()
         .join("jobs")
@@ -197,7 +209,34 @@ fn execute_with_transport(store: &Store, id: &str, endpoint: &str, key: &str) ->
         "UPDATE jobs SET phase='Grok generating portrait' WHERE id=?1",
         [id],
     )?;
-    let mut response=agent.post(endpoint).header("Authorization",&format!("Bearer {key}")).send_json(payload).map_err(|_|anyhow::anyhow!("OpenRouter image submission did not complete locally. Billing may have occurred; inspect provider activity. This job will not be resubmitted automatically."))?;
+    let mut response = agent.post(endpoint)
+        .header("Authorization", &format!("Bearer {key}"))
+        .config().http_status_as_error(false).build()
+        .send_json(payload).map_err(|error| anyhow::anyhow!(
+            "Portrait submission could not be confirmed: {}. Check OpenRouter activity before generating again. No automatic retry.",
+            match error {
+                ureq::Error::Timeout(_) => "connection timed out",
+                ureq::Error::HostNotFound => "hostname could not be resolved",
+                ureq::Error::Io(_) | ureq::Error::ConnectionFailed => "connection failed or was interrupted",
+                _ => "request or response failed",
+            }
+        ))?;
+    let status = response.status();
+    if !status.is_success() {
+        let value = response
+            .body_mut()
+            .with_config()
+            .limit(1024 * 1024)
+            .read_json::<Value>()
+            .unwrap_or(Value::Null);
+        let detail = crate::openrouter::submission_error(status.as_u16(), &value, key)
+            .replace("video logs", "activity");
+        std::fs::write(
+            directory.join("submit-error.json"),
+            serde_json::to_vec_pretty(&json!({"http_status":status.as_u16(),"message":detail}))?,
+        )?;
+        bail!("{detail}");
+    }
     let raw=response.body_mut().with_config().limit(34*1024*1024).read_to_vec().map_err(|_|anyhow::anyhow!("Image response interrupted or too large; billing may have occurred. No automatic retry."))?;
     std::fs::write(directory.join("response.json"), &raw)?;
     let value: Value = serde_json::from_slice(&raw)?;
@@ -239,6 +278,12 @@ fn execute_with_transport(store: &Store, id: &str, endpoint: &str, key: &str) ->
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn prompt_limit_accepts_boundary_and_blocks_oversize_before_submission() {
+        assert!(validate_prompt_length(&"a".repeat(8000)).is_ok());
+        assert!(validate_prompt_length(&"a".repeat(8001)).is_err());
+        assert!(validate_prompt_length(&"é".repeat(8000)).is_ok());
+    }
     #[test]
     fn rejects_malformed_images_and_decodes_real_raster_bytes() {
         assert!(decode(&json!({"data":[{"b64_json":"invalid"}]})).is_err());
@@ -456,6 +501,10 @@ mod tests {
             ("200 OK", r#"{"data":[{"b64_json":"not valid"}]}"#),
             ("302 Found", ""),
             (
+                "402 Payment Required",
+                r#"{"error":{"message":"Insufficient credits"}}"#,
+            ),
+            (
                 "401 Unauthorized",
                 r#"{"error":"fixture credential must not appear in error"}"#,
             ),
@@ -475,6 +524,17 @@ mod tests {
                 .unwrap_err()
                 .to_string();
             assert!(!error.contains("local-fixture-key"));
+            if status.starts_with("402") {
+                assert!(error.contains("HTTP 402"));
+                assert!(error.contains("Insufficient credits"));
+                let diagnostic = std::fs::read_to_string(
+                    root.join("jobs")
+                        .join(&job.id)
+                        .join("attempt-1/submit-error.json"),
+                )
+                .unwrap();
+                assert!(diagnostic.contains("Insufficient credits"));
+            }
             thread.join().unwrap();
             assert!(store.retry(&job.id).is_err());
             assert!(store.job(&job.id).unwrap().output_id.is_none());

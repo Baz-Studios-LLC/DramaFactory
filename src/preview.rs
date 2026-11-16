@@ -25,6 +25,11 @@ struct Frames {
     state: State,
 }
 pub struct Preview {
+    ffmpeg: PathBuf,
+    path: PathBuf,
+    aspect: f32,
+    with_audio: bool,
+    paused: Arc<AtomicBool>,
     width: usize,
     height: usize,
     texture: Option<eframe::egui::TextureHandle>,
@@ -59,7 +64,7 @@ impl Preview {
         let width = ((height as f32 * aspect / 2.).round() as usize)
             .saturating_mul(2)
             .clamp(2, 854);
-        let mut child = Command::new(ffmpeg)
+        let mut child = Command::new(&ffmpeg)
             .args(["-v", "error", "-nostdin", "-i"])
             .arg(&path)
             .args([
@@ -93,20 +98,39 @@ impl Preview {
             state: State::Loading,
         }));
         let (frames, stopped) = (shared.clone(), stop.clone());
+        let paused = Arc::new(AtomicBool::new(false));
+        let reader_paused = paused.clone();
+        let monitor_paused = paused.clone();
         let reader_done = Arc::new(AtomicBool::new(false));
         let done = reader_done.clone();
         std::thread::spawn(move || {
             let mut reader = BufReader::new(pipe);
             let mut clock = None;
             let mut index = 0u64;
+            let mut pause_time = Duration::ZERO;
             while !stopped.load(Ordering::Relaxed) {
                 let mut bytes = vec![0; width * height * 3];
                 if reader.read_exact(&mut bytes).is_err() {
                     break;
                 }
                 let started = *clock.get_or_insert_with(Instant::now);
-                let due = started + Duration::from_secs_f64(index as f64 / 24.);
-                while Instant::now() < due && !stopped.load(Ordering::Relaxed) {
+                loop {
+                    if stopped.load(Ordering::Relaxed) {
+                        break;
+                    }
+                    if reader_paused.load(Ordering::Relaxed) {
+                        let pause_start = Instant::now();
+                        while reader_paused.load(Ordering::Relaxed)
+                            && !stopped.load(Ordering::Relaxed)
+                        {
+                            std::thread::sleep(Duration::from_millis(10));
+                        }
+                        pause_time += pause_start.elapsed();
+                    }
+                    let due = started + pause_time + Duration::from_secs_f64(index as f64 / 24.);
+                    if Instant::now() >= due {
+                        break;
+                    }
                     std::thread::sleep(
                         due.saturating_duration_since(Instant::now())
                             .min(Duration::from_millis(10)),
@@ -140,9 +164,8 @@ impl Preview {
                 match result {
                     Ok(Some(status)) => {
                         // The pipe can still contain the final decoded frame after process exit.
-                        let drain = Instant::now();
                         while !reader_done.load(Ordering::Acquire)
-                            && drain.elapsed() < Duration::from_millis(500)
+                            && !stopped.load(Ordering::Relaxed)
                         {
                             std::thread::sleep(Duration::from_millis(5));
                         }
@@ -169,7 +192,7 @@ impl Preview {
                 let timed_out = frames
                     .lock()
                     .is_ok_and(|frames| frames.last.elapsed() > Duration::from_secs(15));
-                if timed_out {
+                if timed_out && !monitor_paused.load(Ordering::Relaxed) {
                     terminate(&process);
                     if let Ok(mut frames) = frames.lock() {
                         frames.state=State::Failed("Preview decoder stopped delivering frames. Check the media or open it in the system player.".into());
@@ -180,6 +203,11 @@ impl Preview {
             }
         });
         Ok(Self {
+            ffmpeg,
+            path: path.clone(),
+            aspect,
+            with_audio,
+            paused,
             width,
             height,
             texture: None,
@@ -189,6 +217,50 @@ impl Preview {
             audio: None,
             audio_path: with_audio.then_some(path),
         })
+    }
+    pub fn playback_position(&self) -> f64 {
+        self.shared
+            .lock()
+            .map_or(0., |frames| frames.count as f64 / 24.)
+    }
+    pub fn finished(&self) -> bool {
+        self.shared
+            .lock()
+            .is_ok_and(|frames| frames.state == State::Ended)
+    }
+    pub fn toggle_playback(&mut self) -> Result<()> {
+        let ended = self
+            .shared
+            .lock()
+            .is_ok_and(|frames| frames.state == State::Ended);
+        if ended {
+            *self = Self::open(
+                self.ffmpeg.clone(),
+                self.path.clone(),
+                self.aspect,
+                self.with_audio,
+            )?;
+            return Ok(());
+        }
+        let was_paused = self.paused.load(Ordering::Relaxed);
+        self.paused.store(!was_paused, Ordering::Relaxed);
+        if let Ok(mut frames) = self.shared.lock() {
+            frames.last = Instant::now();
+        }
+        #[cfg(unix)]
+        if let Some(audio) = &self.audio {
+            unsafe {
+                libc::kill(
+                    audio.id() as i32,
+                    if was_paused {
+                        libc::SIGCONT
+                    } else {
+                        libc::SIGSTOP
+                    },
+                );
+            }
+        }
+        Ok(())
     }
     fn stop_audio(&mut self) {
         if let Some(mut audio) = self.audio.take() {
@@ -206,6 +278,12 @@ impl Preview {
         }
     }
     pub fn ui(&mut self, ui: &mut eframe::egui::Ui) {
+        self.draw(ui, None);
+    }
+    pub fn viewer(&mut self, ui: &mut eframe::egui::Ui, height: f32) {
+        self.draw(ui, Some(height));
+    }
+    fn draw(&mut self, ui: &mut eframe::egui::Ui, viewer_height: Option<f32>) {
         let (latest, state) = self.poll();
         if let Some(frame) = latest {
             let image = eframe::egui::ColorImage::from_rgb([self.width, self.height], &frame);
@@ -241,11 +319,102 @@ impl Preview {
             }
         }
         if let Some(texture) = &self.texture {
-            let width = (self.width as f32).min(ui.available_width());
-            ui.image((
-                texture.id(),
-                eframe::egui::Vec2::new(width, width * self.height as f32 / self.width as f32),
-            ));
+            let response = if let Some(height) = viewer_height {
+                let (rect, response) = ui.allocate_exact_size(
+                    eframe::egui::vec2(ui.available_width(), height),
+                    eframe::egui::Sense::hover(),
+                );
+                ui.painter()
+                    .rect_filled(rect, 4, eframe::egui::Color32::BLACK);
+                let aspect = self.width as f32 / self.height as f32;
+                let height = height.min(rect.width() / aspect);
+                let image_rect = eframe::egui::Rect::from_center_size(
+                    rect.center(),
+                    eframe::egui::vec2(height * aspect, height),
+                );
+                ui.painter().image(
+                    texture.id(),
+                    image_rect,
+                    eframe::egui::Rect::from_min_max(
+                        eframe::egui::pos2(0., 0.),
+                        eframe::egui::pos2(1., 1.),
+                    ),
+                    eframe::egui::Color32::WHITE,
+                );
+                response
+            } else {
+                let width = (self.width as f32).min(ui.available_width());
+                ui.image((
+                    texture.id(),
+                    eframe::egui::Vec2::new(width, width * self.height as f32 / self.width as f32),
+                ))
+            };
+            let rect = response.rect;
+            let paused = self.paused.load(Ordering::Relaxed);
+            if response.hovered()
+                || paused
+                || state == State::Ended
+                || ui.rect_contains_pointer(rect)
+            {
+                let bar = eframe::egui::Rect::from_min_max(
+                    eframe::egui::pos2(rect.left(), rect.bottom() - 42.),
+                    rect.max,
+                );
+                ui.painter()
+                    .rect_filled(bar, 0, eframe::egui::Color32::from_black_alpha(210));
+                let mut replay = false;
+                // Independent overlay: controls must never advance or expand the viewer layout.
+                {
+                    let mut overlay = ui.new_child(
+                        eframe::egui::UiBuilder::new()
+                            .id_salt("playback-overlay")
+                            .max_rect(bar.shrink(5.)),
+                    );
+                    overlay.set_clip_rect(bar.intersect(ui.clip_rect()));
+                    let ui = &mut overlay;
+                    ui.spacing_mut().button_padding = eframe::egui::vec2(6., 4.);
+                    ui.horizontal(|ui| {
+                        if state == State::Ended {
+                            replay = ui.button("▶").on_hover_text("Replay").clicked();
+                        } else if ui
+                            .button(if paused { "▶" } else { "⏸" })
+                            .on_hover_text(if paused { "Play" } else { "Pause" })
+                            .clicked()
+                            && let Err(error) = self.toggle_playback()
+                        {
+                            ui.label(error.to_string());
+                        }
+                        if state != State::Ended {
+                            replay = ui.button("↺").on_hover_text("Replay").clicked();
+                        }
+                        let seconds = self.shared.lock().map_or(0, |f| f.count / 24);
+                        ui.label(format!("{}:{:02}", seconds / 60, seconds % 60));
+                        if ui
+                            .button("↗")
+                            .on_hover_text("Open in system player")
+                            .clicked()
+                        {
+                            let _ = Command::new("/usr/bin/open").arg(&self.path).spawn();
+                        }
+                    });
+                }
+                if replay {
+                    match Self::open(
+                        self.ffmpeg.clone(),
+                        self.path.clone(),
+                        self.aspect,
+                        self.with_audio,
+                    ) {
+                        Ok(player) => {
+                            *self = player;
+                            return;
+                        }
+                        Err(error) => {
+                            ui.label(error.to_string());
+                        }
+                    }
+                }
+            }
         }
         match state {
             State::Loading => {
@@ -254,16 +423,13 @@ impl Preview {
             State::Playing => {}
             State::Ended => {
                 self.stop_audio();
-                ui.label("Preview ended · use Play preview to replay.");
             }
             State::Failed(error) => {
                 self.stop_audio();
                 ui.label(eframe::egui::RichText::new(error).color(crate::GOLD));
             }
         }
-        ui.small(
-            "Quick preview · use the system player for full-resolution synchronization review.",
-        );
+
         ui.ctx().request_repaint_after(Duration::from_millis(40));
     }
 }
@@ -331,7 +497,14 @@ mod tests {
                 .success()
         );
         let started = Instant::now();
-        let preview = Preview::open(ffmpeg.into(), path.clone(), 1., false).unwrap();
+        let mut preview = Preview::open(ffmpeg.into(), path.clone(), 1., false).unwrap();
+        preview.toggle_playback().unwrap();
+        std::thread::sleep(Duration::from_millis(100));
+        let count = preview.shared.lock().unwrap().count;
+        std::thread::sleep(Duration::from_millis(250));
+        assert_eq!(preview.shared.lock().unwrap().count, count);
+        assert_ne!(preview.poll().1, State::Ended);
+        preview.toggle_playback().unwrap();
         let deadline = Instant::now() + Duration::from_secs(5);
         loop {
             let state = preview.shared.lock().unwrap().state.clone();

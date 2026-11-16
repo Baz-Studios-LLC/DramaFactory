@@ -11,6 +11,14 @@ fn valid_id(id: &str) -> bool {
             .all(|byte| byte.is_ascii_alphanumeric() || b"_-".contains(&byte))
 }
 impl Store {
+    pub(crate) fn video_retry_available(&self, id: &str) -> Result<bool> {
+        let (state, remote): (String, Option<String>) = self.conn.query_row(
+            "SELECT state,remote_id FROM remote_video_jobs WHERE job_id=?1",
+            [id],
+            |row| Ok((row.get(0)?, row.get(1)?)),
+        )?;
+        Ok((state == "prepared" && remote.is_none()) || (state == "accepted" && remote.is_some()))
+    }
     pub fn enqueue_seedance(&self, plan: &VideoPlan) -> Result<crate::store::Job> {
         self.enqueue_seedance_bound(plan, None)
     }
@@ -42,10 +50,26 @@ impl Store {
         plan: &VideoPlan,
         binding: Option<(&str, u64, &crate::generation_plan::SegmentDraft)>,
     ) -> Result<crate::store::Job> {
+        let mut plan = plan.clone();
+        if let crate::video_plan::Inputs::Portraits { portraits, .. } = &mut plan.inputs {
+            for portrait in portraits.iter_mut() {
+                let (episode, _, segment) =
+                    binding.context("Local portraits require an episode segment")?;
+                if !segment.cast.contains(portrait) {
+                    bail!("Portrait does not match the saved segment");
+                }
+                self.validate_cast_reference(episode, portrait)?;
+                if portrait.brief.is_empty() {
+                    portrait.brief = self
+                        .prepare_cast_reference(episode, &portrait.character_id)?
+                        .brief;
+                }
+            }
+        }
         if plan.model != "bytedance/seedance-2.5" || plan.prompt.trim().is_empty() {
             bail!("Choose Seedance 2.5 and provide a prompt");
         }
-        if serde_json::to_vec(plan)?.len() > 128 * 1024 {
+        if serde_json::to_vec(&plan)?.len() > 128 * 1024 {
             bail!("Video request exceeds the 128 KiB authoring limit");
         }
         let id = uuid::Uuid::new_v4().to_string();
@@ -62,29 +86,46 @@ impl Store {
                 bail!("Episode plan changed before queueing");
             }
             use rusqlite::OptionalExtension;
-            let existing:Option<String>=tx.query_row("SELECT j.id FROM segment_generations g JOIN jobs j ON j.id=g.job_id WHERE g.episode_id=?1 AND g.segment_id=?2 AND g.plan_revision=?3 AND j.status!='completed' ORDER BY j.rowid DESC LIMIT 1",params![episode,segment.id,revision],|row|row.get(0)).optional()?;
+            let existing:Option<String>=tx.query_row("SELECT j.id FROM segment_generations g JOIN jobs j ON j.id=g.job_id WHERE g.episode_id=?1 AND g.segment_id=?2 AND g.plan_revision=?3 AND j.status!='completed' AND j.request=?4 ORDER BY j.rowid DESC LIMIT 1",params![episode,segment.id,revision,serde_json::to_string(&plan)?],|row|row.get(0)).optional()?;
             if let Some(existing) = existing {
                 return self.job(&existing);
             }
             tx.execute("INSERT INTO segment_generations(job_id,episode_id,segment_id,plan_revision,snapshot) VALUES(?1,?2,?3,?4,?5)",params![id,episode,segment.id,revision,serde_json::to_string(segment)?])?;
         }
-        tx.execute("INSERT INTO jobs(id,prompt,status,kind,request,created_at,updated_at) VALUES(?1,?2,'queued','openrouter_video',?3,datetime('now'),datetime('now'))",params![id,plan.prompt,serde_json::to_string(plan)?])?;
+        tx.execute("INSERT INTO jobs(id,prompt,status,kind,request,created_at,updated_at) VALUES(?1,?2,'queued','openrouter_video',?3,datetime('now'),datetime('now'))",params![id,plan.prompt,serde_json::to_string(&plan)?])?;
         tx.execute(
             "INSERT INTO remote_video_jobs(job_id,state) VALUES(?1,'prepared')",
             [&id],
         )?;
         self.job(&id)
     }
-    /// Explicit paid batch action. Save and queue atomically; never retry an existing request.
+    /// Explicit single-take action. Reuse unresolved requests; allow another completed take.
+    pub(crate) fn save_and_enqueue_segment(
+        &self,
+        draft: &crate::generation_plan::SavedPlan,
+        index: usize,
+        catalog: &crate::openrouter::Catalog,
+    ) -> Result<(crate::generation_plan::SavedPlan, crate::store::Job)> {
+        let tx = rusqlite::Transaction::new_unchecked(
+            &self.conn,
+            rusqlite::TransactionBehavior::Immediate,
+        )?;
+        let saved = self.save_generation_plan_in_transaction(draft)?;
+        let segment = saved.segments.get(index).context("Choose a segment")?;
+        segment.video_plan()?.preview(catalog)?;
+        let job = self.enqueue_seedance_in_transaction(
+            &segment.video_plan()?,
+            Some((&saved.episode_id, saved.revision, segment)),
+        )?;
+        tx.commit()?;
+        Ok((saved, job))
+    }
     pub(crate) fn enqueue_generation_plan(
         &self,
         draft: &crate::generation_plan::SavedPlan,
         catalog: &crate::openrouter::Catalog,
     ) -> Result<(crate::generation_plan::SavedPlan, usize)> {
         use rusqlite::OptionalExtension;
-        for segment in &draft.segments {
-            segment.video_plan()?.preview(catalog)?;
-        }
         let tx = rusqlite::Transaction::new_unchecked(
             &self.conn,
             rusqlite::TransactionBehavior::Immediate,
@@ -92,8 +133,9 @@ impl Store {
         let saved = self.save_generation_plan_in_transaction(draft)?;
         let mut queued = 0;
         for segment in &saved.segments {
+            segment.video_plan()?.preview(catalog)?;
             let snapshot = serde_json::to_string(segment)?;
-            let existing: Option<String> = self.conn.query_row("SELECT job_id FROM segment_generations WHERE episode_id=?1 AND segment_id=?2 AND snapshot=?3 LIMIT 1", params![saved.episode_id, segment.id, snapshot], |row| row.get(0)).optional()?;
+            let existing: Option<String> = self.conn.query_row("SELECT g.job_id FROM segment_generations g JOIN jobs j ON j.id=g.job_id WHERE g.episode_id=?1 AND g.segment_id=?2 AND g.snapshot=?3 AND j.request=?4 LIMIT 1", params![saved.episode_id, segment.id, snapshot, serde_json::to_string(&segment.video_plan()?)?], |row| row.get(0)).optional()?;
             if existing.is_none() {
                 self.enqueue_seedance_in_transaction(
                     &segment.video_plan()?,
@@ -150,6 +192,16 @@ fn read_json(mut response: ureq::http::Response<ureq::Body>) -> Result<Value> {
         .read_json()?)
 }
 pub(crate) fn execute(store: &Store, id: &str) -> Result<()> {
+    if recover_download(store, id)? {
+        return Ok(());
+    }
+    let config = store.config()?;
+    if !config.ffmpeg.is_file() {
+        bail!(
+            "Video processing is not configured: FFmpeg is missing. No video request was submitted."
+        );
+    }
+
     let key = crate::credentials::read()?.context("Save an OpenRouter key in Settings first")?;
     execute_transport(
         store,
@@ -203,19 +255,48 @@ fn execute_transport(
                 }
             };
             let preview = plan.preview(catalog)?;
-            let payload = preview["request"].clone();
+            let mut payload = preview["request"].clone();
             std::fs::write(
                 directory.join("request.json"),
                 serde_json::to_vec_pretty(&payload)?,
             )?;
+            crate::portrait_delivery::embed(&plan, &mut payload, &directory)?;
             check_cancel(store, id)?;
             store.conn.execute(
                 "UPDATE jobs SET phase='Submitting to Seedance' WHERE id=?1",
                 [id],
             )?;
             store.begin_video_submission(id)?;
-            let response=agent.post(&format!("{base}/videos")).header("Authorization",&authorization).send_json(payload).map_err(|_|anyhow::anyhow!("Seedance submission was not confirmed locally; billing may have occurred. No automatic resubmission."))?;
-            let response = read_json(response)?;
+            let response = agent.post(&format!("{base}/videos"))
+                .header("Authorization", &authorization)
+                .config().http_status_as_error(false).build()
+                .send_json(payload)
+                .map_err(|error| anyhow::anyhow!(
+                    "Seedance submission could not be confirmed: {}. Check OpenRouter video logs before trying again; no automatic resubmission.",
+                    match error {
+                        ureq::Error::Timeout(_) => "connection timed out",
+                        ureq::Error::HostNotFound => "hostname could not be resolved",
+                        ureq::Error::Io(_) | ureq::Error::ConnectionFailed => "connection failed or was interrupted",
+                        _ => "request or response failed",
+                    }
+                ))?;
+            let status = response.status();
+            let response = read_json(response);
+            if !status.is_success() {
+                let detail = crate::openrouter::submission_error(
+                    status.as_u16(),
+                    &response.unwrap_or(Value::Null),
+                    key,
+                );
+                std::fs::write(
+                    directory.join("submit-error.json"),
+                    serde_json::to_vec_pretty(&json!({
+                        "http_status": status.as_u16(), "message": detail,
+                    }))?,
+                )?;
+                bail!("{detail}");
+            }
+            let response = response.context("OpenRouter returned success but its reply could not be read. Submission is unconfirmed; check video logs before trying again")?;
             std::fs::write(
                 directory.join("submit-response.json"),
                 serde_json::to_vec_pretty(&response)?,
@@ -299,17 +380,66 @@ fn execute_transport(
     }
     let output = directory.join(format!("take-{}.mp4", uuid::Uuid::new_v4()));
     std::fs::rename(&part, &output)?;
+    finish_download(store, id, &plan, &output, &result)
+}
+fn recover_download(store: &Store, id: &str) -> Result<bool> {
+    check_cancel(store, id)?;
+    let directory = store.root().join("jobs").join(id).join("remote");
+    if !directory.is_dir() {
+        return Ok(false);
+    }
+    let mut outputs = Vec::new();
+    let mut completed = None;
+    for entry in std::fs::read_dir(&directory)? {
+        let path = entry?.path();
+        let name = path.file_name().and_then(|n| n.to_str()).unwrap_or("");
+        if name.starts_with("take-") && name.ends_with(".mp4") {
+            outputs.push(path.clone());
+        }
+        if name.starts_with("poll-") && name.ends_with(".json") {
+            let value: Value = serde_json::from_slice(&std::fs::read(&path)?)?;
+            if value["status"] == "completed" {
+                completed = Some(value);
+            }
+        }
+    }
+    outputs.sort();
+    if let (Some(output), Some(result)) = (outputs.last(), completed) {
+        let request: String =
+            store
+                .conn
+                .query_row("SELECT request FROM jobs WHERE id=?1", [id], |row| {
+                    row.get(0)
+                })?;
+        let plan: VideoPlan = serde_json::from_str(&request)?;
+        finish_download(store, id, &plan, output, &result)?;
+        return Ok(true);
+    }
+    Ok(false)
+}
+fn finish_download(
+    store: &Store,
+    id: &str,
+    plan: &VideoPlan,
+    output: &std::path::Path,
+    result: &Value,
+) -> Result<()> {
     store.conn.execute(
         "UPDATE jobs SET phase='Validating picture and sound' WHERE id=?1",
         [id],
     )?;
     let config = store.config()?;
-    crate::worker::validate_video(&config.ffmpeg, &output)?;
-    let info = crate::media::probe(&config.ffmpeg, &output)?;
-    validate_output(&plan, &info)?;
-    let hash = crate::worker::hash_file(&output)?;
+    if !config.ffmpeg.is_file() {
+        bail!(
+            "Video downloaded successfully, but FFmpeg is missing. Configure video processing, then retry to recover this download without generating again."
+        );
+    }
+    crate::worker::validate_video(&config.ffmpeg, output)?;
+    let info = crate::media::probe(&config.ffmpeg, output)?;
+    validate_output(plan, &info)?;
+    let hash = crate::worker::hash_file(output)?;
     let asset = uuid::Uuid::new_v4().to_string();
-    let metadata = json!({"kind":"hosted_video","provider":"openrouter","remote_id":remote,"request":plan,"usage":result.get("usage"),"info":info});
+    let metadata = json!({"kind":"hosted_video","provider":"openrouter","remote_id":result["id"],"request":plan,"usage":result.get("usage"),"info":info});
     let tx = store.conn.unchecked_transaction()?;
     tx.execute(
         "INSERT INTO assets VALUES(?1,?2,?3,?4,?5,?6,?7,?8,'unreviewed')",
@@ -346,7 +476,8 @@ fn validate_output(plan: &VideoPlan, info: &crate::media::VideoInfo) -> Result<(
     if info.width == 0
         || info.height == 0
         || !info.duration.is_finite()
-        || (info.duration - plan.duration as f64).abs() > 0.25
+        || info.duration <= 0.
+        || (!plan.automatic_duration && (info.duration - plan.duration as f64).abs() > 0.25)
         || info.width.min(info.height) < minimum
         || ((info.width as f64 / info.height as f64) - ratio).abs() > 0.02
         || plan.generate_audio && !info.audio
@@ -361,6 +492,51 @@ fn validate_output(plan: &VideoPlan, info: &crate::media::VideoInfo) -> Result<(
 mod tests {
     use super::*;
     #[test]
+    fn automatic_duration_accepts_returned_length_but_checks_media() {
+        let mut plan = VideoPlan {
+            model: "bytedance/seedance-2.5".into(),
+            prompt: "Scene".into(),
+            duration: 15,
+            automatic_duration: true,
+            resolution: "480p".into(),
+            aspect_ratio: "9:16".into(),
+            generate_audio: true,
+            inputs: crate::video_plan::Inputs::Prompt,
+        };
+        let mut info = crate::media::VideoInfo {
+            width: 480,
+            height: 854,
+            duration: 23.4,
+            fps: 24.,
+            audio: true,
+        };
+        assert!(validate_output(&plan, &info).is_ok());
+        plan.automatic_duration = false;
+        assert!(validate_output(&plan, &info).is_err());
+        plan.automatic_duration = true;
+        info.duration = 0.;
+        assert!(validate_output(&plan, &info).is_err());
+        info.duration = 23.4;
+        info.audio = false;
+        assert!(validate_output(&plan, &info).is_err());
+    }
+    #[test]
+    fn submission_errors_preserve_reason_and_redact_sensitive_content() {
+        let message = crate::openrouter::submission_error(
+            400,
+            &json!({"error": {
+                "message": "Invalid image data:image/png;base64,ABCDEF fixture-secret",
+                "metadata": {"raw": "{\"message\":\"Unsupported reference format\"}"}
+            }}),
+            "fixture-secret",
+        );
+        assert!(message.contains("HTTP 400"));
+        assert!(message.contains("Unsupported reference format"));
+        assert!(!message.contains("ABCDEF"));
+        assert!(!message.contains("fixture-secret"));
+        assert!(crate::openrouter::submission_error(502, &Value::Null, "").contains("HTTP 502"));
+    }
+    #[test]
     fn durable_submission_gate_prevents_reposting_and_preserves_remote_identity() {
         let root = std::env::temp_dir().join(format!("df-remote-video-{}", uuid::Uuid::new_v4()));
         let path = root.join("studio.sqlite");
@@ -369,6 +545,7 @@ mod tests {
             model: "bytedance/seedance-2.5".into(),
             prompt: "Fixture".into(),
             duration: 10,
+            automatic_duration: false,
             resolution: "720p".into(),
             aspect_ratio: "9:16".into(),
             generate_audio: true,
@@ -386,6 +563,7 @@ mod tests {
             .conn
             .execute("UPDATE jobs SET status='failed' WHERE id=?1", [&job.id])
             .unwrap();
+        assert!(!store.video_retry_available(&job.id).unwrap());
         assert!(store.retry(&job.id).is_err());
         store
             .bind_video_remote(&job.id, "remote_fixture-123")
@@ -397,6 +575,7 @@ mod tests {
             .conn
             .execute("UPDATE jobs SET status='failed' WHERE id=?1", [&job.id])
             .unwrap();
+        assert!(store.video_retry_available(&job.id).unwrap());
         store.retry(&job.id).unwrap();
         assert!(store.bind_video_remote(&job.id, "replacement").is_err());
         let remote: String = store
@@ -436,6 +615,8 @@ mod tests {
                     }
                     Err(error) => panic!("{error}"),
                 };
+                // Accepted sockets may inherit the listener's nonblocking mode on macOS.
+                stream.set_nonblocking(false).unwrap();
                 stream
                     .set_read_timeout(Some(std::time::Duration::from_secs(5)))
                     .unwrap();
@@ -539,6 +720,7 @@ mod tests {
             model: "bytedance/seedance-2.5".into(),
             prompt: "Explicit mock provider fixture".into(),
             duration: 10,
+            automatic_duration: false,
             resolution: "720p".into(),
             aspect_ratio: "9:16".into(),
             generate_audio: true,
@@ -601,6 +783,29 @@ mod tests {
             assert_eq!(asset.review, "unreviewed");
             assert_eq!(std::fs::read(asset.path).unwrap(), original);
         }
+        let recover = store.enqueue_seedance(&plan).unwrap();
+        store.begin_video_submission(&recover.id).unwrap();
+        store
+            .bind_video_remote(&recover.id, "already_completed")
+            .unwrap();
+        store
+            .conn
+            .execute(
+                "UPDATE jobs SET status='running',attempts=1 WHERE id=?1",
+                [&recover.id],
+            )
+            .unwrap();
+        let directory = root.join("jobs").join(&recover.id).join("remote");
+        std::fs::create_dir_all(&directory).unwrap();
+        std::fs::write(directory.join("take-existing.mp4"), &original).unwrap();
+        std::fs::write(
+            directory.join("poll-completed.json"),
+            r#"{"id":"already_completed","status":"completed"}"#,
+        )
+        .unwrap();
+        assert!(recover_download(&store, &recover.id).unwrap());
+        assert_eq!(store.job(&recover.id).unwrap().status, "completed");
+        assert!(directory.join("take-existing.mp4").is_file());
         drop(store);
         std::fs::remove_dir_all(root).unwrap();
     }

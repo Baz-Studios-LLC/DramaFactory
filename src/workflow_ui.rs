@@ -8,7 +8,7 @@ pub struct Stage {
     pub outcome: &'static str,
     pub actions: &'static [(Page, &'static str)],
 }
-pub const STAGES: [Stage; 5] = [
+pub const STAGES: [Stage; 6] = [
     Stage {
         heading: "01 · SYNOPSIS",
         title: "Define the synopsis",
@@ -46,14 +46,20 @@ pub const STAGES: [Stage; 5] = [
     },
     Stage {
         heading: "05 · EPISODE GENERATION",
-        title: "Generate, review and finish",
-        description: "Watch the results, choose the strongest takes and assemble the episode with its soundtrack.",
-        outcome: "Review the finished cut and continuity before starting the next episode.",
+        title: "Generate your footage",
+        description: "Generate and compare takes for every segment.",
+        outcome: "Clips ready to cut in the Editing room.",
         actions: &[
             (Page::Queue, "Episode generation"),
             (Page::Assets, "Review media"),
-            (Page::Timeline, "Assemble & export"),
         ],
+    },
+    Stage {
+        heading: "06 · EDITING ROOM",
+        title: "Shape the final episode",
+        description: "Arrange your takes, trim the action and cut the episode together.",
+        outcome: "A finished MP4 with picture and sound together.",
+        actions: &[(Page::EditingRoom, "Editing room")],
     },
 ];
 impl Studio {
@@ -67,7 +73,7 @@ impl Studio {
         .selected(active)
         .frame(active);
         let response = if sidebar {
-            ui.add_sized([ui.available_width(), 36.], button)
+            ui.add_sized([ui.available_width(), 30.], button)
         } else {
             ui.add(button)
         };
@@ -83,20 +89,20 @@ impl Studio {
             .add_enabled(
                 self.selected.is_some(),
                 crate::theme::primary("Save project")
-                    .min_size(egui::vec2(ui.available_width(), 38.)),
+                    .min_size(egui::vec2(ui.available_width(), 32.)),
             )
             .on_hover_text("Save edits across every workspace in the current series")
             .clicked()
         {
             self.save_project();
         }
-        ui.add_space(20.);
+        ui.add_space(12.);
         ui.label(RichText::new("WORKSPACE").size(10.).color(MUTED));
         ui.add_space(4.);
         for (index, stage) in STAGES.iter().enumerate() {
             let active = stage.actions.iter().any(|(page, _)| *page == self.page);
             let (rect, response) =
-                ui.allocate_exact_size(egui::vec2(ui.available_width(), 44.), egui::Sense::click());
+                ui.allocate_exact_size(egui::vec2(ui.available_width(), 34.), egui::Sense::click());
             if active || response.hovered() {
                 ui.painter().rect_filled(
                     rect,
@@ -111,7 +117,7 @@ impl Studio {
             if active {
                 ui.painter().rect_filled(
                     egui::Rect::from_min_size(
-                        rect.left_top() + egui::vec2(0., 12.),
+                        rect.left_top() + egui::vec2(0., 7.),
                         egui::vec2(3., 20.),
                     ),
                     2.,
@@ -145,9 +151,10 @@ impl Studio {
                 self.page = stage.actions[0].0;
             }
         }
-        ui.add_space(24.);
-        ui.separator();
-        self.workflow_link(ui, Page::Settings, "Settings", true);
+        ui.with_layout(egui::Layout::bottom_up(egui::Align::LEFT), |ui| {
+            self.workflow_link(ui, Page::Settings, "Settings", true);
+            ui.separator();
+        });
     }
     pub(crate) fn workflow_location(&mut self, ui: &mut egui::Ui) {
         if self.page == Page::Queue {

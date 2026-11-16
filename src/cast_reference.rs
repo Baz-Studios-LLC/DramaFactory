@@ -8,6 +8,8 @@ use std::path::PathBuf;
 pub struct CastReference {
     pub character_id: String,
     pub name: String,
+    #[serde(default, skip_serializing_if = "String::is_empty")]
+    pub brief: String,
     pub path: PathBuf,
     pub sha256: String,
 }
@@ -41,15 +43,19 @@ impl Store {
         Ok(CastReference {
             character_id: entry.id,
             name: entry.name,
+            brief: entry.description,
             path,
             sha256,
         })
     }
     pub fn validate_cast_reference(&self, episode: &str, reference: &CastReference) -> Result<()> {
-        let current = self.prepare_cast_reference(episode, &reference.character_id)?;
+        let mut current = self.prepare_cast_reference(episode, &reference.character_id)?;
+        if reference.brief.is_empty() {
+            current.brief.clear();
+        }
         if &current != reference {
             bail!(
-                "Character name or selected portrait changed. Review and relink the intended character image."
+                "Character profile, name or selected portrait changed. Review and relink the intended character image."
             );
         }
         Ok(())

@@ -6,7 +6,7 @@ use std::sync::mpsc::{self, Receiver};
 pub struct UpdateStatus {
     pub message: String,
 }
-pub const CURRENT: u32 = 5;
+pub const CURRENT: u32 = 6;
 pub const REPOSITORY: &str = "Baz-Studios-LLC/DramaFactory";
 #[derive(Deserialize)]
 struct Release {
@@ -33,14 +33,14 @@ pub fn check(root: PathBuf, automatic: bool) -> Receiver<UpdateStatus> {
                 .get(&format!(
                     "https://api.github.com/repos/{REPOSITORY}/releases/latest"
                 ))
-                .header("User-Agent", "DramaFactory-v005")
+                .header("User-Agent", "DramaFactory-v006")
                 .header("Accept", "application/vnd.github+json")
                 .call();
             let mut response = match response {
                 Ok(response) => response,
                 Err(ureq::Error::StatusCode(404)) => {
                     return Ok(
-                        "No published releases are available yet. Development build: v005.".into(),
+                        "No published releases are available yet. Development build: v006.".into(),
                     );
                 }
                 Err(error) => return Err(error.into()),

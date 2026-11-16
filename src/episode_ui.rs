@@ -51,7 +51,11 @@ impl Studio {
                 self.page = Page::Series;
             }
         });
-        ui.add_space(12.);
+        ui.add_space(if self.page == Page::EditingRoom {
+            2.
+        } else {
+            12.
+        });
     }
     pub(crate) fn episode_snapshot(&self) -> anyhow::Result<crate::sidekick_episode::EpisodeDraft> {
         let id = self
@@ -183,49 +187,40 @@ impl Studio {
                 .get(series)
                 .cloned()
                 .or_else(|| self.store.series_plan(series).ok());
-            egui::ScrollArea::vertical()
-                .id_salt(("episode-browser", series))
-                .max_height(480.)
-                .show(ui, |ui| {
-                    for (index, episode) in episodes.iter().enumerate() {
-                        if !term.is_empty()
-                            && !format!("{} {:02} {}", index + 1, index + 1, episode.title)
-                                .to_lowercase()
-                                .contains(&term)
-                        {
-                            continue;
-                        }
-                        let outlined = planned
-                            .as_ref()
-                            .is_some_and(|p| p.episodes.iter().any(|o| o.episode_id == episode.id));
-                        let state = if !episode.screenplay.trim().is_empty() {
-                            "Screenplay saved"
-                        } else if outlined {
-                            "Outline planned"
-                        } else {
-                            "Not outlined"
-                        };
-                        let active = self.episode_id.as_deref() == Some(&episode.id);
-                        if ui
-                            .add_sized(
-                                [ui.available_width(), 58.],
-                                egui::Button::new(format!(
-                                    "{:02}  {}\n{state}",
-                                    index + 1,
-                                    episode.title
-                                ))
-                                .selected(active)
-                                .wrap(),
-                            )
-                            .clicked()
-                        {
-                            self.select_episode(&episode.id);
-                        }
-                    }
-                    if episodes.is_empty() {
-                        ui.label("Add your first episode below.");
-                    }
-                });
+            for (index, episode) in episodes.iter().enumerate() {
+                if !term.is_empty()
+                    && !format!("{} {:02} {}", index + 1, index + 1, episode.title)
+                        .to_lowercase()
+                        .contains(&term)
+                {
+                    continue;
+                }
+                let outlined = planned
+                    .as_ref()
+                    .is_some_and(|p| p.episodes.iter().any(|o| o.episode_id == episode.id));
+                let state = if !episode.screenplay.trim().is_empty() {
+                    "Screenplay saved"
+                } else if outlined {
+                    "Outline planned"
+                } else {
+                    "Not outlined"
+                };
+                let active = self.episode_id.as_deref() == Some(&episode.id);
+                if ui
+                    .add_sized(
+                        [ui.available_width(), 58.],
+                        egui::Button::new(format!("{:02}  {}\n{state}", index + 1, episode.title))
+                            .selected(active)
+                            .wrap(),
+                    )
+                    .clicked()
+                {
+                    self.select_episode(&episode.id);
+                }
+            }
+            if episodes.is_empty() {
+                ui.label("Add your first episode below.");
+            }
             ui.collapsing("+ Add episode", |ui| {
                 ui.add(
                     egui::TextEdit::singleline(&mut self.episode_title)

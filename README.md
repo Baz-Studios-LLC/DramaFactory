@@ -1,6 +1,6 @@
-# DramaFactory · v005
+# DramaFactory · v006
 
-A Rust-native, Mac-first studio for developing a coherent short drama series, from synopsis and cast to generated episodes. MIT licensed. **v005 is a work in progress, not a finished production release.**
+A Rust-native, Mac-first studio for developing a coherent short drama series, from synopsis and cast to generated episodes. MIT licensed. **v006 is a work in progress, not a finished production release.**
 
 ## Workflow
 
@@ -8,7 +8,8 @@ A Rust-native, Mac-first studio for developing a coherent short drama series, fr
 2. **Characters & world** — develop character briefs, locations and reusable portrait references.
 3. **Overall plot** — plan character arcs, continuity and the series ending.
 4. **Episode plot** — develop each episode and its screenplay.
-5. **Episode generation** — prepare segments, review takes and assemble an MP4 with its soundtrack.
+5. **Episode generation** — prepare segments and generate multiple takes.
+6. **Editing room** — arrange clips, trim and split with linked audio, scrub source frames, preview the timeline and export an MP4.
 
 The current series applies across every workspace. Use **+ New series** under the series selector to begin a different story. Editing a synopsis changes the existing project; it does not replace its cast or episodes.
 
@@ -16,7 +17,7 @@ The current series applies across every workspace. Use **+ New series** under th
 
 The current rewrite uses **OpenRouter** for AI services: Gemini 4 Argon for the shared sidekick, Grok Imagine Image 2.0 for portraits, and Seedance 2.5 for video with native audio. Settings stores the OpenRouter key in macOS Keychain. Sending messages or generating media uses your paid provider account.
 
-Sidekick conversation persists per series. Synopsis, character briefs and portrait prompts support guarded unsaved draft proposals and Undo; editing every document through the sidekick remains unfinished. Local portrait transport to hosted video, provider capability checks and portions of the production interface remain incomplete. Legacy local-inference services are being removed; local inference execution is no longer supported. Historical benchmark reports describe earlier experiments, not current supported features.
+Sidekick conversation persists per series. Synopsis, character briefs and portrait prompts support guarded unsaved draft proposals and Undo; editing every document through the sidekick remains unfinished. Local portrait attachments are implemented using embedded image data, but acceptance through the live OpenRouter video route remains unverified. Portions of the production interface remain incomplete. Legacy local-inference services are being removed; local inference execution is no longer supported. Historical benchmark reports describe earlier experiments, not current supported features.
 
 Hosted image/video transport has fixture-based integration coverage. Local episode assembly has been exercised through the real MCP server and FFmpeg, preserving source picture order and audio. This does not establish live provider acting, identity or dialogue quality. No completed generated series is claimed.
 
@@ -65,6 +66,8 @@ Save project replaces Studio overview in the sidebar; the overview is available 
 
 Sidekick can create and fill one episode by default, or a requested batch of up to five, from Episode plot or Overall plot. The app assigns IDs, validates complete beats and screenplay, rejects duplicate titles/stale plot revisions, and atomically saves new episodes and outline links. Request receipts prevent duplicate replay. Existing episode edits still remain unsaved drafts with Undo. Creating episodes never generates video.
 
-Episode generation is organized into Prepare, Takes, and Finished episode. Prepare checks the live OpenRouter catalog for Seedance 2.5 durations and resolutions (currently up to 1080p), supports ordered segments and separate reference/frame modes, and requires saved edits before generation. Takes provides original playback, approval/rejection and selection; Finished episode assembles selected, approved takes with their original sound. Local portrait transport, automatic ending-frame handoff, audio/video reference inputs, and segment trims remain incomplete. No paid generation was used to verify this UI update.
+Episode generation is organized into Prepare, Takes, and Finished episode. Prepare checks the live OpenRouter catalog for Seedance 2.5 durations and resolutions (currently up to 1080p), supports ordered segments and separate reference/frame modes, and requires saved edits before generation. Takes provides original playback, approval/rejection and selection; Finished episode assembles selected, approved takes with their original sound. Automatic ending-frame handoff, audio/video reference inputs, and segment trims remain incomplete. No paid generation was used to verify this UI update.
 
-The Sidekick can prepare the selected episode’s complete Seedance segment plan from screenplay and series context in either Visual plan or Episode generation. These destinations share one draft, with guarded application and Undo. Generate episode saves and atomically queues missing segment requests; identical existing requests are never automatically retried. Preparation alone does not generate video. Local portrait delivery and automatic frame handoff still require integration.
+The Sidekick can prepare the selected episode’s complete Seedance segment plan from screenplay and series context in either Visual plan or Episode generation. These destinations share one draft, with guarded application and Undo. Generate episode saves and atomically queues missing segment requests; identical existing requests are never automatically retried. Preparation alone does not generate video. Automatic frame handoff still requires integration. Selected character portraits are embedded directly at submission and paired with numbered names and saved profile briefs in the prompt. Exact image hashes are checked before submission. This path is locally tested; no paid request has yet verified OpenRouter route acceptance.
+
+Sidekick accepts up to four pasted images per message: use Command-V while the composer is focused or click Paste image. Thumbnails can be removed before Send. Images are stored with the per-series draft and conversation, and sent as image content only when you submit the message. Clipboard images are resized to fit 2048 pixels and capped at 4 MiB each. Assistant replies render Markdown.

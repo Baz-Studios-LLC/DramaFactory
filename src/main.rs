@@ -4,9 +4,13 @@ mod captions;
 mod cast_reference;
 mod character_deletion;
 mod character_edit;
+mod character_grid;
 mod character_profile;
+mod chat_images;
+mod chat_markdown;
 mod completion;
 mod credentials;
+mod credit_status;
 mod dialogue_direction;
 mod dialogue_editing;
 mod dialogue_line_ui;
@@ -15,6 +19,8 @@ mod dialogue_workspace;
 mod directing;
 mod directing_ui;
 mod editing;
+mod editing_room;
+mod editing_room_ui;
 mod episode_ui;
 mod generation_plan;
 mod hosted_image;
@@ -29,6 +35,9 @@ mod openrouter;
 mod orchestration;
 mod performance;
 mod performance_window;
+mod portrait_deletion;
+mod portrait_delivery;
+mod portrait_gallery;
 mod portrait_prompt;
 mod portrait_style;
 mod portrait_ui;
@@ -41,6 +50,7 @@ mod readiness;
 mod rehearsal;
 mod reviews;
 mod runtime;
+mod scrub_preview;
 mod segment_takes;
 mod shot_workspace;
 mod sidekick;
@@ -54,6 +64,7 @@ mod store;
 mod story;
 mod story_ui;
 mod synopsis;
+mod take_gallery;
 mod theme;
 mod transitions;
 mod updater;
@@ -86,10 +97,12 @@ enum Page {
     Images,
     Queue,
     Settings,
+    EditingRoom,
 }
 struct Studio {
     store: Store,
     delete_character: Option<production::LibraryEntry>,
+    open_character: Option<(String, String)>,
     profile_drafts: std::collections::HashMap<String, character_profile::ProfileDraft>,
     new_character_profile: character_profile::CharacterProfile,
     new_portrait_style: portrait_style::PortraitStyle,
@@ -106,6 +119,7 @@ struct Studio {
     story_check: Option<std::sync::mpsc::Receiver<(String, Result<story::StoryReport, String>)>>,
     provider_settings: provider_settings::ProviderSettings,
     video_planner: video_plan_ui::VideoPlanner,
+    editor: editing_room_ui::Editor,
     page: Page,
     asset_browser: asset_browser::AssetBrowser,
     sidekick_visible: bool,
@@ -184,6 +198,7 @@ impl Studio {
         Self {
             store,
             delete_character: None,
+            open_character: None,
             profile_drafts: Default::default(),
             new_character_profile: Default::default(),
             new_portrait_style: Default::default(),
@@ -200,6 +215,7 @@ impl Studio {
             story_check: None,
             provider_settings: Default::default(),
             video_planner: Default::default(),
+            editor: Default::default(),
             page: Page::Synopsis,
             asset_browser: Default::default(),
             sidekick_visible: true,
@@ -358,7 +374,15 @@ impl Studio {
             return;
         };
         let entries = self.load(self.store.library(&series, kind));
-        egui::CollapsingHeader::new(if kind == "character" {
+        if kind == "character"
+            && self.open_character.as_ref().is_some_and(|(owner, id)| {
+                owner != &series || !entries.iter().any(|entry| &entry.id == id)
+            })
+        {
+            self.open_character = None;
+        }
+        if kind != "character" || self.open_character.is_none() {
+            egui::CollapsingHeader::new(if kind == "character" {
             "+ Add a character"
         } else {
             "+ Add a location"
@@ -396,7 +420,7 @@ impl Studio {
                     }
                     if kind == "character" && ui.add_enabled(
                         !self.library_name.trim().is_empty() && !self.new_character_profile.brief().trim().is_empty(),
-                        egui::Button::new("Create character & generate image · paid"),
+                        egui::Button::new("Create character & portrait"),
                     ).clicked() {
                         let result=self.store.create_profile_character(&series,&self.library_name,&self.new_character_profile,self.library_reference.as_deref(),self.new_portrait_style);
                         match result {
@@ -435,15 +459,38 @@ impl Studio {
                 });
             });
         });
+        }
         ui.add_space(18.);
+        if kind == "character" {
+            if self.open_character.is_none() {
+                self.character_grid(ui, &series, &entries);
+                self.deleted_character_list(ui, &series);
+                return;
+            }
+            if ui.button("← Back to characters").clicked() {
+                self.open_character = None;
+                return;
+            }
+            ui.add_space(12.);
+        }
+        let deleted_portraits = self.store.deleted_portraits().unwrap_or_default();
         for entry in entries {
+            if kind == "character"
+                && self
+                    .open_character
+                    .as_ref()
+                    .is_none_or(|(_, id)| id != &entry.id)
+            {
+                continue;
+            }
             let candidate = if entry.reference.is_none() {
                 self.store
                     .assets()
                     .unwrap_or_default()
                     .into_iter()
                     .find(|asset| {
-                        asset.metadata["provider"] == "openrouter"
+                        !deleted_portraits.contains(&asset.id)
+                            && asset.metadata["provider"] == "openrouter"
                             && asset.metadata["request"]["library_id"] == entry.id
                     })
             } else {
@@ -481,11 +528,11 @@ impl Studio {
                                     Vec2::new(260., 200.)
                                 },
                             );
-                            if let Some(candidate) = &candidate
-                                && ui.button("Use this portrait").clicked()
-                            {
-                                let result = self.store.review(&candidate.id, "approved");
-                                self.result(result, "Character portrait selected");
+                            if let Some(candidate) = &candidate {
+                                self.portrait_select_button(ui, &entry, &candidate.id);
+                            }
+                            if let Some(candidate) = &candidate {
+                                self.portrait_delete_button(ui, &entry.id, &candidate.id);
                             }
                         });
                     }
@@ -589,22 +636,28 @@ impl Studio {
         }
     }
     fn queue(&mut self, ui: &mut egui::Ui) {
-        Self::title(
-            ui,
-            "PRODUCTION",
-            "Bring the episode to life.",
-            "Direct each segment with Seedance 2.5, choose the performances, then assemble the finished episode.",
-        );
+        ui.heading("Episode generation");
+        ui.add_space(8.);
         self.hosted_video_planner(ui);
         if self.video_planner.section == 0 || self.episode_id.is_none() {
             return;
         }
         ui.add_space(16.);
         ui.heading("Production activity");
+        ui.checkbox(
+            &mut self.video_planner.show_old_attempts,
+            "Show older attempts",
+        );
         for job in self.load(self.store.workspace_jobs(
             self.selected.as_deref().unwrap_or(""),
             self.episode_id.as_deref(),
         )) {
+            if !self.video_planner.show_old_attempts
+                && self.store.has_newer_segment_job(&job.id).unwrap_or(false)
+                && !matches!(job.status.as_str(), "queued" | "running")
+            {
+                continue;
+            }
             let kind = self
                 .store
                 .job_timing(&job.id)
@@ -677,6 +730,18 @@ impl Studio {
                 if !job.error.is_empty() {
                     ui.label(RichText::new(&job.error).color(Color32::from_rgb(233, 151, 129)));
                 }
+                let retryable_status =
+                    ["failed", "canceled", "blocked"].contains(&job.status.as_str());
+                let uncertain_video = kind.as_deref() == Some("openrouter_video")
+                    && retryable_status
+                    && !self.store.video_retry_available(&job.id).unwrap_or(false);
+                if uncertain_video {
+                    ui.label("Submission outcome unknown. Retrying is blocked to avoid a duplicate charge.");
+                    ui.hyperlink_to(
+                        "Check OpenRouter video logs",
+                        "https://openrouter.ai/workspaces/default/logs?tab=videos",
+                    );
+                }
                 ui.horizontal(|ui| {
                     if ["queued", "running", "blocked"].contains(&job.status.as_str())
                         && ui.small_button("Cancel").clicked()
@@ -684,9 +749,7 @@ impl Studio {
                         let r = self.store.cancel(&job.id);
                         self.result(r, "Cancellation requested");
                     }
-                    if ["failed", "canceled", "blocked"].contains(&job.status.as_str())
-                        && ui.small_button("Retry").clicked()
-                    {
+                    if retryable_status && !uncertain_video && ui.small_button("Retry").clicked() {
                         let r = self
                             .store
                             .retry(&job.id)
@@ -1298,7 +1361,7 @@ impl Studio {
                 let r = self.store.set_automatic_updates(self.automatic_updates);
                 self.result(r, "Update preference saved");
             }
-            ui.label("v005 · MIT · Baz-Studios-LLC / DramaFactory");
+            ui.label("v006 · MIT · Baz-Studios-LLC / DramaFactory");
             ui.label(&self.update_status);
             if ui
                 .add_enabled(
@@ -1373,7 +1436,7 @@ impl eframe::App for Studio {
                         .size(11.),
                     );
                     ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                        ui.label(RichText::new("v005 / DEVELOPMENT").color(MUTED).size(10.));
+                        ui.label(RichText::new("v006 / DEVELOPMENT").color(MUTED).size(10.));
                     });
                 });
             });
@@ -1385,34 +1448,19 @@ impl eframe::App for Studio {
                     .inner_margin(18.),
             )
             .show(ctx, |ui| {
-                ui.add_space(10.);
-                ui.add(
-                    egui::Image::new(egui::include_image!("../branding/icon.png"))
-                        .fit_to_exact_size(Vec2::splat(54.)),
-                );
-                ui.add_space(8.);
-                ui.label(RichText::new("DRAMAFACTORY").size(15.).strong());
-                ui.label(
-                    RichText::new("THE INDEPENDENT STUDIO")
-                        .size(9.)
-                        .color(MUTED),
-                );
-                ui.add_space(16.);
-                self.current_series_picker(ui);
-                ui.add_space(20.);
-                egui::ScrollArea::vertical()
-                    .max_height((ui.available_height() - 32.).max(100.))
-                    .id_salt("navigation-scroll")
-                    .show(ui, |ui| {
-                        self.workflow_navigation(ui);
-                    });
-                ui.with_layout(egui::Layout::bottom_up(egui::Align::LEFT), |ui| {
-                    ui.label(
-                        RichText::new("YOUR VISION. YOUR FINAL CUT.")
-                            .color(MUTED)
-                            .size(9.),
+                ui.spacing_mut().item_spacing.y = 5.;
+                ui.spacing_mut().button_padding = egui::vec2(8., 6.);
+                ui.horizontal(|ui| {
+                    ui.add(
+                        egui::Image::new(egui::include_image!("../branding/icon.png"))
+                            .fit_to_exact_size(Vec2::splat(36.)),
                     );
+                    ui.label(RichText::new("DRAMAFACTORY").size(13.).strong());
                 });
+                ui.add_space(12.);
+                self.current_series_picker(ui);
+                ui.add_space(8.);
+                self.workflow_navigation(ui);
             });
         egui::TopBottomPanel::top("workspace-toolbar")
             .frame(
@@ -1444,32 +1492,61 @@ impl eframe::App for Studio {
             });
         // Process pending replies even while the conversation is collapsed.
         self.sidekick_panel(ctx);
+        self.video_planner.player_visible = false;
         egui::CentralPanel::default()
-            .frame(egui::Frame::new().fill(BG).inner_margin(28.))
+            .frame(
+                egui::Frame::new()
+                    .fill(BG)
+                    .inner_margin(if self.page == Page::EditingRoom {
+                        16.
+                    } else {
+                        0.
+                    }),
+            )
             .show(ctx, |ui| {
+                if self.page == Page::EditingRoom {
+                    self.editing_room(ui);
+                    return;
+                }
+                let content_scroll_style = ui.spacing().scroll;
+                ui.spacing_mut().scroll.floating = false;
+                ui.spacing_mut().scroll.bar_width = 6.;
+                ui.spacing_mut().scroll.bar_inner_margin = 0.;
+                ui.spacing_mut().scroll.bar_outer_margin = 0.;
                 egui::ScrollArea::vertical()
+                    .auto_shrink([false, true])
                     .id_salt(("studio-page", self.page as u8))
                     .show(ui, |ui| {
-                        let width = ui.available_width().min(1120.);
-                        ui.set_width(width);
-                        self.workflow_location(ui);
-                        match self.page {
-                            Page::Studio => self.dashboard(ui),
-                            Page::Series => self.series(ui),
-                            Page::Synopsis => self.synopsis(ui),
-                            Page::Story => self.story_development(ui),
-                            Page::Cast => self.library(ui, "character"),
-                            Page::Locations => self.library(ui, "location"),
-                            Page::Scenes => self.scenes(ui),
-                            Page::Assets => self.assets(ui),
-                            Page::Timeline => self.timeline(ui),
-                            Page::Dialogue => self.dialogue(ui),
-                            Page::Images => self.images(ui),
-                            Page::Queue => self.queue(ui),
-                            Page::Settings => self.settings(ui),
-                        }
+                        ui.spacing_mut().scroll = content_scroll_style;
+                        egui::Frame::new().inner_margin(28.).show(ui, |ui| {
+                            let width = ui.available_width().min(1120.);
+                            ui.set_width(width);
+                            self.workflow_location(ui);
+                            match self.page {
+                                Page::Studio => self.dashboard(ui),
+                                Page::Series => self.series(ui),
+                                Page::Synopsis => self.synopsis(ui),
+                                Page::Story => self.story_development(ui),
+                                Page::Cast => self.library(ui, "character"),
+                                Page::Locations => self.library(ui, "location"),
+                                Page::Scenes => self.scenes(ui),
+                                Page::Assets => self.assets(ui),
+                                Page::Timeline => self.timeline(ui),
+                                Page::Dialogue => self.dialogue(ui),
+                                Page::Images => self.images(ui),
+                                Page::Queue => self.queue(ui),
+                                Page::EditingRoom => self.editing_room(ui),
+                                Page::Settings => self.settings(ui),
+                            }
+                        });
                     });
             });
+        if !self.video_planner.player_visible {
+            self.video_planner.player = None;
+        }
+        if self.page != Page::EditingRoom {
+            self.editor.stop();
+        }
         self.image_inspector_window(ctx);
         self.project_save_confirmation(ctx);
         ctx.request_repaint_after(std::time::Duration::from_millis(500));
@@ -1675,7 +1752,7 @@ fn run() -> anyhow::Result<()> {
     let args: Vec<String> = std::env::args().collect();
     if args.get(1).is_some_and(|x| x == "--help") {
         println!(
-            "DramaFactory v005\n\n(no arguments) Launch studio\n--mcp Start local stdio MCP\n--worker Drain durable queue\n--worker-once Drain if no other worker owns the queue\n--data-path Print database path\n--configure-worker PYTHON WAN_MODEL FFMPEG KOKORO_MODEL\n--configure-images PYTHON FLUX_MODEL\n--configure-lipsync PYTHON MUSETALK_MODEL\n--configure-performance PYTHON LTX_MODEL ENCODER\n--version Print public version"
+            "DramaFactory v006\n\n(no arguments) Launch studio\n--mcp Start local stdio MCP\n--worker Drain durable queue\n--worker-once Drain if no other worker owns the queue\n--data-path Print database path\n--configure-worker PYTHON WAN_MODEL FFMPEG KOKORO_MODEL\n--configure-images PYTHON FLUX_MODEL\n--configure-lipsync PYTHON MUSETALK_MODEL\n--configure-performance PYTHON LTX_MODEL ENCODER\n--version Print public version"
         );
         return Ok(());
     }
@@ -1698,7 +1775,7 @@ fn run() -> anyhow::Result<()> {
         anyhow::bail!("Unknown option '{flag}'. Use --help");
     }
     if args.get(1).is_some_and(|x| x == "--version") {
-        println!("v005");
+        println!("v006");
         return Ok(());
     }
     if args.get(1).is_some_and(|x| x == "--install-staged-update") {
@@ -1778,7 +1855,7 @@ fn run() -> anyhow::Result<()> {
         return mcp::run(store);
     }
     let viewport = egui::ViewportBuilder::default()
-        .with_title("DramaFactory · v005")
+        .with_title("DramaFactory · v006")
         .with_inner_size([1380., 900.])
         .with_min_inner_size([1100., 740.]);
     // macOS resolves the system-rendered Icon Composer asset from the bundle.

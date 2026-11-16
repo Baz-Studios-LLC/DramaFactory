@@ -49,6 +49,44 @@ pub fn discover() -> Result<Catalog> {
             .as_secs(),
     })
 }
+// Keep provider diagnostics useful without storing echoed credentials or image bytes.
+pub(crate) fn submission_error(status: u16, value: &Value, key: &str) -> String {
+    let mut parts = Vec::new();
+    if let Some(message) = value["error"]["message"]
+        .as_str()
+        .or_else(|| value["message"].as_str())
+    {
+        parts.push(message.to_owned());
+    }
+    if let Some(raw) = value["error"]["metadata"]["raw"].as_str()
+        && let Ok(parsed) = serde_json::from_str::<Value>(raw)
+        && let Some(message) = parsed["error"]["message"]
+            .as_str()
+            .or_else(|| parsed["message"].as_str())
+    {
+        parts.push(message.to_owned());
+    }
+    let mut detail = parts.join(" · ");
+    if !key.is_empty() {
+        detail = detail.replace(key, "[redacted]");
+    }
+    let sensitive =
+        regex::Regex::new(r#"(?i)(?:data:image/[^\s\"]+|bearer\s+\S+|sk-[A-Za-z0-9_-]+)"#)
+            .expect("static pattern");
+    detail = sensitive
+        .replace_all(&detail, "[redacted]")
+        .chars()
+        .filter(|c| !c.is_control())
+        .take(700)
+        .collect();
+    if detail.is_empty() {
+        detail = "No readable error details were returned".into();
+    }
+    format!(
+        "OpenRouter HTTP {status}: {detail}. No automatic resubmission. Check OpenRouter video logs before trying again."
+    )
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

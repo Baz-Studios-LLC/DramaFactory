@@ -168,6 +168,7 @@ impl Store {
         self.conn.execute_batch("CREATE TABLE IF NOT EXISTS remote_video_jobs(job_id TEXT PRIMARY KEY REFERENCES jobs(id),state TEXT NOT NULL,remote_id TEXT);")?;
         self.conn.execute_batch("CREATE TABLE IF NOT EXISTS portrait_prompts(library_id TEXT PRIMARY KEY REFERENCES library(id),prompt TEXT NOT NULL);")?;
         self.conn.execute_batch("CREATE TABLE IF NOT EXISTS sidekick_messages(id TEXT PRIMARY KEY,series_id TEXT NOT NULL REFERENCES series(id),role TEXT NOT NULL,text TEXT NOT NULL,context TEXT NOT NULL);")?;
+        self.conn.execute_batch("CREATE TABLE IF NOT EXISTS sidekick_images(message_id TEXT PRIMARY KEY REFERENCES sidekick_messages(id) ON DELETE CASCADE, data TEXT NOT NULL);")?;
         self.conn.execute_batch("CREATE TABLE IF NOT EXISTS generation_plans(episode_id TEXT PRIMARY KEY REFERENCES episodes(id),revision INTEGER NOT NULL,data TEXT NOT NULL);")?;
         let tx = rusqlite::Transaction::new_unchecked(
             &self.conn,
@@ -346,14 +347,7 @@ impl Store {
             }
             let _: VoiceRequest = serde_json::from_str(&text)?;
         } else if kind == "openrouter_video" {
-            let (state, remote): (String, Option<String>) = self.conn.query_row(
-                "SELECT state,remote_id FROM remote_video_jobs WHERE job_id=?1",
-                [id],
-                |row| Ok((row.get(0)?, row.get(1)?)),
-            )?;
-            if !((state == "prepared" && remote.is_none())
-                || (state == "accepted" && remote.is_some()))
-            {
+            if !self.video_retry_available(id)? {
                 bail!(
                     "This remote job cannot be safely resumed. Inspect provider activity; no new submission was queued."
                 );
@@ -412,6 +406,9 @@ impl Store {
         Ok(self.conn.prepare("SELECT id,job_id,path,hash,width,height,duration,metadata,review FROM assets ORDER BY rowid DESC")?.query_map([],asset_row)?.collect::<std::result::Result<Vec<_>,_>>()?)
     }
     pub fn review(&self, id: &str, review: &str) -> Result<()> {
+        if self.deleted_portraits()?.contains(id) {
+            bail!("Restore this deleted portrait before reviewing or selecting it");
+        }
         self.review_status(id, review)
     }
     pub(crate) fn apply_review_status(&self, id: &str, review: &str) -> Result<()> {
@@ -592,6 +589,8 @@ fn zero_source_start(value: &f64) -> bool {
 }
 #[derive(Clone, Serialize, Deserialize)]
 pub struct ExportAudio {
+    #[serde(default, skip_serializing_if = "zero_source_start")]
+    pub source_start: f64,
     pub path: PathBuf,
     pub hash: String,
     pub duration: f64,
@@ -750,6 +749,7 @@ impl Store {
                 }
                 speech_duration += speech.duration;
                 audio.push(ExportAudio {
+                    source_start: 0.,
                     path: speech.path.clone(),
                     hash: speech.hash.clone(),
                     duration: speech.duration,

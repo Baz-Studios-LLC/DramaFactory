@@ -92,4 +92,16 @@ Latest clarification: discussion belongs on every page, not only Synopsis. One c
 
 ## Connected episode preparation
 
-The episode screenplay is the source of truth. Sidekick generation proposals use current series, cast, locations, image style, plot and screenplay context to author a complete ordered segment plan. Visual plan and Episode generation share this plan. Each prompt carries relevant context and explicit dialogue; several shots may belong to one generated segment. Proposals remain drafts with source/context conflict checks and Undo. Generate episode is the explicit paid action: it saves the draft and atomically queues missing requests, preserving existing identical requests without retrying them. No automatic portrait transport, voice identity guarantee or ending-frame handoff is implied.
+The episode screenplay is the source of truth. Sidekick generation proposals use current series, cast, locations, image style, plot and screenplay context to author a complete ordered segment plan. Visual plan and Episode generation share this plan. Each prompt carries relevant context and explicit dialogue; several shots may belong to one generated segment. Proposals remain drafts with source/context conflict checks and Undo. Generate episode is the explicit paid action: it saves the draft and atomically queues missing requests, preserving existing identical requests without retrying them. Selected local portraits are resolved into embedded image data at submission, with numbered character-name/profile mapping and hash verification. BytePlus documents data URIs and the OpenRouter request schema accepts an image URL string, but the cookbook demonstrates HTTPS URLs only: end-to-end embedded-image route acceptance remains unverified without a paid test. No voice identity guarantee or automatic ending-frame handoff is implied.
+
+
+## Minimal interface direction (2026-11-16)
+
+Keep the studio minimal, friendly and intuitive. Use compact portrait cards for character selection, with names and clear selected states. Each workspace should emphasize its immediate creative task and primary action. Collapse batch actions and technical details; omit repeated payment reminders and implementation explanations. Preserve actionable errors, explicit generation controls, save feedback and destructive-action confirmation.
+
+Generation is repeatable: an explicit Generate action after a completed result makes a new take, even with identical settings. Keep every generated take visible in segment review, including rejected takes, for comparison and future non-destructive editing. Hiding older production attempts must not hide playable clips. Repeated clicks while the same request remains unresolved reuse that request.
+
+
+## Editing room first implementation (2026-11-16)
+
+Sixth primary workspace: per-episode non-destructive cuts using any generated takes, including multiple ranges from the same source. Clip library with drag-to-insert, horizontal sequence timeline, drag reorder, drag-edge and numeric in/out trims, split, ripple delete, Undo/Redo, immediate optimistic saves, immutable local MP4 export. Picture and original sound share source offsets. Source preview, local rendered timeline playback and direct source-frame scrubbing are available. Frame stepping, transitions and Sidekick edit actions remain future work. Existing generation plans and original media are preserved.

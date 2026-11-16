@@ -40,7 +40,7 @@ impl PortraitStyle {
             Self::Photo => "A natural camera photograph with realistic skin and materials.",
             Self::Cinematic => "A live-action film still with dramatic, motivated lighting.",
             Self::Cgi => {
-                "A polished computer-generated 3D render with sculpted forms and rendered materials."
+                "Expressive 3D feature animation with appealing shapes, tactile materials and warm cinematic lighting."
             }
             Self::Animation => {
                 "An expressive animated-film design with stylized shapes and lighting."
@@ -64,7 +64,7 @@ impl PortraitStyle {
                 "An expressive polished animated-film character design. Stylized shapes, appealing silhouettes, deliberate materials and lighting. Non-human characters, including fruit, may have expressive faces and personalities when described. Preserve the subject's requested design; do not force human anatomy or photographic skin."
             }
             Self::Cgi => {
-                "A polished 3D computer-graphics render of the described subject. Deliberately sculpted forms, modeled geometry, physically based materials, controlled studio illumination and rendered depth. Clearly intentional CGI rather than a camera photograph or a painted illustration. Preserve the described anatomy, proportions, recognizable features and material colors."
+                "Stylized 3D feature animation; one coherent design language across all ages, genders and species. Appealing silhouettes, rounded sculpted forms, moderately enlarged expressive eyes with clear eyelids, simplified noses, articulate brows and individual facial shapes. Adults remain visibly adult; preserve age, build, identity and specified colors. Nuanced acting, natural asymmetry, readable poses and expressive hands. Hair and beards use sculpted locks; skin uses soft subsurface shading and stylized freckles, without pores or hyperreal stubble. Tactile fabric, leather, wood and metal use organized, restrained detail. Soft global illumination, warm key light, cool fill, subtle rim light, rich controlled colors and soft depth of field. Environments share the same stylization. Serious characters retain the same animation treatment. No photography, realistic game faces, chibi proportions, plastic dolls or 2D drawing."
             }
             Self::Cartoon => {
                 "A 2D cartoon character design with confident clean outlines, expressive simplified shapes, flat colors and restrained graphic shading. Use drawn, readable silhouettes rather than photographic texture or a volumetric 3D-render finish. Stylize while preserving specified age, body type, distinctive features, hair and eye colors, wardrobe and personality."

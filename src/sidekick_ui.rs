@@ -8,6 +8,7 @@ enum MessageAction {
 fn message_bubble(
     ui: &mut eframe::egui::Ui,
     message: &Message,
+    markdown: &mut egui_commonmark::CommonMarkCache,
     editing: &mut Option<(Message, String)>,
     enabled: bool,
 ) -> Option<MessageAction> {
@@ -92,6 +93,13 @@ fn message_bubble(
                             }
                         });
                     });
+                    if !message.images.is_empty() {
+                        ui.horizontal_wrapped(|ui| {
+                            for image in &message.images {
+                                image.thumbnail(ui);
+                            }
+                        });
+                    }
                     if let Some((original, text)) = editing
                         .as_mut()
                         .filter(|(original, _)| original.id == message.id)
@@ -115,6 +123,12 @@ fn message_bubble(
                             if ui.button("Cancel").clicked() {
                                 action = Some(MessageAction::Cancel);
                             }
+                        });
+                    } else if !user {
+                        ui.push_id(&message.id, |ui| {
+                            ui.visuals_mut().override_text_color =
+                                Some(Color32::from_rgb(235, 237, 242));
+                            crate::chat_markdown::show(ui, markdown, &message.text);
                         });
                     } else {
                         ui.add(
@@ -142,6 +156,14 @@ type PendingReply = (
 );
 #[derive(Default)]
 pub struct Sidekick {
+    markdown: egui_commonmark::CommonMarkCache,
+    image_drafts: std::collections::HashMap<
+        String,
+        (
+            Vec<crate::chat_images::ChatImage>,
+            Vec<crate::chat_images::ChatImage>,
+        ),
+    >,
     drafts: std::collections::HashMap<String, String>,
     saved_drafts: std::collections::HashMap<String, String>,
     editing_message: Option<(Message, String)>,
@@ -345,7 +367,7 @@ impl Studio {
                                     Ok(())
                                 })();
                                 match result {
-                                    Ok(()) => text.push_str("\n\nGeneration plan prepared. Review the segments, then Generate episode when ready; that button saves the plan and starts paid generation. You can also Save episode plan without generating. Undo is available. No video was generated."),
+                                    Ok(()) => text.push_str("\n\nVideo plan ready. Review the segments, then choose Generate video. Undo is available."),
                                     Err(error) => text.push_str(&format!("\n\n{error}\nGeneration proposal retained:\n{}", serde_json::to_string_pretty(&edit).unwrap_or_default())),
                                 }
                             }
@@ -469,6 +491,7 @@ impl Studio {
                                 }
                             }
                             let message = Message {
+                                images: Vec::new(),
                                 id: uuid::Uuid::new_v4().to_string(),
                                 role: "assistant".into(),
                                 text,
@@ -524,7 +547,7 @@ impl Studio {
             let episode_snapshot=if self.page==Page::Series{self.episode_snapshot().ok()}else{None};
             let project_context = serde_json::json!({
                 "workspace":context,
-                "generation_draft":generation_snapshot.as_ref().map(|snapshot|serde_json::json!({"plan":snapshot.plan,"saved_episode":snapshot.context["saved_episode"],"image_style":snapshot.context["image_style"]})),
+                "generation_draft":generation_snapshot.as_ref().map(|snapshot|serde_json::json!({"plan":snapshot.plan,"saved_episode":snapshot.context["saved_episode"],"image_style":snapshot.context["image_style"],"available_portraits":snapshot.context["available_portraits"].as_array().map(|items|items.iter().map(|item|serde_json::json!({"character_id":item["character_id"],"name":item["name"]})).collect::<Vec<_>>())})),
                 "character_drafts":character_snapshots.iter().map(crate::character_edit::CharacterDraft::model_context).collect::<Vec<_>>(),
                 "series":self.store.series().ok().and_then(|items|items.into_iter().find(|item|item.id==series)),
                                 "series_plot_draft":self.story_drafts.get(&series).cloned().or_else(||self.store.series_plan(&series).ok()),
@@ -546,6 +569,32 @@ impl Studio {
             }
             let draft=self.sidekick.drafts.get_mut(&series).expect("loaded composer");
             let composer_id=ui.make_persistent_id(("sidekick-composer",&series));
+            if !self.sidekick.image_drafts.contains_key(&series) {
+                match self.store.chat_image_draft(&series) {
+                    Ok(images) => { self.sidekick.image_drafts.insert(series.clone(),(images.clone(),images)); }
+                    Err(error) => { ui.label(format!("Could not restore attached images: {error}")); return; }
+                }
+            }
+            let (images,saved_images)=self.sidekick.image_drafts.get_mut(&series).expect("loaded image draft");
+            // egui-winit consumes Cmd+V key-down for text paste; key-up still reaches us for image-only clipboards.
+            let paste_shortcut=ui.memory(|memory|memory.has_focus(composer_id)) && ui.input(|input|input.events.iter().any(|event|matches!(event,eframe::egui::Event::Key{key:eframe::egui::Key::V,pressed:false,modifiers,..} if modifiers.command)));
+            if paste_shortcut && images.len()<4 && let Ok(image) = crate::chat_images::ChatImage::clipboard() {
+                images.push(image);
+            }
+            let mut remove=None;
+            ui.horizontal_wrapped(|ui| {
+                for (index,image) in images.iter().enumerate() {
+                    ui.vertical(|ui| { image.thumbnail(ui); if ui.small_button("Remove").clicked() {remove=Some(index);} });
+                }
+            });
+            if let Some(index)=remove {images.remove(index);}
+            let mut images_saved=true;
+            if images != saved_images {
+                match self.store.save_chat_image_draft(&series,saved_images,images) {
+                    Ok(()) => *saved_images=images.clone(),
+                    Err(error) => {images_saved=false;ui.label(error.to_string());},
+                }
+            }
             let send_with_enter=ui.memory(|memory|memory.has_focus(composer_id))&&ui.input_mut(|input|{
                 let send=input.events.iter().any(|event|matches!(event,eframe::egui::Event::Key{key:eframe::egui::Key::Enter,pressed:true,repeat:false,modifiers,..} if *modifiers==eframe::egui::Modifiers::NONE));
                 input.events.retain(|event|!matches!(event,eframe::egui::Event::Key{key:eframe::egui::Key::Enter,pressed:true,modifiers,..} if *modifiers==eframe::egui::Modifiers::NONE));
@@ -553,8 +602,11 @@ impl Studio {
             });
             ui.spacing_mut().item_spacing.y = 6.;
             eframe::egui::ScrollArea::vertical().id_salt(("sidekick-input", &series)).max_height(90.).show(ui, |ui| {
-                ui.add(eframe::egui::TextEdit::multiline(draft).margin(eframe::egui::vec2(10.,8.)).id(composer_id).return_key(eframe::egui::KeyboardShortcut::new(eframe::egui::Modifiers::SHIFT,eframe::egui::Key::Enter)).desired_rows(2).desired_width(ui.available_width()).hint_text(crate::theme::placeholder("Discuss your series…")))
-                    .on_hover_text("Enter to send · Shift+Enter for a new line");
+                // Keep the focus outline inside the scroll area's clipping rectangle.
+                eframe::egui::Frame::NONE.inner_margin(3).show(ui, |ui| {
+                    ui.add(eframe::egui::TextEdit::multiline(draft).margin(eframe::egui::vec2(10.,8.)).id(composer_id).return_key(eframe::egui::KeyboardShortcut::new(eframe::egui::Modifiers::SHIFT,eframe::egui::Key::Enter)).desired_rows(2).desired_width(ui.available_width()).hint_text(crate::theme::placeholder("Discuss your series…")))
+                        .on_hover_text("Enter to send · Shift+Enter for a new line");
+                });
             });
             let baseline=self.sidekick.saved_drafts.get_mut(&series).expect("loaded baseline");
             let mut draft_saved=true;
@@ -564,7 +616,7 @@ impl Studio {
                     Err(error)=>{draft_saved=false;ui.label(format!("Draft not saved: {error}"));}
                 }
             }
-            let can_send=draft_saved&&self.sidekick.pending.is_none()&&!draft.trim().is_empty();
+            let can_send=draft_saved&&images_saved&&self.sidekick.pending.is_none()&&(!draft.trim().is_empty()||!images.is_empty());
             let mut send_clicked = false;
             ui.horizontal(|ui| {
                 ui.spacing_mut().button_padding = eframe::egui::vec2(10., 5.);
@@ -588,8 +640,12 @@ impl Studio {
                 });
             });
             if can_send&&(send_clicked||send_with_enter){
-                let message=Message{id:uuid::Uuid::new_v4().to_string(),role:"user".into(),text:draft.clone(),context:context.clone()};
+                let message=Message{id:uuid::Uuid::new_v4().to_string(),role:"user".into(),text:if draft.trim().is_empty(){"Please look at the attached image(s).".into()}else{draft.clone()},context:context.clone(),images:images.clone()};
                 match self.store.append_sidekick_message(&series,&message){Ok(())=>{draft.clear();self.sidekick.error.clear();
+                    match self.store.save_chat_image_draft(&series,saved_images,&[]) {
+                        Ok(()) => {images.clear();saved_images.clear();},
+                        Err(error) => self.sidekick.error=format!("Message sent; image draft cleanup failed: {error}"),
+                    }
                     match self.store.save_sidekick_draft(&series,baseline,"") {
                         Ok(())=>baseline.clear(),Err(error)=>self.sidekick.error=format!("Message retained in chat, but composer cleanup failed: {error}"),
                     }
@@ -609,7 +665,7 @@ impl Studio {
             eframe::egui::ScrollArea::vertical().id_salt(("sidekick-history",&series)).stick_to_bottom(true).auto_shrink([false, false]).max_height(ui.available_height()).show(ui,|ui|{
                 if messages.is_empty(){ui.label("Tell me the kind of show you want to make, or an idea you want to explore.");}
                 for message in &messages {
-                    if let Some(action)=message_bubble(ui,message,&mut self.sidekick.editing_message,self.sidekick.pending.is_none()) {
+                    if let Some(action)=message_bubble(ui,message,&mut self.sidekick.markdown,&mut self.sidekick.editing_message,self.sidekick.pending.is_none()) {
                         match action {
                             MessageAction::Edit(message)=>self.sidekick.editing_message=Some((message.clone(),message.text.clone())),
                             MessageAction::Cancel=>self.sidekick.editing_message=None,

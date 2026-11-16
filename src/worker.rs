@@ -181,7 +181,10 @@ fn execute_export(store: &Store, id: &str) -> Result<()> {
                     bail!("Dialogue source changed");
                 }
                 command.arg("-i").arg(std::fs::canonicalize(&audio.path)?);
-                graph.push_str(&format!("[{audio_input}:a]aresample=48000,aformat=sample_fmts=fltp:channel_layouts=stereo,asetpts=PTS-STARTPTS[line{i}_{j}];"));
+                if !audio.source_start.is_finite() || audio.source_start < 0. {
+                    bail!("Invalid audio source start");
+                }
+                graph.push_str(&format!("[{audio_input}:a]aresample=48000,aformat=sample_fmts=fltp:channel_layouts=stereo,atrim=start={},asetpts=PTS-STARTPTS[line{i}_{j}];", audio.source_start));
                 audio_input += 1;
             }
             for j in 0..clip.audio.len() {

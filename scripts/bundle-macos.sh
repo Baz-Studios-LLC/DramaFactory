@@ -18,8 +18,8 @@ cat > "$bundle/Contents/Info.plist" <<'PLIST'
 <key>CFBundleIdentifier</key><string>studio.bazstudios.dramafactory</string>
 <key>CFBundleName</key><string>DramaFactory</string>
 <key>CFBundleDisplayName</key><string>DramaFactory</string>
-<key>CFBundleShortVersionString</key><string>5</string>
-<key>CFBundleVersion</key><string>5</string>
+<key>CFBundleShortVersionString</key><string>6</string>
+<key>CFBundleVersion</key><string>6</string>
 <key>CFBundleIconFile</key><string>DramaFactory</string>
 <key>CFBundleIconName</key><string>DramaFactory</string>
 <key>CFBundlePackageType</key><string>APPL</string>
@@ -34,4 +34,4 @@ previous="target/DramaFactory.previous-build.app"
 if [ -d "$previous" ]; then rm -rf "$previous"; fi
 if [ -d target/DramaFactory.app ]; then mv target/DramaFactory.app "$previous"; fi
 mv "$bundle" target/DramaFactory.app
-printf 'Built target/DramaFactory.app (local ad-hoc signature, not notarized, v005)\n'
+printf 'Built target/DramaFactory.app (local ad-hoc signature, not notarized, v006)\n'

@@ -411,7 +411,7 @@ impl crate::Studio {
             }
         };
         self.profile_save_controls(ui, &mut draft);
-        egui::CollapsingHeader::new("Character profile").id_salt((&entry.id,"character-profile"))
+        egui::CollapsingHeader::new("Character profile").id_salt((&entry.id,"character-profile-detail")).default_open(true)
             .show(ui, |ui| {
                 ui.small("Optional details build the full brief. Include units for height and weight. Leave unknown traits blank.");
                 if draft.brief.expected_name != entry.name || draft.brief.expected_description != entry.description {

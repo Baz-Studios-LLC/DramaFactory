@@ -6,8 +6,17 @@ use serde_json::{Value, json};
 #[serde(tag = "mode", rename_all = "snake_case", deny_unknown_fields)]
 pub enum Inputs {
     Prompt,
-    References { images: Vec<String> },
-    Frames { first: String, last: Option<String> },
+    Portraits {
+        portraits: Vec<crate::cast_reference::CastReference>,
+        images: Vec<String>,
+    },
+    References {
+        images: Vec<String>,
+    },
+    Frames {
+        first: String,
+        last: Option<String>,
+    },
 }
 #[derive(Clone, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -15,6 +24,8 @@ pub struct VideoPlan {
     pub model: String,
     pub prompt: String,
     pub duration: u32,
+    #[serde(default)]
+    pub automatic_duration: bool,
     pub resolution: String,
     pub aspect_ratio: String,
     pub generate_audio: bool,
@@ -52,15 +63,54 @@ impl VideoPlan {
             .iter()
             .find(|model| model["id"] == self.model)
             .context("Video model is not in the current OpenRouter catalog")?;
-        supported(model, "supported_durations", json!(self.duration))?;
+        if !self.automatic_duration {
+            supported(model, "supported_durations", json!(self.duration))?;
+        }
         supported(model, "supported_resolutions", json!(self.resolution))?;
         supported(model, "supported_aspect_ratios", json!(self.aspect_ratio))?;
         if self.generate_audio && model["generate_audio"] != true {
             bail!("Selected model does not advertise generated audio");
         }
         let mut request = json!({"model":self.model,"prompt":self.prompt,"duration":self.duration,"resolution":self.resolution,"aspect_ratio":self.aspect_ratio,"generate_audio":self.generate_audio});
+        if self.automatic_duration {
+            request
+                .as_object_mut()
+                .expect("request object")
+                .remove("duration");
+        }
         match &self.inputs {
             Inputs::Prompt => {}
+            Inputs::Portraits { portraits, images } => {
+                if self.model != "bytedance/seedance-2.5"
+                    || portraits.len() + images.len() == 0
+                    || portraits.len() + images.len() > 12
+                {
+                    bail!("Choose 1–12 reference images for Seedance");
+                }
+                let mut references = Vec::new();
+                let mut guide = String::from(
+                    "\n\nCHARACTER REFERENCE GUIDE\nUse the numbered images for character identity. Match named actions and dialogue to these characters; do not swap their faces. Profiles describe the characters, not extra dialogue to speak.\n",
+                );
+                for (index, portrait) in portraits.iter().enumerate() {
+                    if portrait.name.trim().is_empty() || portrait.brief.len() > 64 * 1024 {
+                        bail!("Invalid portrait identity information");
+                    }
+                    guide.push_str(&format!(
+                        "Image {}: {}\n{}\n",
+                        index + 1,
+                        portrait.name,
+                        portrait.brief
+                    ));
+                    references.push(json!({"type":"image_url","image_url":{"url":format!("local-portrait:{}",portrait.sha256)}}));
+                }
+                for image in images {
+                    references.push(image_url(image)?);
+                }
+                if !portraits.is_empty() {
+                    request["prompt"] = json!(format!("{}{}", self.prompt, guide));
+                }
+                request["input_references"] = json!(references);
+            }
             Inputs::References { images } => {
                 if images.is_empty() || images.len() > 12 {
                     bail!(
@@ -102,6 +152,7 @@ mod tests {
                 model: "test/video".into(),
                 prompt: "An adult speaks while walking.".into(),
                 duration: 10,
+                automatic_duration: false,
                 resolution: "720p".into(),
                 aspect_ratio: "9:16".into(),
                 generate_audio: true,
@@ -115,6 +166,21 @@ mod tests {
                 fetched_unix_seconds: 1,
             },
         )
+    }
+    #[test]
+    fn automatic_duration_omits_parameter_and_legacy_keeps_it() {
+        let (mut plan, catalog) = fixture();
+        let mut legacy = serde_json::to_value(&plan).unwrap();
+        legacy.as_object_mut().unwrap().remove("automatic_duration");
+        let legacy: VideoPlan = serde_json::from_value(legacy).unwrap();
+        assert_eq!(legacy.preview(&catalog).unwrap()["request"]["duration"], 10);
+        plan.automatic_duration = true;
+        plan.duration = 19;
+        assert!(
+            plan.preview(&catalog).unwrap()["request"]
+                .get("duration")
+                .is_none()
+        );
     }
     #[test]
     fn validates_capabilities_and_keeps_reference_modes_exclusive() {
