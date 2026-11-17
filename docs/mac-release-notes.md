@@ -1,6 +1,6 @@
 Download the **macOS-arm64.zip**, unzip it, and drag DramaFactory.app to Applications. Requires an Apple Silicon Mac.
 
-**One-time installation:** this release introduces a new update-verification key. Install it manually on each Mac once to enable future automatic updates.
+**Updating:** v008 and newer can update automatically. To check immediately, open Settings → Check for updates, wait for the update to be verified and staged, then quit and reopen after installation. Builds v007 and earlier need a one-time manual installation because v008 introduced a new update-verification key.
 
 Includes portable series projects for iCloud Drive and signed background updates. New versions download quietly and install after the app exits. Keep the app in a writable Applications folder; do not run it inside the download archive.
 
