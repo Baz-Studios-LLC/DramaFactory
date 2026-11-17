@@ -4,7 +4,7 @@ use anyhow::{Result, bail};
 use eframe::egui::{self, RichText};
 use std::path::Path;
 
-fn validate_reference(path: &Path) -> Result<()> {
+pub(crate) fn validate_reference(path: &Path) -> Result<()> {
     let metadata = std::fs::metadata(path)?;
     if !metadata.is_file() || metadata.len() == 0 || metadata.len() > 24 * 1024 * 1024 {
         bail!("Choose an image file up to 24 MiB.");
@@ -142,6 +142,92 @@ mod tests {
         assert!(validate_reference(&root).is_err());
         std::fs::write(&bad, &original[..original.len() / 2]).unwrap();
         assert!(validate_reference(&bad).is_err());
+        std::fs::remove_dir_all(root).unwrap();
+    }
+}
+
+impl crate::store::Store {
+    pub(crate) fn import_character_portrait(
+        &self,
+        expected: &crate::production::LibraryEntry,
+        source: &Path,
+    ) -> Result<()> {
+        validate_reference(source)?;
+        let tx = rusqlite::Transaction::new_unchecked(
+            &self.conn,
+            rusqlite::TransactionBehavior::Immediate,
+        )?;
+        self.ensure_character_not_deleted(&expected.id)?;
+        let current = self
+            .library(&expected.series_id, "character")?
+            .into_iter()
+            .find(|entry| entry.id == expected.id)
+            .ok_or_else(|| anyhow::anyhow!("Character no longer exists in this series"))?;
+        if current.name != expected.name
+            || current.description != expected.description
+            || current.reference != expected.reference
+        {
+            bail!(
+                "Character changed in another window. Review the latest card and choose the image again."
+            );
+        }
+        let directory = self.root().join("references");
+        std::fs::create_dir_all(&directory)?;
+        let extension = image::ImageReader::open(source)?
+            .with_guessed_format()?
+            .format()
+            .ok_or_else(|| anyhow::anyhow!("Unknown image format"))?
+            .extensions_str()[0];
+        let destination = directory.join(format!(
+            "{}-{}.{}",
+            expected.id,
+            uuid::Uuid::new_v4(),
+            extension
+        ));
+        let mut output = std::fs::OpenOptions::new()
+            .write(true)
+            .create_new(true)
+            .open(&destination)?;
+        let mut input = std::io::Read::take(std::fs::File::open(source)?, 24 * 1024 * 1024 + 1);
+        std::io::copy(&mut input, &mut output)?;
+        drop(output);
+        validate_reference(&destination)?;
+        tx.execute(
+            "UPDATE library SET reference=?2 WHERE id=?1",
+            rusqlite::params![expected.id, destination.to_string_lossy()],
+        )?;
+        tx.commit()?;
+        Ok(())
+    }
+}
+
+#[cfg(test)]
+mod portrait_import_tests {
+    #[test]
+    fn imports_exact_bytes_preserves_profile_and_rejects_stale_selection() {
+        let root =
+            std::env::temp_dir().join(format!("df-portrait-import-{}", uuid::Uuid::new_v4()));
+        std::fs::create_dir_all(&root).unwrap();
+        let store = crate::store::Store::open(root.join("studio.sqlite")).unwrap();
+        let series = store.create_series("Test", "").unwrap();
+        let entry = store
+            .add_library(&series.id, "character", "Lead", "Original profile", None)
+            .unwrap();
+        let source = root.join("original.png");
+        image::RgbaImage::new(8, 8).save(&source).unwrap();
+        let bytes = std::fs::read(&source).unwrap();
+        store.import_character_portrait(&entry, &source).unwrap();
+        let current = store.library(&series.id, "character").unwrap().remove(0);
+        assert_eq!(current.description, entry.description);
+        assert_eq!(current.name, entry.name);
+        let selected = current.reference.as_ref().unwrap();
+        assert_ne!(selected, &source);
+        assert_eq!(std::fs::read(selected).unwrap(), bytes);
+        assert!(store.import_character_portrait(&entry, &source).is_err());
+        store.import_character_portrait(&current, &source).unwrap();
+        assert!(selected.exists());
+        assert_eq!(std::fs::read(&source).unwrap(), bytes);
+        drop(store);
         std::fs::remove_dir_all(root).unwrap();
     }
 }

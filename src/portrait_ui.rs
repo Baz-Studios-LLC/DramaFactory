@@ -69,6 +69,63 @@ impl Studio {
         entry: &LibraryEntry,
         displayed_portrait: Option<&std::path::Path>,
     ) {
+        let import_error = ui.make_persistent_id(("portrait-import-error", &entry.id));
+        let hover_id = import_error.with("hover");
+        let previous_hover = ui
+            .data(|data| data.get_temp::<bool>(hover_id))
+            .unwrap_or(false);
+        let dragging = ui.input(|input| !input.raw.hovered_files.is_empty());
+        let mut chosen = None;
+        let zone = eframe::egui::Frame::group(ui.style())
+            .stroke(eframe::egui::Stroke::new(
+                1_f32,
+                if dragging && previous_hover {
+                    crate::GOLD
+                } else {
+                    crate::theme::BORDER
+                },
+            ))
+            .show(ui, |ui| {
+                ui.set_min_width((ui.available_width() - 4.).max(0.));
+                ui.label("Drop your portrait image here");
+                ui.small("PNG, JPEG or WebP · up to 24 MiB · no generation");
+                if ui.button("Use my image…").clicked() {
+                    chosen = rfd::FileDialog::new()
+                        .add_filter("Image", &["png", "jpg", "jpeg", "webp"])
+                        .pick_file();
+                }
+            });
+        let over = ui
+            .input(|input| input.pointer.hover_pos())
+            .map(|pos| zone.response.rect.intersect(ui.clip_rect()).contains(pos));
+        let dropped = ui.input(|input| input.raw.dropped_files.clone());
+        if !dropped.is_empty() && over.unwrap_or(previous_hover) {
+            if dropped.len() == 1 && dropped[0].path.is_some() {
+                chosen = dropped[0].path.clone();
+            } else {
+                ui.data_mut(|data| {
+                    data.insert_temp(
+                        import_error,
+                        "Drop one image file from Finder, or use Use my image.".to_string(),
+                    )
+                });
+            }
+        }
+        ui.data_mut(|data| data.insert_temp(hover_id, dragging && over.unwrap_or(false)));
+        if let Some(path) = chosen {
+            match self.store.import_character_portrait(entry, &path) {
+                Ok(()) => {
+                    ui.data_mut(|data| data.remove::<String>(import_error));
+                    ui.ctx().request_repaint();
+                }
+                Err(error) => {
+                    ui.data_mut(|data| data.insert_temp(import_error, error.to_string()));
+                }
+            }
+        }
+        if let Some(error) = ui.data(|data| data.get_temp::<String>(import_error)) {
+            ui.colored_label(crate::GOLD, error);
+        }
         let jobs = self.load(self.store.portrait_jobs(&entry.id));
         let deleted = self.store.deleted_portraits().unwrap_or_default();
         if let Some(reference) = displayed_portrait {

@@ -1,5 +1,7 @@
 ## New in this release
 
+- Added Use my image and portrait drag-and-drop to existing character cards, so you can import your own portrait without generating one.
+
 - Improved Cmd+V image paste in Sidekick and removed the extra Paste image button.
 - Added a Stop button for pending Sidekick replies.
 - Added reference-image drag and drop, previews and validation to character/location creation.
