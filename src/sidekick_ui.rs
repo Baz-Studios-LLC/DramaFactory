@@ -5,6 +5,75 @@ enum MessageAction {
     Cancel,
     Delete(Message),
 }
+#[derive(Clone, Copy)]
+enum MessageIcon {
+    Copy,
+    Edit,
+    Delete,
+}
+fn message_icon(
+    ui: &mut eframe::egui::Ui,
+    icon: MessageIcon,
+    enabled: bool,
+) -> eframe::egui::Response {
+    use eframe::egui::{self, vec2};
+    let label = match icon {
+        MessageIcon::Copy => "Copy message",
+        MessageIcon::Edit => "Edit message",
+        MessageIcon::Delete => "Delete message",
+    };
+    let response = ui.add_enabled(enabled, egui::Button::new("").min_size(vec2(26., 24.)));
+    response.widget_info(|| egui::WidgetInfo::labeled(egui::WidgetType::Button, enabled, label));
+    let center = response.rect.center();
+    let point = |x, y| center + vec2(x, y);
+    let stroke = egui::Stroke::new(
+        1.4,
+        if enabled {
+            ui.visuals().text_color()
+        } else {
+            ui.visuals().weak_text_color()
+        },
+    );
+    let painter = ui.painter();
+    match icon {
+        MessageIcon::Copy => {
+            painter.rect_stroke(
+                egui::Rect::from_min_max(point(-3., -3.), point(6., 7.)),
+                2,
+                stroke,
+                egui::StrokeKind::Inside,
+            );
+            painter.line_segment([point(-6., 3.), point(-6., -6.)], stroke);
+            painter.line_segment([point(-6., -6.), point(3., -6.)], stroke);
+        }
+        MessageIcon::Edit => {
+            painter.add(egui::Shape::closed_line(
+                vec![
+                    point(-6., 6.),
+                    point(-5., 2.),
+                    point(3., -6.),
+                    point(6., -3.),
+                    point(-2., 5.),
+                ],
+                stroke,
+            ));
+            painter.line_segment([point(1., -4.), point(4., -1.)], stroke);
+        }
+        MessageIcon::Delete => {
+            painter.rect_stroke(
+                egui::Rect::from_min_max(point(-4., -3.), point(4., 7.)),
+                1,
+                stroke,
+                egui::StrokeKind::Inside,
+            );
+            painter.line_segment([point(-6., -5.), point(6., -5.)], stroke);
+            painter.line_segment([point(-2., -7.), point(2., -7.)], stroke);
+            painter.line_segment([point(-1., -1.), point(-1., 4.)], stroke);
+            painter.line_segment([point(2., -1.), point(2., 4.)], stroke);
+        }
+    }
+    response.on_hover_text(label)
+}
 fn message_bubble(
     ui: &mut eframe::egui::Ui,
     message: &Message,
@@ -57,10 +126,9 @@ fn message_bubble(
                                     .small()
                                     .color(if user { GOLD } else { MUTED }),
                             );
-                            if user
-                                && editing
-                                    .as_ref()
-                                    .is_none_or(|(original, _)| original.id != message.id)
+                            if editing
+                                .as_ref()
+                                .is_none_or(|(original, _)| original.id != message.id)
                             {
                                 ui.scope_builder(
                                     if hover {
@@ -70,23 +138,20 @@ fn message_bubble(
                                     }
                                     .layout(Layout::right_to_left(Align::Center)),
                                     |ui| {
-                                        if ui
-                                            .add_enabled(
-                                                enabled,
-                                                eframe::egui::Button::new("Delete").small(),
-                                            )
-                                            .clicked()
+                                        if user
+                                            && message_icon(ui, MessageIcon::Delete, enabled)
+                                                .clicked()
                                         {
                                             action = Some(MessageAction::Delete(message.clone()));
                                         }
-                                        if ui
-                                            .add_enabled(
-                                                enabled,
-                                                eframe::egui::Button::new("Edit").small(),
-                                            )
-                                            .clicked()
+                                        if user
+                                            && message_icon(ui, MessageIcon::Edit, enabled)
+                                                .clicked()
                                         {
                                             action = Some(MessageAction::Edit(message.clone()));
+                                        }
+                                        if message_icon(ui, MessageIcon::Copy, true).clicked() {
+                                            ui.ctx().copy_text(message.text.clone());
                                         }
                                     },
                                 );

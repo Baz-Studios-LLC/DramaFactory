@@ -1,5 +1,7 @@
 ## New in this release
 
+- Compact Edit/Delete icons and a Copy message icon in Sidekick, with hover labels.
+
 - Avoid provider schema-state-limit errors for character replies by using JSON mode with strict local validation.
 
 - Added right-click Copy/Paste menus for portraits, shared text forms, character profiles and Sidekick.
