@@ -51,10 +51,7 @@ impl Studio {
                             );
                             let (rect, _) = ui.allocate_exact_size(size, egui::Sense::hover());
                             if let Some(path) = portrait {
-                                egui::Image::from_uri(format!("file://{}", path.display()))
-                                    .fit_to_exact_size(size)
-                                    .corner_radius(8)
-                                    .paint_at(ui, rect);
+                                paint_portrait(ui, path, rect, 8);
                             } else {
                                 ui.painter().rect_filled(rect, 8, crate::BG);
                                 ui.painter().text(
@@ -124,9 +121,7 @@ pub(crate) fn cast_choice(
         egui::vec2(width - 10., width * 4. / 3. - 10.),
     );
     if let Some(path) = &entry.reference {
-        egui::Image::from_uri(format!("file://{}", path.display()))
-            .corner_radius(5)
-            .paint_at(ui, picture);
+        paint_portrait(ui, path, picture, 5);
     } else {
         ui.painter().text(
             picture.center(),
@@ -177,6 +172,21 @@ pub(crate) fn cast_choice(
         format!("{}: choose a portrait in Characters first", entry.name)
     });
     clicked
+}
+
+/// Keep the whole portrait visible inside a uniform card without distorting it.
+fn paint_portrait(ui: &egui::Ui, path: &std::path::Path, bounds: egui::Rect, radius: u8) {
+    ui.painter().rect_filled(bounds, radius, crate::BG);
+    let image = egui::Image::from_uri(format!("file://{}", path.display()))
+        .fit_to_exact_size(bounds.size())
+        .maintain_aspect_ratio(true)
+        .corner_radius(radius);
+    let source_size = image
+        .load_for_size(ui.ctx(), bounds.size())
+        .ok()
+        .and_then(|texture| texture.size());
+    let fitted = image.calc_size(bounds.size(), source_size);
+    image.paint_at(ui, egui::Rect::from_center_size(bounds.center(), fitted));
 }
 
 #[cfg(test)]
