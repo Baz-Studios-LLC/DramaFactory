@@ -389,7 +389,10 @@ impl Studio {
                                     self.sidekick.request_context.as_deref().unwrap_or("{}");
                                 let queued_context: serde_json::Value =
                                     serde_json::from_str(source).unwrap_or_default();
-                                if context != "Characters" && context != "Locations" {
+                                if queued_context["workspace"] != "All workspaces"
+                                    && context != "Characters"
+                                    && context != "Locations"
+                                {
                                     text.push_str("\nCast queue was not started outside the character workspace.");
                                 } else {
                                     let total = tasks.len();
@@ -701,11 +704,14 @@ impl Studio {
                 .show_separator_line(false).frame(eframe::egui::Frame::NONE)
                 .show_inside(ui, |ui| {
             if !self.sidekick.error.is_empty(){ui.label(&self.sidekick.error);}
+            if !self.synopsis_drafts.contains_key(&series) && let Ok(saved) = self.store.series() && let Some(saved) = saved.into_iter().find(|item| item.id == series) {
+                self.synopsis_drafts.insert(series.clone(), crate::synopsis::SynopsisDraft { id: series.clone(), title: saved.name.clone(), premise: saved.premise.clone(), expected_title: saved.name, expected_premise: saved.premise });
+            }
             let character_snapshots=self.character_drafts(&series).unwrap_or_default();
-            let generation_snapshot=if matches!(self.page,Page::Queue|Page::Scenes) {self.generation_snapshot().ok()}else{None};
-            let episode_snapshot=if self.page==Page::Series{self.episode_snapshot().ok()}else{None};
+            let generation_snapshot=self.generation_snapshot().ok();
+            let episode_snapshot=self.episode_snapshot().ok();
             let project_context = serde_json::json!({
-                "workspace":context,
+                "workspace":"All workspaces", "visible_workspace":context,
                 "generation_draft":generation_snapshot.as_ref().map(|snapshot|serde_json::json!({"plan":snapshot.plan,"saved_episode":snapshot.context["saved_episode"],"image_style":snapshot.context["image_style"],"available_portraits":snapshot.context["available_portraits"].as_array().map(|items|items.iter().map(|item|serde_json::json!({"character_id":item["character_id"],"name":item["name"]})).collect::<Vec<_>>())})),
                 "character_drafts":character_snapshots.iter().map(crate::character_edit::CharacterDraft::model_context).collect::<Vec<_>>(),
                 "series":self.store.series().ok().and_then(|items|items.into_iter().find(|item|item.id==series)),
@@ -833,19 +839,17 @@ impl Studio {
                         Ok(())=>baseline.clear(),Err(error)=>self.sidekick.error=format!("Message retained in chat, but composer cleanup failed: {error}"),
                     }
                     match self.store.sidekick_messages(&series){Ok(messages)=>{let (sender,receiver)=std::sync::mpsc::channel();
-                        self.sidekick.episode_creation_request=if matches!(self.page,Page::Series|Page::Story) {self.story_drafts.get(&series).cloned().or_else(||self.store.series_plan(&series).ok()).map(|plan|(message.id.clone(),series.clone(),plan))}else{None};
+                        self.sidekick.episode_creation_request=self.story_drafts.get(&series).cloned().or_else(||self.store.series_plan(&series).ok()).map(|plan|(message.id.clone(),series.clone(),plan));
                         self.sidekick.generation_request=generation_snapshot;
                         self.sidekick.episode_request=episode_snapshot;
-                        self.sidekick.plot_request = if self.page == Page::Story {
-                            self.story_drafts.get(&series).cloned().or_else(||self.store.series_plan(&series).ok()).map(|plan|(series.clone(),plan))
-                        } else { None };
+                        self.sidekick.plot_request = self.story_drafts.get(&series).cloned().or_else(||self.store.series_plan(&series).ok()).map(|plan|(series.clone(),plan));
                         self.sidekick.request_context=Some(project_context.clone());
                         self.sidekick.request_started=Some(std::time::Instant::now());
                         self.sidekick.progress=Default::default();
                         self.sidekick.canceled=Default::default();
                         let canceled=self.sidekick.canceled.clone();
                         let progress=self.sidekick.progress.clone();
-                        self.sidekick.pending=Some((series.clone(),context.clone(),receiver,if self.page==Page::Synopsis{self.synopsis_drafts.get(&series).cloned()}else{None},character_snapshots));std::thread::spawn(move||{let _=sender.send(crate::sidekick::reply(&messages,&project_context,"google/gemini-4-argon",&progress,&canceled).map_err(|error|error.to_string()));});},Err(error)=>self.sidekick.error=error.to_string()}},Err(error)=>self.sidekick.error=error.to_string()}
+                        self.sidekick.pending=Some((series.clone(),context.clone(),receiver,self.synopsis_drafts.get(&series).cloned(),character_snapshots));std::thread::spawn(move||{let _=sender.send(crate::sidekick::reply(&messages,&project_context,"google/gemini-4-argon",&progress,&canceled).map_err(|error|error.to_string()));});},Err(error)=>self.sidekick.error=error.to_string()}},Err(error)=>self.sidekick.error=error.to_string()}
             }
             });
             eframe::egui::ScrollArea::vertical().id_salt(("sidekick-history",&series)).stick_to_bottom(true).auto_shrink([false, false]).max_height(ui.available_height()).show(ui,|ui|{

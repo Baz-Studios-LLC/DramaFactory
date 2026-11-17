@@ -51,6 +51,16 @@ pub fn response_format() -> serde_json::Value {
 /// Keep the provider grammar small: only this workspace's edit actions are active.
 pub fn response_format_for(workspace: &str) -> serde_json::Value {
     let active: &[&str] = match workspace {
+        "All workspaces" => &[
+            "synopsis",
+            "character",
+            "new_characters",
+            "cast_queue",
+            "plot",
+            "episode",
+            "new_episodes",
+            "generation",
+        ],
         "Synopsis" => &["synopsis"],
         "Characters" | "Locations" => &["character", "new_characters", "cast_queue"],
         "Overall plot" => &["plot", "new_episodes"],
@@ -73,7 +83,7 @@ pub fn response_format_for(workspace: &str) -> serde_json::Value {
 /// Character profiles exceed some providers' grammar-state budgets. Keep the
 /// shape in the prompt and apply the same strict local validation before edits.
 pub fn provider_format_for(workspace: &str) -> serde_json::Value {
-    if matches!(workspace, "Characters" | "Locations") {
+    if matches!(workspace, "Characters" | "Locations" | "All workspaces") {
         serde_json::json!({"type":"json_object"})
     } else {
         response_format_for(workspace)
@@ -278,6 +288,28 @@ mod tests {
 #[cfg(test)]
 mod transport_tests {
     use super::*;
+    #[test]
+    fn cross_tab_contract_exposes_guarded_actions_without_provider_grammar() {
+        let schema = response_format_for("All workspaces");
+        let properties = &schema["json_schema"]["schema"]["properties"];
+        for action in [
+            "synopsis",
+            "character",
+            "cast_queue",
+            "new_characters",
+            "plot",
+            "episode",
+            "new_episodes",
+            "generation",
+        ] {
+            assert!(properties.get(action).is_some(), "missing {action}");
+        }
+        assert_eq!(
+            provider_format_for("All workspaces"),
+            serde_json::json!({"type":"json_object"})
+        );
+        assert!(properties.get("new_character").is_none());
+    }
     #[test]
     fn episode_requests_do_not_compile_unrelated_profile_and_plot_grammars() {
         let full = response_format();

@@ -63,13 +63,48 @@ impl Studio {
                         .corner_radius(10.)
                         .show(ui, |ui| {
                             ui.horizontal(|ui| {
+                                let (rect, response) = ui.allocate_exact_size(
+                                    egui::vec2(16., 16.),
+                                    egui::Sense::click(),
+                                );
+                                response.widget_info(|| {
+                                    egui::WidgetInfo::labeled(
+                                        egui::WidgetType::Button,
+                                        true,
+                                        "Dismiss notification",
+                                    )
+                                });
+                                let center = rect.center();
+                                ui.painter().circle_filled(
+                                    center,
+                                    6.,
+                                    egui::Color32::from_rgb(255, 95, 87),
+                                );
+                                if response.hovered() || response.has_focus() {
+                                    let stroke =
+                                        egui::Stroke::new(1., egui::Color32::from_rgb(80, 20, 18));
+                                    ui.painter().line_segment(
+                                        [
+                                            center + egui::vec2(-2., -2.),
+                                            center + egui::vec2(2., 2.),
+                                        ],
+                                        stroke,
+                                    );
+                                    ui.painter().line_segment(
+                                        [
+                                            center + egui::vec2(-2., 2.),
+                                            center + egui::vec2(2., -2.),
+                                        ],
+                                        stroke,
+                                    );
+                                }
+                                dismiss = response.on_hover_text("Dismiss").clicked();
+                                ui.add_space(5.);
                                 ui.label(
                                     egui::RichText::new("Project saved")
                                         .strong()
                                         .color(crate::GOLD),
                                 );
-                                ui.add_space(12.);
-                                dismiss = ui.small_button("×").on_hover_text("Dismiss").clicked();
                             });
                             ui.add(egui::Label::new(&message).wrap());
                         });

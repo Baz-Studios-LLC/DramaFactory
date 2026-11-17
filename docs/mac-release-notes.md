@@ -1,5 +1,8 @@
 ## New in this release
 
+- Sidekick can edit supplied series and selected-episode drafts across tabs without navigation.
+- Save notifications use a compact upper-left circular close control.
+
 - Compact Edit/Delete icons and a Copy message icon in Sidekick, with hover labels.
 
 - Avoid provider schema-state-limit errors for character replies by using JSON mode with strict local validation.
