@@ -278,12 +278,19 @@ impl Preview {
         }
     }
     pub fn ui(&mut self, ui: &mut eframe::egui::Ui) {
-        self.draw(ui, None);
+        self.draw(ui, None, None);
     }
-    pub fn viewer(&mut self, ui: &mut eframe::egui::Ui, height: f32) {
-        self.draw(ui, Some(height));
+    pub fn timeline_viewer(&mut self, ui: &mut eframe::egui::Ui, height: f32) -> (bool, bool) {
+        let mut transport = (false, false);
+        self.draw(ui, Some(height), Some(&mut transport));
+        transport
     }
-    fn draw(&mut self, ui: &mut eframe::egui::Ui, viewer_height: Option<f32>) {
+    fn draw(
+        &mut self,
+        ui: &mut eframe::egui::Ui,
+        viewer_height: Option<f32>,
+        mut transport: Option<&mut (bool, bool)>,
+    ) {
         let (latest, state) = self.poll();
         if let Some(frame) = latest {
             let image = eframe::egui::ColorImage::from_rgb([self.width, self.height], &frame);
@@ -380,9 +387,12 @@ impl Preview {
                             .button(if paused { "▶" } else { "⏸" })
                             .on_hover_text(if paused { "Play" } else { "Pause" })
                             .clicked()
-                            && let Err(error) = self.toggle_playback()
                         {
-                            ui.label(error.to_string());
+                            if let Some(command) = transport.as_deref_mut() {
+                                command.0 = true;
+                            } else if let Err(error) = self.toggle_playback() {
+                                ui.label(error.to_string());
+                            }
                         }
                         if state != State::Ended {
                             replay = ui.button("↺").on_hover_text("Replay").clicked();
@@ -397,6 +407,10 @@ impl Preview {
                             let _ = Command::new("/usr/bin/open").arg(&self.path).spawn();
                         }
                     });
+                }
+                if replay && let Some(command) = transport {
+                    command.1 = true;
+                    replay = false;
                 }
                 if replay {
                     match Self::open(

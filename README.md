@@ -1,6 +1,13 @@
-# DramaFactory · v006
+# DramaFactory · v007
 
-A Rust-native, Mac-first studio for developing a coherent short drama series, from synopsis and cast to generated episodes. MIT licensed. **v006 is a work in progress, not a finished production release.**
+A Rust-native, Mac-first studio for developing a coherent short drama series, from synopsis and cast to generated episodes. MIT licensed. **v007 is a work in progress, not a finished production release.**
+
+## New in v007
+
+- Video model selection, full-request prompt counts and Wan prompt-length validation.
+- Timeline clip sliding with gaps, reliable timeline transport, and clip context menus for splitting, duplication, removal, volume and audio fades.
+- Consistent production activity cards with timestamps and clearer controls.
+- Sidekick guidance for motivated camera coverage and dialogue/ambience without background music in new generation requests.
 
 ## Workflow
 
@@ -15,7 +22,7 @@ The current series applies across every workspace. Use **+ New series** under th
 
 ## AI services and current limitations
 
-The current rewrite uses **OpenRouter** for AI services: Gemini 4 Argon for the shared sidekick, Grok Imagine Image 2.0 for portraits, and Seedance 2.5 for video with native audio. Settings stores the OpenRouter key in macOS Keychain. Sending messages or generating media uses your paid provider account.
+The current rewrite uses **OpenRouter** for AI services: Gemini 4 Argon for the shared sidekick, Grok Imagine Image 2.0 for portraits, and Wan 3.0 by default for video with native audio, with Seedance and Google Veo alternatives. Settings stores the OpenRouter key in macOS Keychain. Sending messages or generating media uses your paid provider account.
 
 Sidekick conversation persists per series. Synopsis, character briefs and portrait prompts support guarded unsaved draft proposals and Undo; editing every document through the sidekick remains unfinished. Local portrait attachments are implemented using embedded image data, but acceptance through the live OpenRouter video route remains unverified. Portions of the production interface remain incomplete. Legacy local-inference services are being removed; local inference execution is no longer supported. Historical benchmark reports describe earlier experiments, not current supported features.
 

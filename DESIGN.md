@@ -2,6 +2,12 @@
 
 Status: target design, not a statement of implemented functionality. Supersedes the earlier local production workflow. Rust-native Mac first, existing branding, one OpenRouter connection for every AI request. No local inference or separate lip-sync workflow. Preserve original projects and media; delete unused implementation rather than retain legacy modes.
 
+## v007 implementation update
+
+The current app adds Editing room as a sixth destination. Its timeline supports non-overlapping clip placement with gaps, trimming, splitting, duplication, remove/ripple delete, and per-clip volume, mute and fades. The viewer prioritizes timeline playback. Source media remains unchanged.
+
+New generation segments default to Wan 3.0; the model selector also offers Seedance 2.5, Seedance 2.0 and Veo 3.1, subject to live provider capabilities. Request character counts include reference-profile guidance and audio direction. New requests specify dialogue, ambience and sound effects without background music; separate music authoring remains future work. Sidekick preparation calls for motivated camera coverage and natural dialogue pacing.
+
 ## Navigation and shared context
 
 Five numbered destinations, always in this order:

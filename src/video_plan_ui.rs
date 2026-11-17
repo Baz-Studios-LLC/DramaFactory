@@ -293,7 +293,7 @@ impl Studio {
             let validation = state
                 .catalog
                 .as_ref()
-                .ok_or_else(|| anyhow::anyhow!("Checking Seedance capabilities…"))
+                .ok_or_else(|| anyhow::anyhow!("Checking model capabilities…"))
                 .and_then(|catalog| {
                     for (number, segment) in plan.segments.iter().enumerate() {
                         segment.video_plan().and_then(|request| request.preview(catalog))
@@ -351,14 +351,14 @@ impl Studio {
         let draft = &mut plan.segments[*index];
         Self::card(ui, |ui| {
             if state.section == 0 {
-                ui.heading(format!("Segment {} · Seedance 2.5", *index + 1));
+                ui.heading(format!("Segment {}", *index + 1));
 
                 Self::field(ui, "SEGMENT PROMPT", &mut draft.prompt, 4);
                 let model = state.catalog.as_ref().and_then(|catalog| {
                     catalog
                         .videos
                         .iter()
-                        .find(|model| model["id"] == "bytedance/seedance-2.5")
+                        .find(|model| model["id"] == draft.model)
                 });
                 ui.add_enabled_ui(model.is_some(), |ui| {
                     ui.horizontal_wrapped(|ui| {
@@ -381,9 +381,9 @@ impl Studio {
                     });
                 });
                 if model.is_none() {
-                    ui.small("Checking available Seedance settings…");
+                    ui.small("Checking available model settings…");
                 }
-                ui.small("30 seconds · 9:16 · Sound on");
+                ui.small("9:16 · Sound on");
                 ui.horizontal_wrapped(|ui| {
                     ui.selectable_value(&mut draft.mode, 0, "Prompt only");
                     ui.selectable_value(&mut draft.mode, 1, "Reference images");
@@ -440,6 +440,58 @@ impl Studio {
                     _ => {}
                 }
 
+                ui.horizontal_wrapped(|ui| {
+                    ui.label("Model");
+                    let choice = crate::video_plan::model_choice(&draft.model);
+                    eframe::egui::ComboBox::from_id_salt(("video-model", &draft.id))
+                        .selected_text(choice.map_or("Choose model", |c| c.name))
+                        .show_ui(ui, |ui| {
+                            for choice in crate::video_plan::MODEL_CHOICES {
+                                let available = state.catalog.as_ref().is_some_and(|catalog| {
+                                    catalog.videos.iter().any(|m| m["id"] == choice.id)
+                                });
+                                ui.add_enabled_ui(available, |ui| {
+                                    if ui
+                                        .selectable_value(
+                                            &mut draft.model,
+                                            choice.id.into(),
+                                            format!("{} · {}s", choice.name, choice.duration),
+                                        )
+                                        .changed()
+                                    {
+                                        if draft.resolution == "480p"
+                                            && choice.minimum_resolution == "720p"
+                                        {
+                                            draft.resolution = "720p".into();
+                                        }
+                                        state.generation_error = None;
+                                    }
+                                });
+                            }
+                        });
+                    if let Some(choice) = crate::video_plan::model_choice(&draft.model) {
+                        ui.small(format!("{} seconds", choice.duration));
+                    }
+                });
+                if draft.model == "google/veo-3.1" {
+                    ui.small("8 seconds · 720p minimum · up to 3 character references");
+                }
+                if draft.model == "bytedance/seedance-2.0" {
+                    ui.small("15-second maximum — use a shorter scene for natural dialogue.");
+                }
+
+                if let Ok(request) = draft.video_plan() {
+                    let count = request.assembled_prompt().chars().count();
+                    let label = match request.prompt_limit() {
+                        Some(limit) => format!(
+                            "Prompt: {count} / {limit} characters · includes character profiles"
+                        ),
+                        None => format!(
+                            "Prompt: {count} characters · includes character profiles · provider limit unverified"
+                        ),
+                    };
+                    ui.small(label);
+                }
                 let valid = draft.video_plan().and_then(|request| {
                     if let Some(error) = &cast_error {
                         anyhow::bail!("{error}");

@@ -66,8 +66,8 @@ impl Store {
                 }
             }
         }
-        if plan.model != "bytedance/seedance-2.5" || plan.prompt.trim().is_empty() {
-            bail!("Choose Seedance 2.5 and provide a prompt");
+        if crate::video_plan::model_choice(&plan.model).is_none() || plan.prompt.trim().is_empty() {
+            bail!("Choose a video model and provide a prompt");
         }
         if serde_json::to_vec(&plan)?.len() > 128 * 1024 {
             bail!("Video request exceeds the 128 KiB authoring limit");
@@ -262,17 +262,16 @@ fn execute_transport(
             )?;
             crate::portrait_delivery::embed(&plan, &mut payload, &directory)?;
             check_cancel(store, id)?;
-            store.conn.execute(
-                "UPDATE jobs SET phase='Submitting to Seedance' WHERE id=?1",
-                [id],
-            )?;
+            store
+                .conn
+                .execute("UPDATE jobs SET phase='Submitting video' WHERE id=?1", [id])?;
             store.begin_video_submission(id)?;
             let response = agent.post(&format!("{base}/videos"))
                 .header("Authorization", &authorization)
                 .config().http_status_as_error(false).build()
                 .send_json(payload)
                 .map_err(|error| anyhow::anyhow!(
-                    "Seedance submission could not be confirmed: {}. Check OpenRouter video logs before trying again; no automatic resubmission.",
+                    "Video submission could not be confirmed: {}. Check OpenRouter video logs before trying again; no automatic resubmission.",
                     match error {
                         ureq::Error::Timeout(_) => "connection timed out",
                         ureq::Error::HostNotFound => "hostname could not be resolved",
@@ -338,9 +337,9 @@ fn execute_transport(
             );
         }
         let phase = if response["status"] == "pending" {
-            "Queued at Seedance"
+            "Queued at provider"
         } else {
-            "Seedance generating picture and sound"
+            "Generating picture and sound"
         };
         store
             .conn
@@ -454,7 +453,7 @@ fn finish_download(
             metadata.to_string()
         ],
     )?;
-    crate::completion::finish(&tx, id, &asset, "Seedance take ready for review")?;
+    crate::completion::finish(&tx, id, &asset, "Video take ready")?;
     tx.execute(
         "UPDATE remote_video_jobs SET state='downloaded' WHERE job_id=?1",
         [id],
@@ -501,6 +500,7 @@ mod tests {
             resolution: "480p".into(),
             aspect_ratio: "9:16".into(),
             generate_audio: true,
+            no_background_music: false,
             inputs: crate::video_plan::Inputs::Prompt,
         };
         let mut info = crate::media::VideoInfo {
@@ -549,6 +549,7 @@ mod tests {
             resolution: "720p".into(),
             aspect_ratio: "9:16".into(),
             generate_audio: true,
+            no_background_music: false,
             inputs: crate::video_plan::Inputs::Prompt,
         };
         let job = store.enqueue_seedance(&plan).unwrap();
@@ -724,6 +725,7 @@ mod tests {
             resolution: "720p".into(),
             aspect_ratio: "9:16".into(),
             generate_audio: true,
+            no_background_music: false,
             inputs: crate::video_plan::Inputs::Prompt,
         };
         let invalid = crate::media::VideoInfo {

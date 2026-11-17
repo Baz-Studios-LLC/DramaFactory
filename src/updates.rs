@@ -33,14 +33,14 @@ pub fn check(root: PathBuf, automatic: bool) -> Receiver<UpdateStatus> {
                 .get(&format!(
                     "https://api.github.com/repos/{REPOSITORY}/releases/latest"
                 ))
-                .header("User-Agent", "DramaFactory-v006")
+                .header("User-Agent", "DramaFactory-v007")
                 .header("Accept", "application/vnd.github+json")
                 .call();
             let mut response = match response {
                 Ok(response) => response,
                 Err(ureq::Error::StatusCode(404)) => {
                     return Ok(
-                        "No published releases are available yet. Development build: v006.".into(),
+                        "No published releases are available yet. Development build: v007.".into(),
                     );
                 }
                 Err(error) => return Err(error.into()),

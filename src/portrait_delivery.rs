@@ -128,7 +128,7 @@ mod tests {
         let plan: crate::video_plan::VideoPlan = serde_json::from_str(&request).unwrap();
         let catalog = crate::openrouter::Catalog {
             videos: vec![
-                serde_json::json!({"id":"bytedance/seedance-2.5","supported_durations":[10,30],"supported_resolutions":["480p"],"supported_aspect_ratios":["9:16"],"generate_audio":true}),
+                serde_json::json!({"id":"alibaba/wan-3.0","supported_durations":[10,30],"supported_resolutions":["480p"],"supported_aspect_ratios":["9:16"],"generate_audio":true}),
             ],
             images: vec![],
             fetched_unix_seconds: 0,

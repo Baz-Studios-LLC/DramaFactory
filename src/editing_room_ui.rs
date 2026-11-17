@@ -12,6 +12,7 @@ pub struct Editor {
     redo: Vec<Cut>,
     selected: Option<usize>,
     dragged: Option<usize>,
+    drag_offset: f64,
     library_drag: Option<Clip>,
     trim_drag: Option<(usize, bool, Clip, f32)>,
     gesture_before: Option<Cut>,
@@ -40,6 +41,16 @@ impl Editor {
 }
 impl Studio {
     pub(crate) fn editing_room(&mut self, ui: &mut egui::Ui) {
+        let editing_text = ui
+            .ctx()
+            .memory(|memory| memory.focused())
+            .is_some_and(|id| egui::TextEdit::load_state(ui.ctx(), id).is_some());
+        let space = !editing_text && ui.input(|input| input.events.iter().any(|event| matches!(event, egui::Event::Key { key: egui::Key::Space, pressed: true, repeat: false, modifiers, .. } if modifiers.is_none())));
+        if space {
+            ui.input_mut(|input| {
+                input.consume_key(egui::Modifiers::NONE, egui::Key::Space);
+            });
+        }
         ui.spacing_mut().item_spacing.y = 4.;
         ui.spacing_mut().button_padding = egui::vec2(8., 5.);
         let workspace = ui.available_rect_before_wrap();
@@ -94,9 +105,9 @@ impl Studio {
         };
         let ffmpeg = self.store.config().map(|c| c.ffmpeg).unwrap_or_default();
         let mut play = None;
-        let mut play_timeline = false;
+        let mut play_timeline = space;
         let mut open_timeline = false;
-        let total: f64 = state.cut.clips.iter().map(|c| c.duration).sum();
+        let total = state.cut.duration();
         ui.horizontal_wrapped(|ui| {
             ui.label(format!("{} clips · {:.1}s", state.cut.clips.len(), total));
             if ui
@@ -173,13 +184,6 @@ impl Studio {
             });
         }
         ui.add_space(4.);
-        let space = !ui.ctx().wants_keyboard_input() && ui.input(|input| input.events.iter().any(|event| matches!(event, egui::Event::Key { key: egui::Key::Space, pressed: true, repeat: false, modifiers, .. } if modifiers.is_none())));
-        if space {
-            ui.input_mut(|input| {
-                input.consume_key(egui::Modifiers::NONE, egui::Key::Space);
-            });
-            play_timeline = true;
-        }
         if let Some((id, cut, origin)) = state.preview_job.clone() {
             if cut != state.cut {
                 state.preview_job = None;
@@ -276,7 +280,7 @@ impl Studio {
                                                     ui.painter().rect_filled(badge, 0, egui::Color32::from_black_alpha(180));
                                                     ui.painter().text(badge.center(), egui::Align2::CENTER_CENTER, format!("{:.1}s", asset.duration), egui::FontId::proportional(11.), egui::Color32::WHITE);
                                                     if add.clicked() {
-                                                        state.cut.clips.push(Clip { id: uuid::Uuid::new_v4().to_string(), asset_id: asset.id.clone(), title: title.clone(), start: 0., duration: asset.duration });
+                                                        state.cut.clips.push(Clip { id: uuid::Uuid::new_v4().to_string(), asset_id: asset.id.clone(), title: title.clone(), gap_before: 0., audio_fade_out: 0., audio_fade_in: 0., audio_gain_db: 0., audio_muted: false, start: 0., duration: asset.duration });
                                                         state.selected = Some(state.cut.clips.len()-1);
                                                         state.split_at = asset.duration/2.;
                                                     } else if drag.clicked() && !ui.rect_contains_pointer(add_rect) {
@@ -287,6 +291,7 @@ impl Studio {
                                                             id: uuid::Uuid::new_v4().to_string(),
                                                             asset_id: asset.id.clone(),
                                                             title: title.clone(),
+                                                            gap_before: 0., audio_fade_out: 0., audio_fade_in: 0., audio_gain_db: 0., audio_muted: false,
                                                             start: 0.,
                                                             duration: asset.duration,
                                                         });
@@ -330,9 +335,31 @@ impl Studio {
                     state.player = None;
                 }
             });
+            let caption_height = ui.text_style_height(&egui::TextStyle::Small) + 8.;
+            let caption_rect = egui::Rect::from_min_max(
+                egui::pos2(viewer_rect.left(), viewer_rect.bottom() - caption_height),
+                viewer_rect.right_bottom(),
+            );
+            let video_rect = egui::Rect::from_min_max(
+                egui::pos2(viewer_rect.left(), ui.cursor().top()),
+                egui::pos2(viewer_rect.right(), caption_rect.top() - 4.),
+            );
+            let viewer_height = video_rect.height().max(1.);
             if let Some(player) = &mut state.player {
-                player.viewer(ui, viewer_height);
-                ui.add(
+                let mut video_ui = ui.new_child(
+                    egui::UiBuilder::new()
+                        .id_salt("editor-video-body")
+                        .max_rect(video_rect),
+                );
+                video_ui.set_clip_rect(video_rect.intersect(ui.clip_rect()));
+                let (toggle, restart) = player.timeline_viewer(&mut video_ui, viewer_height);
+                play_timeline |= toggle || restart;
+                if restart {
+                    state.playhead = 0.;
+                    state.timeline_player = None;
+                }
+                ui.put(
+                    caption_rect,
                     egui::Label::new(egui::RichText::new(&state.player_title).small()).truncate(),
                 )
                 .on_hover_text(&state.player_title);
@@ -376,7 +403,10 @@ impl Studio {
                 } else {
                     String::new()
                 };
-                ui.add(egui::Label::new(egui::RichText::new(caption).small()).truncate());
+                ui.put(
+                    caption_rect,
+                    egui::Label::new(egui::RichText::new(caption).small()).truncate(),
+                );
             }
         }
         let remaining = workspace.top() + upper_height - ui.cursor().top();
@@ -413,9 +443,11 @@ impl Studio {
         if state.cut.clips.is_empty() {
             ui.label("Open the clip library above to add your first take.");
         }
-        let mut reorder = None;
+        let mut slide = None;
         let mut insert_at = None;
         let mut trim_update = None;
+        let mut sound_update = None;
+        let mut menu_action = None;
         egui::ScrollArea::horizontal()
             .id_salt("edit-timeline")
             .show(ui, |ui| {
@@ -488,18 +520,19 @@ impl Studio {
                     state.player = None;
                     state.scrubbing = true;
                     state.playhead = (f64::from((pos.x - origin) / scale)).clamp(0., total);
-                    let mut start = 0.;
+                    state.selected = None;
                     for (index, clip) in state.cut.clips.iter().enumerate() {
+                        let start = state.cut.clip_time(index);
                         if state.playhead >= start && state.playhead < start + clip.duration {
                             state.selected = Some(index);
                             state.split_at = state.playhead - start;
                             break;
                         }
-                        start += clip.duration;
                     }
                 }
                 let mut time = 0.;
                 for (index, clip) in state.cut.clips.iter().enumerate() {
+                    time += clip.gap_before;
                     let width = clip.duration as f32 * scale;
                     let rect = egui::Rect::from_min_size(
                         egui::pos2(origin + time as f32 * scale, video_y),
@@ -510,6 +543,102 @@ impl Studio {
                         ui.id().with(("cut-clip", &clip.id)),
                         egui::Sense::click_and_drag(),
                     );
+                    response.context_menu(|ui| {
+                        let offset = state.playhead - state.cut.clip_time(index);
+                        if ui
+                            .add_enabled(
+                                offset >= 0.04 && clip.duration - offset >= 0.04,
+                                egui::Button::new("Split at playhead"),
+                            )
+                            .clicked()
+                        {
+                            menu_action = Some(("split", index, offset));
+                            ui.close();
+                        }
+                        if ui
+                            .button("Duplicate")
+                            .on_hover_text("Insert a copy after this clip; later clips move right")
+                            .clicked()
+                        {
+                            menu_action = Some(("duplicate", index, 0.));
+                            ui.close();
+                        }
+                        ui.separator();
+                        ui.menu_button("Sound", |ui| {
+                            let mut edited = clip.clone();
+                            ui.checkbox(&mut edited.audio_muted, "Mute");
+                            ui.horizontal(|ui| {
+                                ui.label("Volume");
+                                ui.add(
+                                    egui::DragValue::new(&mut edited.audio_gain_db)
+                                        .speed(0.5)
+                                        .range(-60. ..=12.)
+                                        .max_decimals(1)
+                                        .suffix(" dB"),
+                                );
+                                if ui.small_button("Reset").clicked() {
+                                    edited.audio_gain_db = 0.;
+                                }
+                            });
+                            for (label, fade) in [
+                                ("Fade in", &mut edited.audio_fade_in),
+                                ("Fade out", &mut edited.audio_fade_out),
+                            ] {
+                                ui.menu_button(label, |ui| {
+                                    for (label, seconds) in [
+                                        ("Off", 0_f64),
+                                        ("0.25 seconds", 0.25),
+                                        ("0.5 seconds", 0.5),
+                                        ("1 second", 1.),
+                                        ("2 seconds", 2.),
+                                    ] {
+                                        let seconds = seconds.min(clip.duration);
+                                        if ui
+                                            .selectable_label(
+                                                (*fade - seconds).abs() < 0.001,
+                                                label,
+                                            )
+                                            .clicked()
+                                        {
+                                            *fade = seconds;
+                                            ui.close();
+                                        }
+                                    }
+                                    ui.separator();
+                                    ui.horizontal(|ui| {
+                                        ui.label("Custom");
+                                        ui.add(
+                                            egui::DragValue::new(fade)
+                                                .speed(0.05)
+                                                .range(0. ..=clip.duration)
+                                                .max_decimals(2)
+                                                .suffix("s"),
+                                        );
+                                    });
+                                });
+                            }
+                            if edited != *clip {
+                                sound_update = Some((index, edited));
+                            }
+                        });
+                        ui.separator();
+                        if ui
+                            .button("Remove")
+                            .on_hover_text("Leave a gap; keep the original in the media pool")
+                            .clicked()
+                        {
+                            menu_action = Some(("remove", index, 0.));
+                            ui.close();
+                        }
+                        if ui
+                            .button("Ripple delete")
+                            .on_hover_text("Remove clip and close its space; keep the original")
+                            .clicked()
+                        {
+                            menu_action = Some(("ripple", index, 0.));
+                            ui.close();
+                        }
+                    });
                     let active = state.selected == Some(index);
                     let color = if active {
                         egui::Color32::from_rgb(65, 101, 133)
@@ -564,7 +693,15 @@ impl Studio {
                         .text(
                             audio_rect.left_center() + egui::vec2(8., 0.),
                             egui::Align2::LEFT_CENTER,
-                            "Linked source audio",
+                            if clip.audio_muted {
+                                "Audio · muted"
+                            } else if clip.audio_fade_in > 0. || clip.audio_fade_out > 0. {
+                                "Audio · fades"
+                            } else if clip.audio_gain_db != 0. {
+                                "Audio · volume adjusted"
+                            } else {
+                                "Linked source audio"
+                            },
                             egui::FontId::proportional(11.),
                             egui::Color32::from_rgb(172, 216, 196),
                         );
@@ -642,6 +779,10 @@ impl Studio {
                     }
                     if response.drag_started() && state.trim_drag.is_none() {
                         state.dragged = Some(index);
+                        state.selected = Some(index);
+                        state.drag_offset = ui
+                            .input(|i| i.pointer.press_origin())
+                            .map_or(0., |p| f64::from((p.x - rect.left()) / scale));
                     }
                     if ui.rect_contains_pointer(rect) && state.library_drag.is_some() {
                         let at = if ui
@@ -664,12 +805,6 @@ impl Studio {
                             insert_at = Some(at);
                         }
                     }
-                    if ui.rect_contains_pointer(rect)
-                        && ui.input(|i| i.pointer.any_released())
-                        && let Some(from) = state.dragged
-                    {
-                        reorder = Some((from, index));
-                    }
                     time += clip.duration;
                 }
                 let drop_rect = egui::Rect::from_min_max(
@@ -685,8 +820,33 @@ impl Studio {
                 );
                 if ui.rect_contains_pointer(drop_rect) && ui.input(|i| i.pointer.any_released()) {
                     insert_at = Some(state.cut.clips.len());
-                    if let Some(from) = state.dragged {
-                        reorder = Some((from, state.cut.clips.len() - 1));
+                }
+                if let Some(index) = state.dragged
+                    && let Some(pointer) = ui.input(|i| i.pointer.interact_pos())
+                {
+                    let target =
+                        (f64::from((pointer.x - origin) / scale) - state.drag_offset).max(0.);
+                    let mut candidate = state.cut.clone();
+                    let valid = candidate.slide(index, target);
+                    let ghost = egui::Rect::from_min_size(
+                        egui::pos2(origin + target as f32 * scale, video_y),
+                        egui::vec2(state.cut.clips[index].duration as f32 * scale, 108.),
+                    );
+                    painter.rect_stroke(
+                        ghost,
+                        3.,
+                        egui::Stroke::new(
+                            2.,
+                            if valid {
+                                crate::GOLD
+                            } else {
+                                egui::Color32::LIGHT_RED
+                            },
+                        ),
+                        egui::StrokeKind::Inside,
+                    );
+                    if ui.input(|i| i.pointer.any_released()) && valid {
+                        slide = Some((index, target));
                     }
                 }
                 let x = origin + state.playhead.min(total) as f32 * scale;
@@ -722,6 +882,9 @@ impl Studio {
             }
             trim_update = Some((*index, clip));
         }
+        if let Some((index, clip)) = sound_update {
+            state.cut.clips[index] = clip;
+        }
         if let Some((index, clip)) = trim_update {
             state.cut.clips[index] = clip;
         }
@@ -743,12 +906,11 @@ impl Studio {
             }
             state.dragged = None;
         }
-        if let Some((from, to)) = reorder
-            && from != to
-        {
-            let clip = state.cut.clips.remove(from);
-            state.cut.clips.insert(to, clip);
-            state.selected = Some(to);
+        if let Some((index, target)) = slide {
+            let id = state.cut.clips[index].id.clone();
+            if state.cut.slide(index, target) {
+                state.selected = state.cut.clips.iter().position(|c| c.id == id);
+            }
         }
         let delete_selected = !ui.ctx().wants_keyboard_input()
             && state.trim_drag.is_none()
@@ -843,29 +1005,38 @@ impl Studio {
                     )
                     .clicked();
             });
-            if state.timeline_player.is_none() {
-                state.playhead = state.cut.clips[..index]
-                    .iter()
-                    .map(|clip| clip.duration)
-                    .sum::<f64>()
-                    + state.split_at;
+            if state.timeline_player.is_none() && !play_timeline {
+                state.playhead = state.cut.clip_time(index) + state.split_at;
             }
             if remove {
-                state.cut.clips.remove(index);
+                state.cut.remove_clip(index, true);
                 state.selected = None;
             } else if split {
-                let mut right = state.cut.clips[index].clone();
-                right.id = uuid::Uuid::new_v4().to_string();
-                right.start += state.split_at;
-                right.duration -= state.split_at;
-                state.cut.clips[index].duration = state.split_at;
-                state.cut.clips.insert(index + 1, right);
+                state.cut.split_clip(index, state.split_at);
             } else if let Some(to) = move_to
                 && to < state.cut.clips.len()
             {
                 state.cut.clips.swap(index, to);
                 state.selected = Some(to);
             }
+        }
+        if let Some((action, index, offset)) = menu_action {
+            match action {
+                "split" => {
+                    state.cut.split_clip(index, offset);
+                }
+                "duplicate" => {
+                    state.cut.duplicate_clip(index);
+                }
+                "remove" => {
+                    state.cut.remove_clip(index, false);
+                }
+                "ripple" => {
+                    state.cut.remove_clip(index, true);
+                }
+                _ => {}
+            }
+            state.selected = None;
         }
         if state.cut != before {
             state.preview_job = None;
@@ -897,6 +1068,9 @@ impl Studio {
                 }
             }
         }
+        if state.scrubbing && state.cut.source_at(state.playhead).is_none() {
+            state.scrubber = Default::default();
+        }
         if state.scrubbing
             && state.player.is_none()
             && let Some((asset_id, source_time)) = state.cut.source_at(state.playhead)
@@ -906,7 +1080,15 @@ impl Studio {
                 .scrubber
                 .request(ui.ctx(), &ffmpeg, &asset.path, source_time);
         }
-        if play_timeline && !state.cut.clips.is_empty() && state.preview_job.is_none() {
+        if play_timeline && !open_timeline {
+            // Timeline transport wins over any source-preview request this frame.
+            play = None;
+        }
+        if play_timeline
+            && !open_timeline
+            && !state.cut.clips.is_empty()
+            && state.preview_job.is_none()
+        {
             if state.timeline_player.as_ref() == Some(&state.cut)
                 && state
                     .player
@@ -983,6 +1165,7 @@ impl Studio {
             ui.ctx().set_cursor_icon(egui::CursorIcon::Grabbing);
         }
         if let Some((id, title)) = play
+            && (open_timeline || state.preview_job.is_none())
             && let Some(asset) = assets.iter().find(|a| a.id == id)
         {
             state.scrubbing = false;

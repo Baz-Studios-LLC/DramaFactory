@@ -138,6 +138,11 @@ impl Store {
                 .context("Choose a clip for every segment before export")?;
             let asset = self.validate_segment_take(episode, &segment.id, &id)?;
             clips.push(ExportClip {
+                gap_before: 0.,
+                audio_fade_out: 0.,
+                audio_fade_in: 0.,
+                audio_gain_db: 0.,
+                audio_muted: false,
                 asset_id: id,
                 path: asset.path.clone(),
                 hash: asset.hash.clone(),

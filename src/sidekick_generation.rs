@@ -121,6 +121,7 @@ impl Studio {
             .collect();
         let context = serde_json::json!({
             "available_portraits":available_portraits,
+            "video_models":crate::video_plan::MODEL_CHOICES.iter().map(|m| serde_json::json!({"id":m.id,"clip_seconds":m.duration,"max_character_references":m.references})).collect::<Vec<_>>(),
             "series_id":series,
             "saved_episode":saved_episode,
             "screenplay_draft":self.script,
@@ -218,7 +219,7 @@ mod tests {
         draft.segments[0].prompt = "First".into();
         let catalog = crate::openrouter::Catalog {
             videos: vec![
-                serde_json::json!({"id":"bytedance/seedance-2.5","supported_durations":[10,30],"supported_resolutions":["480p"],"supported_aspect_ratios":["9:16"],"generate_audio":true}),
+                serde_json::json!({"id":"alibaba/wan-3.0","supported_durations":[10,30],"supported_resolutions":["480p"],"supported_aspect_ratios":["9:16"],"generate_audio":true}),
             ],
             images: vec![],
             fetched_unix_seconds: 0,
@@ -299,7 +300,7 @@ mod tests {
         });
         let catalog = crate::openrouter::Catalog {
             videos: vec![
-                serde_json::json!({"id":"bytedance/seedance-2.5","supported_durations":[10,30],"supported_resolutions":["480p"],"supported_aspect_ratios":["9:16"],"generate_audio":true}),
+                serde_json::json!({"id":"alibaba/wan-3.0","supported_durations":[10,30],"supported_resolutions":["480p"],"supported_aspect_ratios":["9:16"],"generate_audio":true}),
             ],
             images: vec![],
             fetched_unix_seconds: 0,

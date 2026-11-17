@@ -2,6 +2,56 @@
 use anyhow::{Context, Result, bail};
 use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
+// Curated reference-capable models. Runtime catalog validation remains authoritative.
+pub struct ModelChoice {
+    pub id: &'static str,
+    pub name: &'static str,
+    pub duration: u32,
+    pub references: usize,
+    pub minimum_resolution: &'static str,
+}
+pub const MODEL_CHOICES: &[ModelChoice] = &[
+    ModelChoice {
+        id: "bytedance/seedance-2.5",
+        name: "Seedance 2.5",
+        duration: 30,
+        references: 12,
+        minimum_resolution: "480p",
+    },
+    ModelChoice {
+        id: "bytedance/seedance-2.0",
+        name: "Seedance 2.0",
+        duration: 15,
+        references: 9,
+        minimum_resolution: "480p",
+    },
+    ModelChoice {
+        id: "alibaba/wan-3.0",
+        name: "Wan 3.0",
+        duration: 30,
+        references: 10,
+        minimum_resolution: "480p",
+    },
+    ModelChoice {
+        id: "google/veo-3.1",
+        name: "Google Veo 3.1",
+        duration: 8,
+        references: 3,
+        minimum_resolution: "720p",
+    },
+];
+pub fn model_choice(id: &str) -> Option<&'static ModelChoice> {
+    MODEL_CHOICES.iter().find(|choice| choice.id == id)
+}
+fn validate_references(model: &str, count: usize) -> Result<()> {
+    let limit = model_choice(model)
+        .context("Choose a supported reference-image model")?
+        .references;
+    if count == 0 || count > limit {
+        bail!("Choose 1–{limit} character references for this model");
+    }
+    Ok(())
+}
 #[derive(Clone, Serialize, Deserialize)]
 #[serde(tag = "mode", rename_all = "snake_case", deny_unknown_fields)]
 pub enum Inputs {
@@ -29,6 +79,8 @@ pub struct VideoPlan {
     pub resolution: String,
     pub aspect_ratio: String,
     pub generate_audio: bool,
+    #[serde(default)]
+    pub no_background_music: bool,
     pub inputs: Inputs,
 }
 fn image_url(value: &str) -> Result<Value> {
@@ -54,10 +106,48 @@ fn supported(model: &Value, field: &str, value: Value) -> Result<()> {
     Ok(())
 }
 impl VideoPlan {
+    pub fn prompt_limit(&self) -> Option<usize> {
+        // Observed provider rejection: Wan 3.0 permits 20,000 characters.
+        (self.model == "alibaba/wan-3.0").then_some(20_000)
+    }
+    pub fn assembled_prompt(&self) -> String {
+        let mut prompt = self.prompt.clone();
+        if let Inputs::Portraits { portraits, .. } = &self.inputs
+            && !portraits.is_empty()
+        {
+            prompt.push_str("\n\nCHARACTER REFERENCE GUIDE\nUse the numbered images for character identity. Match named actions and dialogue to these characters; do not swap their faces. Profiles describe the characters, not extra dialogue to speak.\n");
+            for (index, portrait) in portraits.iter().enumerate() {
+                prompt.push_str(&format!(
+                    "Image {}: {}\n{}\n",
+                    index + 1,
+                    portrait.name,
+                    portrait.brief
+                ));
+            }
+        }
+        if self.no_background_music {
+            prompt.push_str("\n\nAUDIO DIRECTION: Dialogue, natural environmental ambience, and story-relevant sound effects only. No background music, score, soundtrack, musical drones, ominous tonal beds, rhythmic underscore, stingers, or musical transitions. Do not turn ambience into music. This overrides any earlier request for background music or a score. Music will be added separately in editing. Preserve natural speech and breathing.");
+        }
+        prompt
+    }
+    fn validate_prompt(&self) -> Result<()> {
+        let count = self.assembled_prompt().chars().count();
+        if let Some(limit) = self.prompt_limit()
+            && count > limit
+        {
+            bail!(
+                "Prompt is {count} characters; this model allows {limit}. Shorten the scene or character descriptions by {} characters.",
+                count - limit
+            );
+        }
+        Ok(())
+    }
+
     pub fn preview(&self, catalog: &crate::openrouter::Catalog) -> Result<Value> {
         if self.prompt.trim().is_empty() || self.prompt.len() > 64 * 1024 {
             bail!("Write a prompt of at most 64 KiB");
         }
+        self.validate_prompt()?;
         let model = catalog
             .videos
             .iter()
@@ -71,7 +161,7 @@ impl VideoPlan {
         if self.generate_audio && model["generate_audio"] != true {
             bail!("Selected model does not advertise generated audio");
         }
-        let mut request = json!({"model":self.model,"prompt":self.prompt,"duration":self.duration,"resolution":self.resolution,"aspect_ratio":self.aspect_ratio,"generate_audio":self.generate_audio});
+        let mut request = json!({"model":self.model,"prompt":self.assembled_prompt(),"duration":self.duration,"resolution":self.resolution,"aspect_ratio":self.aspect_ratio,"generate_audio":self.generate_audio});
         if self.automatic_duration {
             request
                 .as_object_mut()
@@ -81,42 +171,21 @@ impl VideoPlan {
         match &self.inputs {
             Inputs::Prompt => {}
             Inputs::Portraits { portraits, images } => {
-                if self.model != "bytedance/seedance-2.5"
-                    || portraits.len() + images.len() == 0
-                    || portraits.len() + images.len() > 12
-                {
-                    bail!("Choose 1–12 reference images for Seedance");
-                }
+                validate_references(&self.model, portraits.len() + images.len())?;
                 let mut references = Vec::new();
-                let mut guide = String::from(
-                    "\n\nCHARACTER REFERENCE GUIDE\nUse the numbered images for character identity. Match named actions and dialogue to these characters; do not swap their faces. Profiles describe the characters, not extra dialogue to speak.\n",
-                );
-                for (index, portrait) in portraits.iter().enumerate() {
+                for portrait in portraits {
                     if portrait.name.trim().is_empty() || portrait.brief.len() > 64 * 1024 {
                         bail!("Invalid portrait identity information");
                     }
-                    guide.push_str(&format!(
-                        "Image {}: {}\n{}\n",
-                        index + 1,
-                        portrait.name,
-                        portrait.brief
-                    ));
                     references.push(json!({"type":"image_url","image_url":{"url":format!("local-portrait:{}",portrait.sha256)}}));
                 }
                 for image in images {
                     references.push(image_url(image)?);
                 }
-                if !portraits.is_empty() {
-                    request["prompt"] = json!(format!("{}{}", self.prompt, guide));
-                }
                 request["input_references"] = json!(references);
             }
             Inputs::References { images } => {
-                if images.is_empty() || images.len() > 12 {
-                    bail!(
-                        "Choose 1–12 reference images for this planner; provider limits still require verification"
-                    );
-                }
+                validate_references(&self.model, images.len())?;
                 request["input_references"] = Value::Array(
                     images
                         .iter()
@@ -149,23 +218,68 @@ mod tests {
     fn fixture() -> (VideoPlan, crate::openrouter::Catalog) {
         (
             VideoPlan {
-                model: "test/video".into(),
+                model: "bytedance/seedance-2.5".into(),
                 prompt: "An adult speaks while walking.".into(),
                 duration: 10,
                 automatic_duration: false,
                 resolution: "720p".into(),
                 aspect_ratio: "9:16".into(),
                 generate_audio: true,
+                no_background_music: false,
                 inputs: Inputs::Prompt,
             },
             crate::openrouter::Catalog {
                 videos: vec![
-                    json!({"id":"test/video","supported_durations":[10],"supported_resolutions":["720p"],"supported_aspect_ratios":["9:16"],"generate_audio":true,"supported_frame_images":["first_frame","last_frame"]}),
+                    json!({"id":"bytedance/seedance-2.5","supported_durations":[10],"supported_resolutions":["720p"],"supported_aspect_ratios":["9:16"],"generate_audio":true,"supported_frame_images":["first_frame","last_frame"]}),
                 ],
                 images: vec![],
                 fetched_unix_seconds: 1,
             },
         )
+    }
+    #[test]
+    fn music_rule_is_sent_and_counted_without_changing_legacy_requests() {
+        let (mut plan, catalog) = fixture();
+        let legacy = plan.assembled_prompt();
+        plan.no_background_music = true;
+        let text = plan.assembled_prompt();
+        assert!(text.contains("No background music"));
+        assert!(text.contains("Dialogue, natural environmental ambience"));
+        assert_eq!(plan.preview(&catalog).unwrap()["request"]["prompt"], text);
+        assert!(text.chars().count() > legacy.chars().count());
+        plan.model = "alibaba/wan-3.0".into();
+        plan.prompt = "a".repeat(20_000);
+        assert!(plan.validate_prompt().is_err());
+        let mut old = serde_json::to_value(&plan).unwrap();
+        old.as_object_mut().unwrap().remove("no_background_music");
+        let old: VideoPlan = serde_json::from_value(old).unwrap();
+        assert!(!old.no_background_music);
+        assert_eq!(old.assembled_prompt(), old.prompt);
+    }
+    #[test]
+    fn wan_prompt_limit_counts_characters_and_reference_guide() {
+        let (mut plan, _) = fixture();
+        plan.model = "alibaba/wan-3.0".into();
+        plan.prompt = "é".repeat(20_000);
+        assert!(plan.validate_prompt().is_ok());
+        plan.prompt.push('x');
+        assert!(plan.validate_prompt().is_err());
+        assert_eq!(plan.assembled_prompt().chars().count(), 20_001);
+        plan.prompt = "Scene".into();
+        plan.inputs = Inputs::Portraits {
+            portraits: vec![crate::cast_reference::CastReference {
+                character_id: "character".into(),
+                name: "Sylvi".into(),
+                brief: "a".repeat(20_000),
+                path: "unused.png".into(),
+                sha256: "unused".into(),
+            }],
+            images: vec![],
+        };
+        assert!(plan.assembled_prompt().contains("Image 1: Sylvi"));
+        assert!(plan.validate_prompt().is_err());
+        plan.model = "google/veo-3.1".into();
+        assert_eq!(plan.prompt_limit(), None);
     }
     #[test]
     fn automatic_duration_omits_parameter_and_legacy_keeps_it() {

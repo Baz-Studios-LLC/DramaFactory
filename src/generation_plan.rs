@@ -9,6 +9,8 @@ pub struct SegmentDraft {
     #[serde(default)]
     pub id: String,
     pub prompt: String,
+    #[serde(default = "legacy_model")]
+    pub model: String,
     #[serde(default = "default_duration")]
     pub duration: u32,
     #[serde(default = "default_resolution")]
@@ -19,6 +21,9 @@ pub struct SegmentDraft {
     pub references: String,
     #[serde(default)]
     pub cast: Vec<crate::cast_reference::CastReference>,
+}
+fn legacy_model() -> String {
+    "bytedance/seedance-2.5".into()
 }
 fn default_duration() -> u32 {
     10
@@ -31,6 +36,7 @@ impl Default for SegmentDraft {
         Self {
             id: uuid::Uuid::new_v4().to_string(),
             prompt: String::new(),
+            model: "alibaba/wan-3.0".into(),
             duration: default_duration(),
             resolution: "480p".into(),
             mode: 0,
@@ -45,13 +51,16 @@ impl SegmentDraft {
     pub fn video_plan(&self) -> Result<crate::video_plan::VideoPlan> {
         use crate::video_plan::{Inputs, VideoPlan};
         Ok(VideoPlan {
-            model: "bytedance/seedance-2.5".into(),
+            model: self.model.clone(),
             prompt: self.prompt.clone(),
-            duration: 30,
+            duration: crate::video_plan::model_choice(&self.model)
+                .ok_or_else(|| anyhow::anyhow!("Choose an available video model"))?
+                .duration,
             automatic_duration: false,
             resolution: self.resolution.clone(),
             aspect_ratio: "9:16".into(),
             generate_audio: true,
+            no_background_music: true,
             inputs: match self.mode {
                 0 => Inputs::Prompt,
                 1 => Inputs::Portraits {
@@ -155,6 +164,7 @@ impl Store {
             || plan.segments.len() > 120
             || plan.segments.iter().any(|segment| {
                 segment.mode > 2
+                    || crate::video_plan::model_choice(&segment.model).is_none()
                     || !(4..=30).contains(&segment.duration)
                     || !["480p", "720p", "1080p"].contains(&segment.resolution.as_str())
                     || segment.prompt.len() > 65536
@@ -225,6 +235,59 @@ impl Store {
 mod tests {
     use super::*;
     #[test]
+    fn model_selection_persists_and_jobs_keep_their_original_model() {
+        let root = std::env::temp_dir().join(format!("df-model-choice-{}", uuid::Uuid::new_v4()));
+        let store = Store::open(root.join("db.sqlite")).unwrap();
+        let series = store.create_series("Series", "Premise").unwrap();
+        let episode = store.create_episode(&series.id, "One").unwrap();
+        let mut draft = store.generation_plan(&episode.id).unwrap();
+        assert_eq!(draft.segments[0].model, "alibaba/wan-3.0");
+        draft.segments[0].prompt = "A quiet conversation".into();
+        let mut legacy = serde_json::to_value(&draft.segments[0]).unwrap();
+        legacy.as_object_mut().unwrap().remove("model");
+        let legacy: SegmentDraft = serde_json::from_value(legacy).unwrap();
+        assert_eq!(legacy.video_plan().unwrap().model, "bytedance/seedance-2.5");
+        assert_eq!(legacy.video_plan().unwrap().duration, 30);
+        let catalog = crate::openrouter::Catalog {
+            videos: crate::video_plan::MODEL_CHOICES.iter().map(|choice| serde_json::json!({
+                "id":choice.id,"supported_durations":[choice.duration],"supported_resolutions":[choice.minimum_resolution],
+                "supported_aspect_ratios":["9:16"],"generate_audio":true
+            })).collect(), images: vec![], fetched_unix_seconds: 0,
+        };
+        let mut jobs = Vec::new();
+        for choice in crate::video_plan::MODEL_CHOICES {
+            draft.segments[0].model = choice.id.into();
+            draft.segments[0].resolution = choice.minimum_resolution.into();
+            let (saved, job) = store.save_and_enqueue_segment(&draft, 0, &catalog).unwrap();
+            draft = saved;
+            assert_eq!(
+                store.generation_plan(&episode.id).unwrap().segments[0].model,
+                choice.id
+            );
+            jobs.push((job.id, choice));
+        }
+        for (id, choice) in jobs {
+            let text: String = store
+                .conn
+                .query_row("SELECT request FROM jobs WHERE id=?1", [id], |r| r.get(0))
+                .unwrap();
+            let request: crate::video_plan::VideoPlan = serde_json::from_str(&text).unwrap();
+            assert_eq!(request.model, choice.id);
+            assert_eq!(request.duration, choice.duration);
+            let mut request = request;
+            request.inputs = crate::video_plan::Inputs::References {
+                images: vec!["https://example.com/portrait.png".into(); choice.references],
+            };
+            assert!(request.preview(&catalog).is_ok());
+            if let crate::video_plan::Inputs::References { images } = &mut request.inputs {
+                images.push("https://example.com/extra.png".into());
+            }
+            assert!(request.preview(&catalog).is_err());
+        }
+        drop(store);
+        std::fs::remove_dir_all(root).unwrap();
+    }
+    #[test]
     fn generation_uses_current_cast_and_preserves_earlier_job_snapshots() {
         let root = std::env::temp_dir().join(format!("df-current-cast-{}", uuid::Uuid::new_v4()));
         let store = Store::open(root.join("db.sqlite")).unwrap();
@@ -247,7 +310,7 @@ mod tests {
         );
         let catalog = crate::openrouter::Catalog {
             videos: vec![
-                serde_json::json!({"id":"bytedance/seedance-2.5","supported_durations":[10,30],"supported_resolutions":["480p"],"supported_aspect_ratios":["9:16"],"generate_audio":true}),
+                serde_json::json!({"id":"alibaba/wan-3.0","supported_durations":[10,30],"supported_resolutions":["480p"],"supported_aspect_ratios":["9:16"],"generate_audio":true}),
             ],
             images: vec![],
             fetched_unix_seconds: 0,

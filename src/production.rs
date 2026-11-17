@@ -566,6 +566,16 @@ impl Store {
 
 #[derive(Clone, Serialize, Deserialize)]
 pub struct ExportClip {
+    #[serde(default)]
+    pub gap_before: f64,
+    #[serde(default)]
+    pub audio_fade_out: f64,
+    #[serde(default)]
+    pub audio_fade_in: f64,
+    #[serde(default)]
+    pub audio_gain_db: f64,
+    #[serde(default)]
+    pub audio_muted: bool,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub offscreen_dialogue_ids: Vec<String>,
     #[serde(
@@ -765,6 +775,11 @@ impl Store {
             let picture_fades = self.picture_fades(&shot.id)?;
             picture_fades.validate(shot.duration)?;
             clips.push(ExportClip {
+                gap_before: 0.,
+                audio_fade_out: 0.,
+                audio_fade_in: 0.,
+                audio_gain_db: 0.,
+                audio_muted: false,
                 offscreen_dialogue_ids,
                 picture_fades,
                 source_start: shot.source_start,

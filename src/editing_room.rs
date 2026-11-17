@@ -10,6 +10,16 @@ pub struct Clip {
     pub id: String,
     pub asset_id: String,
     pub title: String,
+    #[serde(default)]
+    pub gap_before: f64,
+    #[serde(default)]
+    pub audio_fade_out: f64,
+    #[serde(default)]
+    pub audio_fade_in: f64,
+    #[serde(default)]
+    pub audio_gain_db: f64,
+    #[serde(default)]
+    pub audio_muted: bool,
     pub start: f64,
     pub duration: f64,
 }
@@ -18,29 +28,107 @@ pub struct Cut {
     pub clips: Vec<Clip>,
 }
 impl Cut {
-    pub fn source_at(&self, seconds: f64) -> Option<(&str, f64)> {
-        let total: f64 = self.clips.iter().map(|clip| clip.duration).sum();
-        let mut time = seconds.max(0.).min((total - 1. / 24.).max(0.));
-        for clip in &self.clips {
-            if time < clip.duration {
-                return Some((&clip.asset_id, clip.start + time));
+    pub fn duration(&self) -> f64 {
+        self.clips.iter().map(|c| c.gap_before + c.duration).sum()
+    }
+    pub fn clip_time(&self, index: usize) -> f64 {
+        self.clips[..index]
+            .iter()
+            .map(|c| c.gap_before + c.duration)
+            .sum::<f64>()
+            + self.clips[index].gap_before
+    }
+    pub fn slide(&mut self, index: usize, destination: f64) -> bool {
+        if index >= self.clips.len() || !destination.is_finite() {
+            return false;
+        }
+        let destination = destination.max(0.);
+        let end = destination + self.clips[index].duration;
+        let mut positions = Vec::new();
+        for (i, clip) in self.clips.iter().enumerate() {
+            let time = self.clip_time(i);
+            if i != index && destination < time + clip.duration - 0.000001 && end > time + 0.000001
+            {
+                return false;
             }
-            time -= clip.duration;
+            positions.push((if i == index { destination } else { time }, clip.clone()));
+        }
+        positions.sort_by(|a, b| a.0.total_cmp(&b.0));
+        let mut end = 0.;
+        self.clips = positions
+            .into_iter()
+            .map(|(time, mut clip)| {
+                clip.gap_before = (time - end).max(0.);
+                end = time + clip.duration;
+                clip
+            })
+            .collect();
+        true
+    }
+    pub fn split_clip(&mut self, index: usize, offset: f64) -> bool {
+        let Some(clip) = self.clips.get(index) else {
+            return false;
+        };
+        if !offset.is_finite() || offset < 0.04 || clip.duration - offset < 0.04 {
+            return false;
+        }
+        let mut right = clip.clone();
+        right.id = uuid::Uuid::new_v4().to_string();
+        right.gap_before = 0.;
+        right.start += offset;
+        right.duration -= offset;
+        right.audio_fade_in = 0.;
+        self.clips[index].duration = offset;
+        self.clips[index].audio_fade_out = 0.;
+        self.clips.insert(index + 1, right);
+        true
+    }
+    pub fn duplicate_clip(&mut self, index: usize) -> bool {
+        let Some(clip) = self.clips.get(index) else {
+            return false;
+        };
+        let mut copy = clip.clone();
+        copy.id = uuid::Uuid::new_v4().to_string();
+        copy.gap_before = 0.;
+        self.clips.insert(index + 1, copy);
+        true
+    }
+    pub fn remove_clip(&mut self, index: usize, ripple: bool) -> bool {
+        if index >= self.clips.len() {
+            return false;
+        }
+        let removed = self.clips.remove(index);
+        if let Some(next) = self.clips.get_mut(index) {
+            next.gap_before += removed.gap_before + if ripple { 0. } else { removed.duration };
+        }
+        true
+    }
+    pub fn source_at(&self, seconds: f64) -> Option<(&str, f64)> {
+        let time = seconds.max(0.).min((self.duration() - 1. / 24.).max(0.));
+        for (index, clip) in self.clips.iter().enumerate() {
+            let start = self.clip_time(index);
+            if time >= start && time < start + clip.duration {
+                return Some((&clip.asset_id, clip.start + time - start));
+            }
         }
         None
     }
     pub fn playback_from(&self, seconds: f64) -> Self {
-        let mut remaining = seconds.max(0.);
+        let seconds = seconds.max(0.);
         let mut clips = Vec::new();
-        for source in &self.clips {
-            if remaining >= source.duration {
-                remaining -= source.duration;
+        let mut end = seconds;
+        for (index, source) in self.clips.iter().enumerate() {
+            let time = self.clip_time(index);
+            if time + source.duration <= seconds {
                 continue;
             }
             let mut clip = source.clone();
-            clip.start += remaining;
-            clip.duration -= remaining;
-            remaining = 0.;
+            let trim = (seconds - time).max(0.);
+            clip.audio_fade_in = (clip.audio_fade_in - trim).max(0.);
+            clip.start += trim;
+            clip.duration -= trim;
+            clip.gap_before = (time - end).max(0.);
+            end = time + source.duration;
             if clip.duration >= 0.04 {
                 clips.push(clip);
             }
@@ -87,6 +175,19 @@ impl Store {
             if !owned {
                 bail!("Choose clips from this episode");
             }
+            if !clip.audio_fade_in.is_finite()
+                || clip.audio_fade_in < 0.
+                || !clip.audio_gain_db.is_finite()
+                || !(-60. ..=12.).contains(&clip.audio_gain_db)
+            {
+                bail!("Invalid clip sound settings");
+            }
+            if !clip.audio_fade_out.is_finite() || clip.audio_fade_out < 0. {
+                bail!("Audio fade must be a nonnegative duration");
+            }
+            if !clip.gap_before.is_finite() || clip.gap_before < 0. || clip.gap_before > 3600. {
+                bail!("Timeline gap must be between zero and one hour");
+            }
             if !clip.start.is_finite()
                 || !clip.duration.is_finite()
                 || clip.start < 0.
@@ -130,6 +231,11 @@ impl Store {
                 bail!("Source clip changed");
             }
             clips.push(ExportClip {
+                gap_before: item.gap_before,
+                audio_fade_out: item.audio_fade_out.min(item.duration),
+                audio_fade_in: item.audio_fade_in.min(item.duration),
+                audio_gain_db: item.audio_gain_db,
+                audio_muted: item.audio_muted,
                 asset_id: asset.id.clone(),
                 path: asset.path.clone(),
                 hash: asset.hash.clone(),
@@ -210,6 +316,86 @@ mod tests {
         (root, store, episode.id, job.id)
     }
     #[test]
+    fn menu_edits_preserve_sources_and_expected_timing() {
+        let clip = Clip {
+            id: "one".into(),
+            asset_id: "source".into(),
+            title: "Take".into(),
+            gap_before: 2.,
+            start: 3.,
+            duration: 4.,
+            audio_fade_in: 0.5,
+            audio_fade_out: 1.,
+            audio_gain_db: -6.,
+            audio_muted: false,
+        };
+        let mut cut = Cut {
+            clips: vec![clip.clone()],
+        };
+        assert!(!cut.split_clip(0, 4.));
+        assert!(cut.split_clip(0, 1.5));
+        assert_eq!(cut.duration(), 6.);
+        assert_eq!(cut.clips[1].start, 4.5);
+        assert_eq!(cut.clips[0].audio_fade_out, 0.);
+        assert_eq!(cut.clips[1].audio_fade_in, 0.);
+        assert_eq!(cut.clips[1].audio_fade_out, 1.);
+        assert!(cut.duplicate_clip(0));
+        assert_ne!(cut.clips[0].id, cut.clips[1].id);
+        assert_eq!(cut.clips[0].asset_id, cut.clips[1].asset_id);
+        let next_time = cut.clip_time(2);
+        let mut ripple = cut.clone();
+        cut.remove_clip(1, false);
+        assert_eq!(cut.clip_time(1), next_time);
+        ripple.remove_clip(1, true);
+        assert_eq!(ripple.clip_time(1), next_time - 1.5);
+        assert_eq!(ripple.clips[1].audio_gain_db, -6.);
+        let restored: Cut = serde_json::from_str(&serde_json::to_string(&ripple).unwrap()).unwrap();
+        assert_eq!(restored, ripple);
+    }
+    #[test]
+    fn slides_preserve_other_positions_and_gaps_survive_playback() {
+        let clip = |id: &str| Clip {
+            id: id.into(),
+            asset_id: id.into(),
+            title: id.into(),
+            start: 2.,
+            duration: 3.,
+            gap_before: 0.,
+            audio_fade_out: 0.,
+            audio_fade_in: 0.,
+            audio_gain_db: 0.,
+            audio_muted: false,
+        };
+        let mut cut = Cut {
+            clips: vec![clip("a"), clip("b")],
+        };
+        assert!(cut.slide(1, 8.));
+        assert_eq!(cut.clip_time(0), 0.);
+        assert_eq!(cut.clip_time(1), 8.);
+        assert_eq!(cut.duration(), 11.);
+        let saved = cut.clone();
+        assert!(!cut.slide(0, 7.));
+        assert_eq!(cut, saved);
+        assert!(cut.slide(0, 4.));
+        assert_eq!(cut.clip_time(1), 8.);
+        assert_eq!(cut.source_at(3.), None);
+        assert_eq!(cut.source_at(4.), Some(("a", 2.)));
+        assert_eq!(cut.source_at(7.5), None);
+        let tail = cut.playback_from(7.5);
+        assert_eq!(tail.clips.len(), 1);
+        assert_eq!(tail.clips[0].gap_before, 0.5);
+        assert_eq!(tail.clips[0].start, 2.);
+        assert_eq!(tail.duration(), 3.5);
+        let restored: Cut = serde_json::from_str(&serde_json::to_string(&cut).unwrap()).unwrap();
+        assert_eq!(restored, cut);
+        let mut legacy = serde_json::to_value(&cut).unwrap();
+        for clip in legacy["clips"].as_array_mut().unwrap() {
+            clip.as_object_mut().unwrap().remove("gap_before");
+        }
+        let legacy: Cut = serde_json::from_value(legacy).unwrap();
+        assert_eq!(legacy.duration(), 6.);
+    }
+    #[test]
     fn playback_from_cursor_preserves_source_trims_and_order() {
         let cut = Cut {
             clips: vec![
@@ -217,6 +403,11 @@ mod tests {
                     id: "a".into(),
                     asset_id: "one".into(),
                     title: "One".into(),
+                    gap_before: 0.,
+                    audio_fade_out: 0.,
+                    audio_fade_in: 0.,
+                    audio_gain_db: 0.,
+                    audio_muted: false,
                     start: 2.,
                     duration: 3.,
                 },
@@ -224,6 +415,11 @@ mod tests {
                     id: "b".into(),
                     asset_id: "two".into(),
                     title: "Two".into(),
+                    gap_before: 0.,
+                    audio_fade_out: 0.,
+                    audio_fade_in: 0.,
+                    audio_gain_db: 0.,
+                    audio_muted: false,
                     start: 7.,
                     duration: 4.,
                 },
@@ -258,6 +454,11 @@ mod tests {
             id: "one".into(),
             asset_id: "a".into(),
             title: "Take 1".into(),
+            gap_before: 0.,
+            audio_fade_out: 0.,
+            audio_fade_in: 0.,
+            audio_gain_db: 0.,
+            audio_muted: false,
             start: 2.,
             duration: 5.,
         };
@@ -336,6 +537,11 @@ mod tests {
                     id: "one".into(),
                     asset_id: "a".into(),
                     title: "Sound".into(),
+                    gap_before: 0.,
+                    audio_fade_out: 0.5,
+                    audio_fade_in: 0.2,
+                    audio_gain_db: -6.,
+                    audio_muted: false,
                     start: 2.,
                     duration: 1.,
                 },
@@ -343,11 +549,22 @@ mod tests {
                     id: "two".into(),
                     asset_id: "a".into(),
                     title: "Silence".into(),
+                    gap_before: 0.5,
+                    audio_fade_out: 0.,
+                    audio_fade_in: 0.,
+                    audio_gain_db: 0.,
+                    audio_muted: false,
                     start: 0.,
                     duration: 0.5,
                 },
             ],
         };
+        let mut cut = cut;
+        let mut muted = cut.clips[0].clone();
+        muted.id = "muted".into();
+        muted.duration = 0.5;
+        muted.audio_muted = true;
+        cut.clips.push(muted);
         let export = store.preview_episode_cut(&episode, &cut).unwrap();
         assert_eq!(
             store.preview_episode_cut(&episode, &cut).unwrap().id,
@@ -362,7 +579,7 @@ mod tests {
             .into_iter()
             .find(|a| Some(&a.id) == result.output_id.as_ref())
             .unwrap();
-        assert!((asset.duration - 1.5).abs() < 0.1);
+        assert!((asset.duration - 2.5).abs() < 0.1);
         assert_eq!((asset.width, asset.height), (288, 512));
         assert_eq!(
             store.preview_episode_cut(&episode, &cut).unwrap().id,
@@ -385,9 +602,45 @@ mod tests {
             |range: std::ops::Range<usize>| samples[range].iter().map(|v| v * v).sum::<f32>();
         assert!(power(800..4000) > 1., "trimmed-in speech should be audible");
         assert!(
+            power(160..640) < power(2400..2880) * 0.2,
+            "opening audio should fade in"
+        );
+        assert!(
+            power(17600..19200) < 0.01,
+            "muted source tone must be silent"
+        );
+        let mean_power = power(2400..3200) / 800.;
+        assert!(
+            mean_power > 0.001 && mean_power < 0.003,
+            "-6 dB gain must reduce the test tone"
+        );
+        assert!(
+            power(7200..7840) < power(4400..5040) * 0.15,
+            "final audio must fade smoothly toward silence"
+        );
+        assert!(
             power(10000..11600) < 0.01,
             "second cut should contain original silence"
         );
+        let frame = std::process::Command::new(&ffmpeg)
+            .args(["-v", "error", "-ss", "1.25", "-i"])
+            .arg(&asset.path)
+            .args([
+                "-frames:v",
+                "1",
+                "-vf",
+                "scale=1:1",
+                "-pix_fmt",
+                "rgb24",
+                "-f",
+                "rawvideo",
+                "pipe:1",
+            ])
+            .output()
+            .unwrap();
+        assert!(frame.status.success());
+        assert_eq!(frame.stdout.len(), 3);
+        assert!(frame.stdout.iter().all(|v| *v < 8), "gap must render black");
         drop(store);
         std::fs::remove_dir_all(root).unwrap();
     }

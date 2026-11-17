@@ -648,6 +648,7 @@ impl Studio {
             &mut self.video_planner.show_old_attempts,
             "Show older attempts",
         );
+        let mut activity = Vec::new();
         for job in self.load(self.store.workspace_jobs(
             self.selected.as_deref().unwrap_or(""),
             self.episode_id.as_deref(),
@@ -672,7 +673,25 @@ impl Studio {
             {
                 continue;
             }
+            activity.push((job, kind));
+        }
+        let columns = ((ui.available_width() / 280.).floor() as usize).clamp(1, 3);
+        for row in activity.chunks(columns) {
+            ui.columns(columns, |uis| {
+                for (column, (job, kind)) in row.iter().enumerate() {
+                    let ui = &mut uis[column];
             Self::card(ui, |ui| {
+                ui.set_height(280.);
+                let retryable_status =
+                    ["failed", "canceled", "blocked"].contains(&job.status.as_str());
+                let uncertain_video = kind.as_deref() == Some("openrouter_video")
+                    && retryable_status
+                    && !self.store.video_retry_available(&job.id).unwrap_or(false);
+                egui::ScrollArea::vertical()
+                    .id_salt(("activity_card", &job.id))
+                    .max_height(230.)
+                    .auto_shrink([false, false])
+                    .show(ui, |ui| {
                 ui.horizontal(|ui| {
                     ui.label(
                         RichText::new(job.status.to_uppercase())
@@ -680,7 +699,7 @@ impl Studio {
                             .size(10.),
                     );
                     ui.label(
-                        RichText::new(format!("ATTEMPT {}", job.attempts))
+                        RichText::new(self.store.job_created_local(&job.id).ok().flatten().unwrap_or_else(|| "Date unavailable".into()))
                             .color(MUTED)
                             .size(10.),
                     );
@@ -704,13 +723,13 @@ impl Studio {
                     let hosted = timing.kind.starts_with("openrouter_");
                     if let Some(seconds) = timing.attempt_elapsed_seconds {
                         ui.small(format!(
-                            "Processing elapsed this attempt: {}",
+                            "Elapsed {}",
                             job_timing::duration(seconds)
                         ));
                     }
                     if let Some(seconds) = timing.queued_seconds {
                         ui.small(format!(
-                            "Waiting since request: {}",
+                            "Waiting {}",
                             job_timing::duration(seconds)
                         ));
                     }
@@ -720,7 +739,7 @@ impl Studio {
                                 ui.spinner();
                                 ui.label(&timing.stage);
                             });
-                            ui.small(&timing.estimate_note);
+
                         } else {
                             ui.add(egui::ProgressBar::new(job.progress).show_percentage());
                             ui.label(RichText::new(&job.phase).color(MUTED));
@@ -730,11 +749,6 @@ impl Studio {
                 if !job.error.is_empty() {
                     ui.label(RichText::new(&job.error).color(Color32::from_rgb(233, 151, 129)));
                 }
-                let retryable_status =
-                    ["failed", "canceled", "blocked"].contains(&job.status.as_str());
-                let uncertain_video = kind.as_deref() == Some("openrouter_video")
-                    && retryable_status
-                    && !self.store.video_retry_available(&job.id).unwrap_or(false);
                 if uncertain_video {
                     ui.label("Submission outcome unknown. Retrying is blocked to avoid a duplicate charge.");
                     ui.hyperlink_to(
@@ -742,14 +756,18 @@ impl Studio {
                         "https://openrouter.ai/workspaces/default/logs?tab=videos",
                     );
                 }
-                ui.horizontal(|ui| {
+                    });
+                ui.add_space(12.);
+                ui.horizontal_wrapped(|ui| {
+                    ui.spacing_mut().button_padding = egui::vec2(12., 8.);
+                    ui.spacing_mut().item_spacing = egui::vec2(10., 8.);
                     if ["queued", "running", "blocked"].contains(&job.status.as_str())
-                        && ui.small_button("Cancel").clicked()
+                        && ui.add(egui::Button::new("Cancel").min_size(egui::vec2(90., 36.))).clicked()
                     {
                         let r = self.store.cancel(&job.id);
                         self.result(r, "Cancellation requested");
                     }
-                    if retryable_status && !uncertain_video && ui.small_button("Retry").clicked() {
+                    if retryable_status && !uncertain_video && ui.add(egui::Button::new("Retry").min_size(egui::vec2(90., 36.))).clicked() {
                         let r = self
                             .store
                             .retry(&job.id)
@@ -757,7 +775,7 @@ impl Studio {
                         self.result(r, "Retry queued");
                     }
                     if let Some(id) = &job.output_id
-                        && ui.small_button("Play original").clicked()
+                        && ui.add(egui::Button::new("Play original").min_size(egui::vec2(90., 36.))).clicked()
                         && let Ok(assets) = self.store.assets()
                         && let Some(asset) = assets.iter().find(|asset| &asset.id == id)
                     {
@@ -771,7 +789,7 @@ impl Studio {
                             self.result(result, "Opened original video");
                         }
                     }
-                    if job.output_id.is_some() && ui.small_button("View asset").clicked() {
+                    if job.output_id.is_some() && ui.add(egui::Button::new("View asset").min_size(egui::vec2(90., 36.))).clicked() {
                         self.preview_asset = job.output_id.clone();
                         if let Some(id) = &job.output_id {
                             self.asset_browser.show_asset(id);
@@ -779,6 +797,8 @@ impl Studio {
                         self.page = Page::Assets;
                     }
                 });
+            });
+                }
             });
             ui.add_space(12.);
         }
@@ -1361,7 +1381,7 @@ impl Studio {
                 let r = self.store.set_automatic_updates(self.automatic_updates);
                 self.result(r, "Update preference saved");
             }
-            ui.label("v006 · MIT · Baz-Studios-LLC / DramaFactory");
+            ui.label("v007 · MIT · Baz-Studios-LLC / DramaFactory");
             ui.label(&self.update_status);
             if ui
                 .add_enabled(
@@ -1436,7 +1456,7 @@ impl eframe::App for Studio {
                         .size(11.),
                     );
                     ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                        ui.label(RichText::new("v006 / DEVELOPMENT").color(MUTED).size(10.));
+                        ui.label(RichText::new("v007 / DEVELOPMENT").color(MUTED).size(10.));
                     });
                 });
             });
@@ -1752,7 +1772,7 @@ fn run() -> anyhow::Result<()> {
     let args: Vec<String> = std::env::args().collect();
     if args.get(1).is_some_and(|x| x == "--help") {
         println!(
-            "DramaFactory v006\n\n(no arguments) Launch studio\n--mcp Start local stdio MCP\n--worker Drain durable queue\n--worker-once Drain if no other worker owns the queue\n--data-path Print database path\n--configure-worker PYTHON WAN_MODEL FFMPEG KOKORO_MODEL\n--configure-images PYTHON FLUX_MODEL\n--configure-lipsync PYTHON MUSETALK_MODEL\n--configure-performance PYTHON LTX_MODEL ENCODER\n--version Print public version"
+            "DramaFactory v007\n\n(no arguments) Launch studio\n--mcp Start local stdio MCP\n--worker Drain durable queue\n--worker-once Drain if no other worker owns the queue\n--data-path Print database path\n--configure-worker PYTHON WAN_MODEL FFMPEG KOKORO_MODEL\n--configure-images PYTHON FLUX_MODEL\n--configure-lipsync PYTHON MUSETALK_MODEL\n--configure-performance PYTHON LTX_MODEL ENCODER\n--version Print public version"
         );
         return Ok(());
     }
@@ -1775,7 +1795,7 @@ fn run() -> anyhow::Result<()> {
         anyhow::bail!("Unknown option '{flag}'. Use --help");
     }
     if args.get(1).is_some_and(|x| x == "--version") {
-        println!("v006");
+        println!("v007");
         return Ok(());
     }
     if args.get(1).is_some_and(|x| x == "--install-staged-update") {
@@ -1855,7 +1875,7 @@ fn run() -> anyhow::Result<()> {
         return mcp::run(store);
     }
     let viewport = egui::ViewportBuilder::default()
-        .with_title("DramaFactory · v006")
+        .with_title("DramaFactory · v007")
         .with_inner_size([1380., 900.])
         .with_min_inner_size([1100., 740.]);
     // macOS resolves the system-rendered Icon Composer asset from the bundle.

@@ -166,7 +166,10 @@ fn execute_export(store: &Store, id: &str) -> Result<()> {
             ));
         }
         graph.push_str(&format!("[v{i}];"));
-        duration += clip.duration;
+        if !clip.gap_before.is_finite() || clip.gap_before < 0. || clip.gap_before > 3600. {
+            bail!("Invalid timeline gap");
+        }
+        duration += clip.gap_before + clip.duration;
     }
     let mut audio_input = r.clips.len();
     for (i, clip) in r.clips.iter().enumerate() {
@@ -197,10 +200,52 @@ fn execute_export(store: &Store, id: &str) -> Result<()> {
             ));
         }
     }
-    for i in 0..r.clips.len() {
-        graph.push_str(&format!("[v{i}][a{i}]"));
+    for (i, clip) in r.clips.iter().enumerate() {
+        if !clip.audio_fade_out.is_finite()
+            || clip.audio_fade_out < 0.
+            || !clip.audio_fade_in.is_finite()
+            || clip.audio_fade_in < 0.
+            || !clip.audio_gain_db.is_finite()
+            || !(-60. ..=12.).contains(&clip.audio_gain_db)
+        {
+            bail!("Invalid clip sound settings");
+        }
+        let gain = if clip.audio_muted {
+            "0".into()
+        } else {
+            format!("{}dB", clip.audio_gain_db)
+        };
+        graph.push_str(&format!("[a{i}]volume={gain}"));
+        if clip.audio_fade_in > 0. {
+            graph.push_str(&format!(
+                ",afade=t=in:st=0:d={}",
+                clip.audio_fade_in.min(clip.duration)
+            ));
+        }
+        if clip.audio_fade_out > 0. {
+            let fade = clip.audio_fade_out.min(clip.duration);
+            graph.push_str(&format!(
+                ",afade=t=out:st={}:d={fade}",
+                clip.duration - fade
+            ));
+        }
+        graph.push_str(&format!("[faded{i}];"));
     }
-    graph.push_str(&format!("concat=n={}:v=1:a=1[outv][outa]", r.clips.len()));
+    let mut parts = 0;
+    for (i, clip) in r.clips.iter().enumerate() {
+        if clip.gap_before > 0. {
+            graph.push_str(&format!("color=c=black:s={}x{}:r={}:d={}[gapv{i}];anullsrc=r=48000:cl=stereo,atrim=duration={}[gapa{i}];", r.width, r.height, r.fps, clip.gap_before, clip.gap_before));
+        }
+    }
+    for (i, clip) in r.clips.iter().enumerate() {
+        if clip.gap_before > 0. {
+            graph.push_str(&format!("[gapv{i}][gapa{i}]"));
+            parts += 1;
+        }
+        graph.push_str(&format!("[v{i}][faded{i}]"));
+        parts += 1;
+    }
+    graph.push_str(&format!("concat=n={parts}:v=1:a=1[outv][outa]"));
     if !r.cues.is_empty() {
         graph.push(';');
         for (i, entry) in r.cues.iter().enumerate() {

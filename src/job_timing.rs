@@ -13,6 +13,14 @@ pub struct JobTiming {
     pub estimate_note: String,
 }
 impl Store {
+    pub fn job_created_local(&self, id: &str) -> Result<Option<String>> {
+        Ok(self.conn.query_row(
+            "SELECT strftime('%m/%d %H:%M:%S', NULLIF(created_at, ''), 'localtime') FROM jobs WHERE id=?1",
+            [id],
+            |row| row.get(0),
+        )?)
+    }
+
     pub fn job_timing(&self, id: &str) -> Result<JobTiming> {
         let (kind,status,phase,start,end,created,now):(String,String,String,Option<i64>,Option<i64>,Option<i64>,i64)=self.conn.query_row("SELECT j.kind,j.status,j.phase,t.started_unix,t.finished_unix,unixepoch(NULLIF(j.created_at,'')),unixepoch() FROM jobs j LEFT JOIN job_timing t ON t.job_id=j.id WHERE j.id=?1",[id],|row|Ok((row.get(0)?,row.get(1)?,row.get(2)?,row.get(3)?,row.get(4)?,row.get(5)?,row.get(6)?)))?;
         let elapsed = match (start, end) {

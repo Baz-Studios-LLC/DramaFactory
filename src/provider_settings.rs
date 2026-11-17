@@ -134,7 +134,7 @@ impl crate::Studio {
             if let Some(catalog) = &self.provider_settings.catalog {
                 ui.small(format!("Last successful catalog: {} video models · {} image models. This does not verify your API key.",catalog.videos.len(),catalog.images.len()));
                 for (label, id, models) in [
-                    ("Video", "bytedance/seedance-2.5", &catalog.videos),
+                    ("Video", "alibaba/wan-3.0", &catalog.videos),
                     ("Images", "x-ai/grok-imagine-image-2.0", &catalog.images),
                 ] {
                     if let Some(model) = models.iter().find(|model| model["id"] == id) {
