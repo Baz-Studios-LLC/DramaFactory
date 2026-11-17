@@ -510,6 +510,7 @@ mod tests {
             aspect_ratio: "9:16".into(),
             generate_audio: true,
             no_background_music: false,
+            ending_hold: false,
             inputs: crate::video_plan::Inputs::Prompt,
         };
         let mut info = crate::media::VideoInfo {
@@ -559,6 +560,7 @@ mod tests {
             aspect_ratio: "9:16".into(),
             generate_audio: true,
             no_background_music: false,
+            ending_hold: false,
             inputs: crate::video_plan::Inputs::Prompt,
         };
         let job = store.enqueue_seedance(&plan).unwrap();
@@ -735,6 +737,7 @@ mod tests {
             aspect_ratio: "9:16".into(),
             generate_audio: true,
             no_background_music: false,
+            ending_hold: false,
             inputs: crate::video_plan::Inputs::Prompt,
         };
         let invalid = crate::media::VideoInfo {

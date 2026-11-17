@@ -54,6 +54,7 @@ const TABLES: &[&str] = &[
 ];
 const SETTING_PREFIXES: &[&str] = &[
     "episode-cut:",
+    "episode-publish:",
     "captions:",
     "speaker_visible:",
     "picture_fades:",
@@ -826,6 +827,15 @@ mod tests {
         store.set_video_aspect_ratio("16:9").unwrap();
         store.remember_gui_series(&series.id).unwrap();
         store.remember_gui_episode(&episode.id).unwrap();
+        let release = crate::publish::ReleaseDraft {
+            title: "Pilot release".into(),
+            cover_png: vec![1, 2, 3],
+            destinations: [true, true, true],
+            ..Default::default()
+        };
+        store
+            .save_release_draft(&episode.id, &release, None)
+            .unwrap();
         let folder = temp.join("Traveling.dramafactory");
         let first = save(&store, &series.id, &folder, None).unwrap();
         assert_eq!(
@@ -857,6 +867,10 @@ mod tests {
         }
         let opened = open(&folder, &mac_two).unwrap();
         let second = Store::open(opened).unwrap();
+        let restored_release = second.release_draft(&episode.id).unwrap().0;
+        assert_eq!(restored_release.title, release.title);
+        assert_eq!(restored_release.cover_png, release.cover_png);
+        assert_eq!(restored_release.destinations, release.destinations);
         assert_eq!(second.video_aspect_ratio(), "16:9");
         assert_eq!(second.series().unwrap().len(), 1);
         assert_eq!(second.series().unwrap()[0].id, series.id);

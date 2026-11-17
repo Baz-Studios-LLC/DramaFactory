@@ -135,8 +135,8 @@ mod tests {
         };
         let mut payload = plan.preview(&catalog).unwrap()["request"].clone();
         let prompt = payload["prompt"].as_str().unwrap();
-        assert!(prompt.contains("Image 1: Sylvi\nAn alchemist with auburn hair."));
-        assert!(prompt.contains("Image 2: Bram\nSylvi's father"));
+        assert!(prompt.contains("Image 1: Sylvi\nImage 2: Bram"));
+        assert!(!prompt.contains("Sylvi's father"));
         let directory = root.join("delivery");
         std::fs::create_dir_all(&directory).unwrap();
         embed(&plan, &mut payload, &directory).unwrap();

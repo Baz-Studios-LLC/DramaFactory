@@ -9,8 +9,29 @@ pub(crate) fn text_menu(
     images: bool,
 ) -> bool {
     let mut paste_image = false;
+    let context = output.response.ctx.clone();
+    let selection_id = output.response.id.with("context-menu-selection");
+    let opening = output.response.contains_pointer()
+        && context.input(|input| input.pointer.button_pressed(egui::PointerButton::Secondary));
+    let menu_open = output.response.context_menu_opened();
+    // TextEdit moves the cursor on any pointer press, including secondary.
+    // Restore the previous frame's selection before building the context menu.
+    if (opening || menu_open)
+        && let Some(saved) =
+            context.data(|data| data.get_temp::<egui::text::CCursorRange>(selection_id))
+    {
+        output.state.cursor.set_char_range(Some(saved));
+        output.cursor_range = output.state.cursor.range(&output.galley);
+        output.state.cursor.set_char_range(output.cursor_range);
+        output.state.clone().store(&context, output.response.id);
+    } else if let Some(range) = output.state.cursor.range(&output.galley) {
+        context.data_mut(|data| data.insert_temp(selection_id, range));
+    }
+    // State retains the selection even when the menu takes keyboard focus.
     let range = output
-        .cursor_range
+        .state
+        .cursor
+        .range(&output.galley)
         .map(|range| range.as_sorted_char_range());
     output.response.context_menu(|ui| {
         if ui
@@ -150,5 +171,65 @@ impl Studio {
                 ui.close();
             }
         });
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn right_click_preserves_text_selection_for_copy() {
+        let ctx = egui::Context::default();
+        let mut value = "Hello café world".to_owned();
+        let mut field = None;
+        let mut selected = None;
+        let mut frame = |events: Vec<egui::Event>| {
+            let _ = ctx.run(
+                egui::RawInput {
+                    events,
+                    ..Default::default()
+                },
+                |ctx| {
+                    egui::CentralPanel::default().show(ctx, |ui| {
+                        let mut output = egui::TextEdit::singleline(&mut value).show(ui);
+                        text_menu(&mut output, &mut value, false);
+                        field = Some((output.response.id, output.response.rect));
+                        selected = output.state.cursor.char_range();
+                    });
+                },
+            );
+            (field.unwrap(), selected)
+        };
+        let ((id, rect), _) = frame(vec![]);
+        let mut state = egui::TextEdit::load_state(&ctx, id).unwrap();
+        let selection = egui::text::CCursorRange::two(
+            egui::text::CCursor::new(6),
+            egui::text::CCursor::new(10),
+        );
+        state.cursor.set_char_range(Some(selection));
+        state.store(&ctx, id);
+        ctx.memory_mut(|memory| memory.request_focus(id));
+        frame(vec![]);
+        let position = rect.center();
+        let (_, selected) = frame(vec![
+            egui::Event::PointerMoved(position),
+            egui::Event::PointerButton {
+                pos: position,
+                button: egui::PointerButton::Secondary,
+                pressed: true,
+                modifiers: egui::Modifiers::NONE,
+            },
+        ]);
+        assert_eq!(selected.unwrap().as_sorted_char_range(), 6..10);
+        let (_, selected) = frame(vec![egui::Event::PointerButton {
+            pos: position,
+            button: egui::PointerButton::Secondary,
+            pressed: false,
+            modifiers: egui::Modifiers::NONE,
+        }]);
+        assert_eq!(selected.unwrap().as_sorted_char_range(), 6..10);
+        let (_, selected) = frame(vec![]);
+        assert_eq!(selected.unwrap().as_sorted_char_range(), 6..10);
     }
 }

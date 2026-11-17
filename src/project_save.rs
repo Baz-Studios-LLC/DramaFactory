@@ -163,6 +163,9 @@ impl Studio {
         if let Err(error) = self.editor.save_for_series(&self.store, series) {
             issues.push(format!("Editing room: {error}"));
         }
+        if let Err(error) = self.publisher.save_for_series(&self.store, series) {
+            issues.push(format!("Publish: {error}"));
+        }
         macro_rules! attempt {
             ($label:expr,$expr:expr,$ok:expr) => {
                 match $expr {

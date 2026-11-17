@@ -348,6 +348,14 @@ impl Studio {
                 let mut draft = self.portrait_prompts[&entry.id].clone();
                 Self::field(ui, "ADDITIONAL PORTRAIT DIRECTION", &mut draft.prompt, 4);
                 ui.horizontal_wrapped(|ui| {
+                    if ui
+                        .button("Copy prompt")
+                        .on_hover_text("Copy the text above")
+                        .clicked()
+                    {
+                        ui.ctx().copy_text(draft.prompt.clone());
+                        self.message = "Portrait prompt copied".into();
+                    }
                     if ui.button("Save portrait prompt").clicked() {
                         match self.store.save_portrait_prompt(&draft) {
                             Ok(saved) => {

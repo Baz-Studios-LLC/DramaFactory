@@ -49,6 +49,8 @@ mod production;
 mod project_context;
 mod project_save;
 mod provider_settings;
+mod publish;
+mod publish_ui;
 mod readiness;
 mod reference_drop;
 mod rehearsal;
@@ -62,6 +64,7 @@ mod sidekick_edit;
 mod sidekick_episode;
 mod sidekick_generation;
 mod sidekick_plot;
+mod sidekick_provider;
 mod sidekick_ui;
 mod sound;
 mod store;
@@ -102,6 +105,7 @@ enum Page {
     Queue,
     Settings,
     EditingRoom,
+    Publish,
 }
 struct Studio {
     store: Store,
@@ -124,6 +128,7 @@ struct Studio {
     provider_settings: provider_settings::ProviderSettings,
     video_planner: video_plan_ui::VideoPlanner,
     editor: editing_room_ui::Editor,
+    publisher: publish_ui::Publisher,
     page: Page,
     asset_browser: asset_browser::AssetBrowser,
     sidekick_visible: bool,
@@ -225,6 +230,7 @@ impl Studio {
             provider_settings: Default::default(),
             video_planner: Default::default(),
             editor: Default::default(),
+            publisher: Default::default(),
             page: Page::Synopsis,
             asset_browser: Default::default(),
             sidekick_visible: true,
@@ -679,18 +685,88 @@ impl Studio {
             }
             activity.push((job, kind));
         }
+        let selection_id = ui.id().with("production_activity_details");
+        let mut selected = ui
+            .ctx()
+            .data_mut(|data| data.get_temp::<String>(selection_id));
         let columns = ((ui.available_width() / 280.).floor() as usize).clamp(1, 3);
         for row in activity.chunks(columns) {
             ui.columns(columns, |uis| {
-                for (column, (job, kind)) in row.iter().enumerate() {
+                for (column, (job, _)) in row.iter().enumerate() {
                     let ui = &mut uis[column];
-            Self::card(ui, |ui| {
-                ui.set_height(320.);
-                if let Ok(Some((heading, title))) = self.store.segment_job_context(&job.id) {
-                    ui.label(RichText::new(heading).size(20.).strong().color(GOLD));
-                    ui.add(egui::Label::new(RichText::new(title).color(MUTED)).truncate());
-                    ui.add_space(8.);
+                    let card = egui::Frame::new()
+                        .fill(theme::SURFACE)
+                        .stroke(egui::Stroke::new(1., theme::BORDER))
+                        .corner_radius(12)
+                        .inner_margin(16.)
+                        .show(ui, |ui| {
+                            ui.set_width(ui.available_width());
+                            ui.set_height(110.);
+                            let (heading, title) = self
+                                .store
+                                .segment_job_context(&job.id)
+                                .ok()
+                                .flatten()
+                                .unwrap_or_else(|| ("Production job".into(), String::new()));
+                            ui.add(
+                                egui::Label::new(
+                                    RichText::new(heading).size(17.).strong().color(GOLD),
+                                )
+                                .truncate(),
+                            );
+                            ui.add(egui::Label::new(RichText::new(title).color(MUTED)).truncate());
+                            ui.add_space(8.);
+                            ui.horizontal(|ui| {
+                                if matches!(job.status.as_str(), "queued" | "running") {
+                                    ui.spinner();
+                                }
+                                ui.small(RichText::new(job.status.to_uppercase()).color(GOLD));
+                                ui.small(
+                                    RichText::new(
+                                        self.store
+                                            .job_created_local(&job.id)
+                                            .ok()
+                                            .flatten()
+                                            .unwrap_or_default(),
+                                    )
+                                    .color(MUTED),
+                                );
+                            });
+                            ui.small(RichText::new("Open details  ›").color(MUTED));
+                        });
+                    let response = ui.interact(
+                        card.response.rect,
+                        ui.id().with(&job.id),
+                        egui::Sense::click(),
+                    );
+                    if response
+                        .on_hover_cursor(egui::CursorIcon::PointingHand)
+                        .clicked()
+                    {
+                        selected = Some(job.id.clone());
+                    }
                 }
+            });
+            ui.add_space(12.);
+        }
+        if let Some((job, kind)) = activity
+            .iter()
+            .find(|(job, _)| selected.as_ref() == Some(&job.id))
+        {
+            let mut open = true;
+            let heading = self
+                .store
+                .segment_job_context(&job.id)
+                .ok()
+                .flatten()
+                .map(|(heading, _)| heading)
+                .unwrap_or_else(|| "Production details".into());
+            egui::Window::new(heading)
+                .id(selection_id.with("window"))
+                .open(&mut open)
+                .default_width(560.)
+                .resizable(true)
+                .show(ui.ctx(), |ui| {
                 let retryable_status =
                     ["failed", "canceled", "blocked"].contains(&job.status.as_str());
                 let uncertain_video = kind.as_deref() == Some("openrouter_video")
@@ -713,21 +789,7 @@ impl Studio {
                             .size(10.),
                     );
                 });
-                let summary: String = job.prompt.chars().take(110).collect();
-                ui.label(
-                    RichText::new(format!(
-                        "{summary}{}",
-                        if job.prompt.chars().count() > 110 {
-                            "…"
-                        } else {
-                            ""
-                        }
-                    ))
-                    .strong(),
-                );
-                ui.collapsing("Request details", |ui| {
-                    ui.label(&job.prompt);
-                });
+                ui.label(&job.prompt);
                 if let Ok(timing) = self.store.job_timing(&job.id) {
                     let hosted = timing.kind.starts_with("openrouter_");
                     if let Some(seconds) = timing.attempt_elapsed_seconds {
@@ -806,11 +868,18 @@ impl Studio {
                         self.page = Page::Assets;
                     }
                 });
-            });
-                }
-            });
-            ui.add_space(12.);
+                });
+            if !open {
+                selected = None;
+            }
         }
+        ui.ctx().data_mut(|data| {
+            if let Some(id) = selected {
+                data.insert_temp(selection_id, id);
+            } else {
+                data.remove::<String>(selection_id);
+            }
+        });
     }
     fn assets(&mut self, ui: &mut egui::Ui) {
         Self::title(
@@ -1371,7 +1440,7 @@ impl Studio {
             ui,
             "STUDIO PREFERENCES",
             "Made to stay yours.",
-            "OpenRouter connection, application updates, and project storage.",
+            "AI connections, application updates, and project storage.",
         );
         if ui.button("Studio overview").clicked() {
             self.page = Page::Studio;
@@ -1599,6 +1668,7 @@ impl eframe::App for Studio {
                                 Page::Images => self.images(ui),
                                 Page::Queue => self.queue(ui),
                                 Page::EditingRoom => self.editing_room(ui),
+                                Page::Publish => self.publish_room(ui),
                                 Page::Settings => self.settings(ui),
                             }
                         });

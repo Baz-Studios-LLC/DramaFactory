@@ -1,9 +1,9 @@
-## New in this release
+## New in v016
 
-- Choose Portrait (9:16) or Landscape (16:9) for each project from the sidebar. The format is saved with portable projects.
-- Video generation, editor canvases, previews and final exports follow the project format. Existing queued requests retain their submitted format.
-- Fit existing clips into the output canvas without stretching or cropping; mismatched aspect ratios use black bars.
-- Generation activity cards prominently identify the episode and segment, including retained context for new jobs.
+- Sidekick prepares a compact cast brief for each video segment. Selected portraits travel with their character names, and full biographies stay available for writing.
+- Use a direct OpenAI connection for Sidekick while generating video and portraits through OpenRouter.
+- Preview where a clip will land as you drag it onto the timeline, and snap it against neighboring clips.
+- Prepare episode publishing drafts for TikTok, YouTube Shorts, and Instagram in the Publish tab.
 
 Download the **macOS-arm64.zip**, unzip it, and drag DramaFactory.app to Applications. Requires an Apple Silicon Mac.
 

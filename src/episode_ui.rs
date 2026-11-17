@@ -25,7 +25,7 @@ impl Studio {
             {
                 self.select_episode(&episodes[index - 1].id);
             }
-            if self.page == Page::EditingRoom {
+            if matches!(self.page, Page::EditingRoom | Page::Publish) {
                 if let Some(i) = index {
                     egui::Frame::new()
                         .fill(GOLD.gamma_multiply(0.16))

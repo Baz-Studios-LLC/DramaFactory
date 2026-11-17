@@ -20,7 +20,7 @@ cd -- "$(dirname -- "$0")/../../.."
 app="$PWD/target/DramaFactory.app"
 executable="$app/Contents/MacOS/DramaFactory"
 if [ ! -x "$executable" ] || [ "${1:-}" = "--build" ] ||
-    [ -n "$(find src workers branding scripts/bundle-macos.sh Cargo.toml Cargo.lock -type f -newer "$executable" -print -quit 2>/dev/null)" ]; then
+    [ -n "$(find src workers branding vendor scripts build.rs Cargo.toml Cargo.lock rust-toolchain.toml .git -type f -newer "$executable" -print -quit 2>/dev/null)" ]; then
     printf 'Building DramaFactory…\n'
     if ! command -v cargo >/dev/null 2>&1; then
         printf 'Rust is required to build. Install it from https://rustup.rs and try again.\n' >&2

@@ -8,7 +8,7 @@ pub struct Stage {
     pub outcome: &'static str,
     pub actions: &'static [(Page, &'static str)],
 }
-pub const STAGES: [Stage; 6] = [
+pub const STAGES: [Stage; 7] = [
     Stage {
         heading: "01 · SYNOPSIS",
         title: "Define the synopsis",
@@ -60,6 +60,13 @@ pub const STAGES: [Stage; 6] = [
         description: "Arrange your takes, trim the action and cut the episode together.",
         outcome: "A finished MP4 with picture and sound together.",
         actions: &[(Page::EditingRoom, "Editing room")],
+    },
+    Stage {
+        heading: "07 · PUBLISH",
+        title: "Share the episode",
+        description: "Prepare your episode for TikTok, YouTube Shorts and Instagram.",
+        outcome: "A saved release draft with video, cover and captions.",
+        actions: &[(Page::Publish, "Publish")],
     },
 ];
 impl Studio {

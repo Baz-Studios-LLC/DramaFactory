@@ -183,9 +183,25 @@ pub const SECTIONS: &[Section] = &[
 #[serde(deny_unknown_fields)]
 pub struct CharacterProfile {
     pub summary: String,
-    #[serde(default)]
+    #[serde(default, deserialize_with = "profile_fields")]
     pub fields: BTreeMap<String, String>,
 }
+// Providers sometimes append null placeholders despite the string-only schema.
+// Treat null as absent; validate_complete still rejects missing required traits.
+fn profile_fields<'de, D>(
+    deserializer: D,
+) -> std::result::Result<BTreeMap<String, String>, D::Error>
+where
+    D: serde::Deserializer<'de>,
+{
+    let fields =
+        <BTreeMap<String, Option<String>> as serde::Deserialize>::deserialize(deserializer)?;
+    Ok(fields
+        .into_iter()
+        .filter_map(|(key, value)| value.map(|value| (key, value)))
+        .collect())
+}
+
 impl CharacterProfile {
     pub fn brief(&self) -> String {
         let mut parts = vec![self.summary.clone()];
@@ -671,5 +687,25 @@ mod tests {
         assert!(store.character_profile(&location.id).is_err());
         drop(store);
         std::fs::remove_dir_all(root).unwrap();
+    }
+}
+
+#[cfg(test)]
+mod null_field_tests {
+    use super::*;
+    #[test]
+    fn null_placeholders_are_absent_but_invalid_values_still_fail() {
+        let profile: CharacterProfile = serde_json::from_str(
+            r#"{"summary":"Example","fields":{"fears":"Failure","fears_and_insecurities":null,"height":null}}"#,
+        ).unwrap();
+        assert_eq!(profile.fields.get("fears").unwrap(), "Failure");
+        assert!(!profile.fields.contains_key("fears_and_insecurities"));
+        assert!(profile.validate_complete().is_err());
+        assert!(
+            serde_json::from_str::<CharacterProfile>(
+                r#"{"summary":"Example","fields":{"age":23}}"#
+            )
+            .is_err()
+        );
     }
 }

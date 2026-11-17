@@ -68,6 +68,7 @@ impl SegmentDraft {
             aspect_ratio: aspect_ratio.into(),
             generate_audio: true,
             no_background_music: true,
+            ending_hold: true,
             inputs: match self.mode {
                 0 => Inputs::Prompt,
                 1 => Inputs::Portraits {

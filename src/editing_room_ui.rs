@@ -475,7 +475,7 @@ impl Studio {
             ui.label("Open the clip library above to add your first take.");
         }
         let mut slide = None;
-        let mut insert_at = None;
+        let mut place_at = None;
         let mut trim_update = None;
         let mut sound_update = None;
         let mut menu_action = None;
@@ -815,27 +815,6 @@ impl Studio {
                             .input(|i| i.pointer.press_origin())
                             .map_or(0., |p| f64::from((p.x - rect.left()) / scale));
                     }
-                    if ui.rect_contains_pointer(rect) && state.library_drag.is_some() {
-                        let at = if ui
-                            .input(|i| i.pointer.hover_pos().is_some_and(|p| p.x > rect.center().x))
-                        {
-                            index + 1
-                        } else {
-                            index
-                        };
-                        let x = if at == index {
-                            rect.left()
-                        } else {
-                            rect.right()
-                        };
-                        ui.painter().line_segment(
-                            [egui::pos2(x, rect.top()), egui::pos2(x, rect.bottom())],
-                            egui::Stroke::new(3., crate::GOLD),
-                        );
-                        if ui.input(|i| i.pointer.any_released()) {
-                            insert_at = Some(at);
-                        }
-                    }
                     time += clip.duration;
                 }
                 let drop_rect = egui::Rect::from_min_max(
@@ -849,14 +828,107 @@ impl Studio {
                     egui::FontId::proportional(12.),
                     crate::MUTED,
                 );
-                if ui.rect_contains_pointer(drop_rect) && ui.input(|i| i.pointer.any_released()) {
-                    insert_at = Some(state.cut.clips.len());
+                let tracks = egui::Rect::from_min_max(
+                    egui::pos2(origin, video_y),
+                    egui::pos2(canvas.right(), audio_y + 32.),
+                );
+                if let Some(clip) = state.library_drag.as_ref()
+                    && let Some(pointer) = ui.input(|i| i.pointer.interact_pos())
+                    && tracks.intersect(ui.clip_rect()).contains(pointer)
+                {
+                    let mut target = f64::from((pointer.x - origin) / scale).max(0.);
+                    // Snap either edge to nearby clip boundaries.
+                    let desired = target;
+                    let mut nearest = 8. / f64::from(scale);
+                    for boundary in std::iter::once(0.).chain(
+                        state.cut.clips.iter().enumerate().flat_map(|(i, c)| {
+                            let start = state.cut.clip_time(i);
+                            [start, start + c.duration]
+                        }),
+                    ) {
+                        for position in [boundary, boundary - clip.duration] {
+                            let distance = (desired - position).abs();
+                            if position >= 0. && distance < nearest {
+                                nearest = distance;
+                                target = position;
+                            }
+                        }
+                    }
+                    let mut candidate = state.cut.clone();
+                    let valid = candidate.place_clip(clip.clone(), target);
+                    let color = if valid {
+                        crate::GOLD
+                    } else {
+                        egui::Color32::LIGHT_RED
+                    };
+                    let ghost = egui::Rect::from_min_size(
+                        egui::pos2(origin + target as f32 * scale, video_y),
+                        egui::vec2(clip.duration as f32 * scale, 70.),
+                    );
+                    painter.rect_filled(ghost, 3., color.gamma_multiply(0.25));
+                    if let Some(asset) = assets.iter().find(|a| a.id == clip.asset_id)
+                        && let Some(path) =
+                            state.thumbnails.get(ui, asset, &self.store.root(), &ffmpeg)
+                    {
+                        let strip = ghost.shrink(3.);
+                        let mut image_ui = ui.new_child(egui::UiBuilder::new().max_rect(strip));
+                        image_ui.set_clip_rect(strip.intersect(ui.clip_rect()));
+                        let image = egui::Image::from_uri(format!("file://{}", path.display()))
+                            .tint(egui::Color32::from_white_alpha(150));
+                        let mut x = strip.left();
+                        while x < strip.right() {
+                            image.paint_at(
+                                &image_ui,
+                                egui::Rect::from_min_size(
+                                    egui::pos2(x, strip.top()),
+                                    egui::vec2(44., strip.height()),
+                                ),
+                            );
+                            x += 44.;
+                        }
+                    }
+                    painter.rect_stroke(
+                        ghost,
+                        3.,
+                        egui::Stroke::new(2., color),
+                        egui::StrokeKind::Inside,
+                    );
+                    let audio = egui::Rect::from_min_size(
+                        egui::pos2(ghost.left(), audio_y),
+                        egui::vec2(ghost.width(), 32.),
+                    );
+                    painter.rect_filled(audio, 3., color.gamma_multiply(0.25));
+                    painter.rect_stroke(
+                        audio,
+                        3.,
+                        egui::Stroke::new(2., color),
+                        egui::StrokeKind::Inside,
+                    );
+                    painter.text(
+                        ghost.left_top() + egui::vec2(5., 5.),
+                        egui::Align2::LEFT_TOP,
+                        format!(
+                            "{} · {:.2}s{}",
+                            clip.title,
+                            target,
+                            if valid { "" } else { " · Overlap" }
+                        ),
+                        egui::FontId::proportional(11.),
+                        egui::Color32::WHITE,
+                    );
+                    if ui.input(|i| i.pointer.any_released()) && valid {
+                        place_at = Some(target);
+                    }
                 }
                 if let Some(index) = state.dragged
                     && let Some(pointer) = ui.input(|i| i.pointer.interact_pos())
                 {
                     let target =
                         (f64::from((pointer.x - origin) / scale) - state.drag_offset).max(0.);
+                    let target =
+                        state
+                            .cut
+                            .snapped_slide_target(index, target, 8. / f64::from(scale));
                     let mut candidate = state.cut.clone();
                     let valid = candidate.slide(index, target);
                     let ghost = egui::Rect::from_min_size(
@@ -919,11 +991,13 @@ impl Studio {
         if let Some((index, clip)) = trim_update {
             state.cut.clips[index] = clip;
         }
-        if let Some(index) = insert_at
+        if let Some(target) = place_at
             && let Some(clip) = state.library_drag.take()
         {
-            state.cut.clips.insert(index, clip);
-            state.selected = Some(index);
+            let id = clip.id.clone();
+            if state.cut.place_clip(clip, target) {
+                state.selected = state.cut.clips.iter().position(|c| c.id == id);
+            }
         }
         if ui.input(|i| i.pointer.any_released()) {
             state.library_drag = None;

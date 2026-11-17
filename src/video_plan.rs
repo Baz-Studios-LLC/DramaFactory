@@ -81,6 +81,8 @@ pub struct VideoPlan {
     pub generate_audio: bool,
     #[serde(default)]
     pub no_background_music: bool,
+    #[serde(default)]
+    pub ending_hold: bool,
     pub inputs: Inputs,
 }
 fn image_url(value: &str) -> Result<Value> {
@@ -115,18 +117,16 @@ impl VideoPlan {
         if let Inputs::Portraits { portraits, .. } = &self.inputs
             && !portraits.is_empty()
         {
-            prompt.push_str("\n\nCHARACTER REFERENCE GUIDE\nUse the numbered images for character identity. Match named actions and dialogue to these characters; do not swap their faces. Profiles describe the characters, not extra dialogue to speak.\n");
+            prompt.push_str("\n\nCHARACTER REFERENCE GUIDE\nUse the numbered images for character identity. Match named actions and dialogue to these characters; do not swap their faces.\n");
             for (index, portrait) in portraits.iter().enumerate() {
-                prompt.push_str(&format!(
-                    "Image {}: {}\n{}\n",
-                    index + 1,
-                    portrait.name,
-                    portrait.brief
-                ));
+                prompt.push_str(&format!("Image {}: {}\n", index + 1, portrait.name));
             }
         }
         if self.no_background_music {
             prompt.push_str("\n\nAUDIO DIRECTION: Dialogue, natural environmental ambience, and story-relevant sound effects only. No background music, score, soundtrack, musical drones, ominous tonal beds, rhythmic underscore, stingers, or musical transitions. Do not turn ambience into music. This overrides any earlier request for background music or a score. Music will be added separately in editing. Preserve natural speech and breathing.");
+        }
+        if self.ending_hold {
+            prompt.push_str("\n\nENDING HANDLE: Reserve the final one second of the clip for a natural, continuous hold after all dialogue and essential action finish. Let the characters settle or react subtly, maintaining the final framing, lighting and ambient sound. No new speech, action beat, camera cut, fade to black or end card during this second. Keep speech unhurried; this hold is included within the requested clip duration, not extra time after it.");
         }
         prompt
     }
@@ -226,6 +226,7 @@ mod tests {
                 aspect_ratio: "9:16".into(),
                 generate_audio: true,
                 no_background_music: false,
+                ending_hold: false,
                 inputs: Inputs::Prompt,
             },
             crate::openrouter::Catalog {
@@ -236,6 +237,25 @@ mod tests {
                 fetched_unix_seconds: 1,
             },
         )
+    }
+    #[test]
+    fn ending_handle_is_sent_but_legacy_requests_are_preserved() {
+        let (mut plan, catalog) = fixture();
+        let legacy = serde_json::to_value(&plan).unwrap();
+        plan.ending_hold = true;
+        let payload = plan.preview(&catalog).unwrap();
+        assert!(
+            payload["request"]["prompt"]
+                .as_str()
+                .unwrap()
+                .contains("final one second")
+        );
+        assert_eq!(plan.duration, 10);
+        let mut legacy = legacy;
+        legacy.as_object_mut().unwrap().remove("ending_hold");
+        let restored: VideoPlan = serde_json::from_value(legacy).unwrap();
+        assert!(!restored.ending_hold);
+        assert_eq!(restored.assembled_prompt(), restored.prompt);
     }
     #[test]
     fn music_rule_is_sent_and_counted_without_changing_legacy_requests() {
@@ -277,6 +297,8 @@ mod tests {
             images: vec![],
         };
         assert!(plan.assembled_prompt().contains("Image 1: Sylvi"));
+        assert!(plan.validate_prompt().is_ok());
+        plan.prompt = "é".repeat(19_999);
         assert!(plan.validate_prompt().is_err());
         plan.model = "google/veo-3.1".into();
         assert_eq!(plan.prompt_limit(), None);

@@ -15,66 +15,91 @@ impl SessionKey {
         Ok(key)
     }
 }
-#[cfg(target_os = "macos")]
-static SESSION: std::sync::Mutex<SessionKey> = std::sync::Mutex::new(SessionKey(None));
-#[cfg(target_os = "macos")]
-fn session() -> Result<std::sync::MutexGuard<'static, SessionKey>> {
-    SESSION
-        .lock()
-        .map_err(|_| anyhow::anyhow!("Credential session unavailable; restart the app."))
+#[derive(Clone, Copy)]
+pub enum Provider {
+    OpenRouter,
+    OpenAi,
 }
-#[cfg(target_os = "macos")]
-const SERVICE: &str = "studio.bazstudios.dramafactory.openrouter";
-#[cfg(target_os = "macos")]
-const ACCOUNT: &str = "api-key";
-#[cfg(target_os = "macos")]
-pub fn save(key: &str) -> Result<()> {
-    let mut cache = session()?;
-    security_framework::passwords::set_generic_password(SERVICE, ACCOUNT, key.as_bytes()).map_err(
-        |error| anyhow::anyhow!("Keychain could not save the key (code {}).", error.code()),
-    )?;
-    cache.0 = Some(key.to_owned());
-    Ok(())
-}
-#[cfg(target_os = "macos")]
-pub fn read() -> Result<Option<String>> {
-    session()?.read(read_keychain)
-}
-#[cfg(target_os = "macos")]
-fn read_keychain() -> Result<Option<String>> {
-    use security_framework::passwords::{PasswordOptions, generic_password};
-    match generic_password(PasswordOptions::new_generic_password(SERVICE, ACCOUNT)) {
-        Ok(bytes) => Ok(Some(String::from_utf8(bytes).map_err(|_| {
-            anyhow::anyhow!("Stored key has an invalid format. Replace it in Settings.")
-        })?)),
-        Err(error) if error.code() == -25300 => Ok(None),
-        Err(error) => bail!("Keychain could not read the key (code {}).", error.code()),
+impl Provider {
+    #[cfg(target_os = "macos")]
+    fn service(self) -> &'static str {
+        match self {
+            Self::OpenRouter => "studio.bazstudios.dramafactory.openrouter",
+            Self::OpenAi => "studio.bazstudios.dramafactory.openai",
+        }
     }
-}
-#[cfg(target_os = "macos")]
-pub fn remove() -> Result<()> {
-    let mut cache = session()?;
-    let result = match security_framework::passwords::delete_generic_password(SERVICE, ACCOUNT) {
-        Ok(()) => Ok(()),
-        Err(error) if error.code() == -25300 => Ok(()),
-        Err(error) => bail!("Keychain could not remove the key (code {}).", error.code()),
-    };
-    if result.is_ok() {
+    #[cfg(target_os = "macos")]
+    fn session(self) -> Result<std::sync::MutexGuard<'static, SessionKey>> {
+        static ROUTER: std::sync::Mutex<SessionKey> = std::sync::Mutex::new(SessionKey(None));
+        static OPENAI: std::sync::Mutex<SessionKey> = std::sync::Mutex::new(SessionKey(None));
+        let session = match self {
+            Self::OpenRouter => &ROUTER,
+            Self::OpenAi => &OPENAI,
+        };
+        session
+            .lock()
+            .map_err(|_| anyhow::anyhow!("Credential session unavailable; restart the app."))
+    }
+    #[cfg(target_os = "macos")]
+    pub fn save(self, key: &str) -> Result<()> {
+        let mut cache = self.session()?;
+        security_framework::passwords::set_generic_password(
+            self.service(),
+            "api-key",
+            key.as_bytes(),
+        )
+        .map_err(|e| anyhow::anyhow!("Keychain could not save the key (code {}).", e.code()))?;
+        cache.0 = Some(key.to_owned());
+        Ok(())
+    }
+    #[cfg(target_os = "macos")]
+    pub fn read(self) -> Result<Option<String>> {
+        self.session()?.read(|| {
+            use security_framework::passwords::{PasswordOptions, generic_password};
+            match generic_password(PasswordOptions::new_generic_password(
+                self.service(),
+                "api-key",
+            )) {
+                Ok(bytes) => Ok(Some(String::from_utf8(bytes).map_err(|_| {
+                    anyhow::anyhow!("Replace the invalid stored key in Settings.")
+                })?)),
+                Err(e) if e.code() == -25300 => Ok(None),
+                Err(e) => bail!("Keychain could not read the key (code {}).", e.code()),
+            }
+        })
+    }
+    #[cfg(target_os = "macos")]
+    pub fn remove(self) -> Result<()> {
+        let mut cache = self.session()?;
+        match security_framework::passwords::delete_generic_password(self.service(), "api-key") {
+            Ok(()) => {}
+            Err(e) if e.code() == -25300 => {}
+            Err(e) => bail!("Keychain could not remove the key (code {}).", e.code()),
+        }
         cache.0 = None;
+        Ok(())
     }
-    result
+    #[cfg(not(target_os = "macos"))]
+    pub fn save(self, _: &str) -> Result<()> {
+        bail!("Secure credential storage is unavailable on this platform.")
+    }
+    #[cfg(not(target_os = "macos"))]
+    pub fn read(self) -> Result<Option<String>> {
+        bail!("Secure credential storage is unavailable on this platform.")
+    }
+    #[cfg(not(target_os = "macos"))]
+    pub fn remove(self) -> Result<()> {
+        bail!("Secure credential storage is unavailable on this platform.")
+    }
 }
-#[cfg(not(target_os = "macos"))]
-pub fn save(_: &str) -> Result<()> {
-    bail!("Secure credential storage is not implemented on this platform yet.")
+pub fn save(key: &str) -> Result<()> {
+    Provider::OpenRouter.save(key)
 }
-#[cfg(not(target_os = "macos"))]
 pub fn read() -> Result<Option<String>> {
-    bail!("Secure credential storage is not implemented on this platform yet.")
+    Provider::OpenRouter.read()
 }
-#[cfg(not(target_os = "macos"))]
 pub fn remove() -> Result<()> {
-    bail!("Secure credential storage is not implemented on this platform yet.")
+    Provider::OpenRouter.remove()
 }
 /// GET only, fixed origin, redirects disabled; response content is never echoed.
 pub fn test_connection() -> Result<String> {
@@ -111,6 +136,18 @@ pub fn test_connection() -> Result<String> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[cfg(target_os = "macos")]
+    #[test]
+    fn providers_have_independent_credentials() {
+        assert_eq!(
+            Provider::OpenRouter.service(),
+            "studio.bazstudios.dramafactory.openrouter"
+        );
+        assert_ne!(Provider::OpenRouter.service(), Provider::OpenAi.service());
+        let router = Provider::OpenRouter.session().unwrap();
+        let openai = Provider::OpenAi.session().unwrap();
+        assert!(!std::ptr::eq(&*router, &*openai));
+    }
     #[test]
     fn session_reuses_authorization_and_does_not_cache_failure() {
         let mut cache = SessionKey::default();

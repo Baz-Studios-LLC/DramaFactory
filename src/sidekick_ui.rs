@@ -114,16 +114,19 @@ fn message_bubble(
             .show(ui, |ui| {
                 ui.set_max_width(width - 24.);
                 ui.with_layout(Layout::top_down(Align::LEFT), |ui| {
+                    ui.spacing_mut().item_spacing.y = 4.;
                     ui.scope(|ui| {
                         // Header controls share the speaker row rather than reserving
                         // an invisible, full-height action row below every message.
                         ui.spacing_mut().interact_size.y =
                             ui.text_style_height(&eframe::egui::TextStyle::Small);
-                        ui.spacing_mut().button_padding.x = 6.;
+                        ui.spacing_mut().button_padding = eframe::egui::vec2(4., 2.);
+                        ui.spacing_mut().item_spacing.x = 6.;
                         ui.horizontal(|ui| {
                             ui.label(
                                 RichText::new(if user { "You" } else { "Sidekick" })
-                                    .small()
+                                    .size(18.)
+                                    .strong()
                                     .color(if user { GOLD } else { MUTED }),
                             );
                             if editing
@@ -296,7 +299,7 @@ impl Sidekick {
         self.episode_request = None;
         self.generation_request = None;
         self.episode_creation_request = None;
-        self.error = "Stopped. Your message is retained; no reply changes will be applied. OpenRouter may still charge for a request already sent.".into();
+        self.error = "Stopped. Your message is retained; no reply changes will be applied. The provider may still charge for a request already sent.".into();
     }
 }
 impl Studio {
@@ -691,9 +694,14 @@ impl Studio {
         .frame(eframe::egui::Frame::new().fill(eframe::egui::Color32::from_rgb(21,23,27)).inner_margin(18.)).show(ctx,|ui|{
             ui.add_space(2.);ui.heading("Creative sidekick");ui.label(eframe::egui::RichText::new("Your story, in good company.").small().color(MUTED));
             let Some(series)=self.selected.clone() else{ui.label("Choose a series to begin brainstorming.");return;};
-            let context=match self.page{Page::Synopsis=>"Synopsis",Page::Cast=>"Characters",Page::Locations=>"Locations",Page::Story=>"Overall plot",Page::Series=>"Episode plot",Page::Queue|Page::Scenes=>"Episode generation",_=>"Studio workspace"}.to_owned();
+            let context=match self.page{Page::Publish=>"Publish",Page::Synopsis=>"Synopsis",Page::Cast=>"Characters",Page::Locations=>"Locations",Page::Story=>"Overall plot",Page::Series=>"Episode plot",Page::Queue|Page::Scenes=>"Episode generation",_=>"Studio workspace"}.to_owned();
             ui.label(eframe::egui::RichText::new(format!("Working on: {context}")).color(GOLD));
-            ui.small("Gemini 4 Argon · via OpenRouter");
+            let connection = crate::sidekick_provider::Connection::load();
+            match connection {
+                Ok(connection) if connection.provider == crate::sidekick_provider::Provider::OpenAi => { ui.small(format!("{} · OpenAI direct", connection.openai_model)); }
+                Ok(_) => { ui.small("Gemini 4 Argon · via OpenRouter"); }
+                Err(_) => { ui.small("Check Sidekick connection in Settings"); }
+            }
             if let Some(queue) = &self.sidekick.cast_queue && let Some(task) = queue.remaining.front() { ui.label(format!("Cast queue · {} of {} · {}", queue.completed + 1, queue.total, task.name)); }
             ui.separator();
             let messages=match self.store.sidekick_messages(&series){Ok(messages)=>messages,Err(error)=>{ui.label(error.to_string());return;}};
@@ -712,6 +720,7 @@ impl Studio {
             let episode_snapshot=self.episode_snapshot().ok();
             let project_context = serde_json::json!({
                 "workspace":"All workspaces", "visible_workspace":context,
+                "local_character_portraits":self.store.library(&series,"character").unwrap_or_default().iter().filter_map(|entry|entry.reference.as_ref().map(|path|serde_json::json!({"id":entry.id,"name":entry.name,"path":path}))).collect::<Vec<_>>(),
                 "generation_draft":generation_snapshot.as_ref().map(|snapshot|serde_json::json!({"plan":snapshot.plan,"saved_episode":snapshot.context["saved_episode"],"image_style":snapshot.context["image_style"],"available_portraits":snapshot.context["available_portraits"].as_array().map(|items|items.iter().map(|item|serde_json::json!({"character_id":item["character_id"],"name":item["name"]})).collect::<Vec<_>>())})),
                 "character_drafts":character_snapshots.iter().map(crate::character_edit::CharacterDraft::model_context).collect::<Vec<_>>(),
                 "series":self.store.series().ok().and_then(|items|items.into_iter().find(|item|item.id==series)),

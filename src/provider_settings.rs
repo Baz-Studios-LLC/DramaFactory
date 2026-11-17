@@ -3,6 +3,10 @@ use anyhow::{Result, bail};
 #[derive(Default)]
 pub struct ProviderSettings {
     key_input: String,
+    openai_key: String,
+    sidekick_connection: Option<crate::sidekick_provider::Connection>,
+    sidekick_status: String,
+    openai_pending: Option<std::sync::mpsc::Receiver<Result<String, String>>>,
     status: String,
     catalog: Option<crate::openrouter::Catalog>,
     catalog_pending: Option<std::sync::mpsc::Receiver<Result<crate::openrouter::Catalog, String>>>,
@@ -12,7 +16,7 @@ pub struct ProviderSettings {
 fn validate_key(key: &str) -> Result<&str> {
     let key = key.trim();
     if key.is_empty() || key.chars().any(char::is_whitespace) {
-        bail!("Enter an OpenRouter API key without spaces.");
+        bail!("Enter an API key without spaces.");
     }
     Ok(key)
 }
@@ -51,9 +55,130 @@ impl crate::Studio {
                 Err(std::sync::mpsc::TryRecvError::Empty) => {}
             }
         }
+        if let Some(receiver) = &self.provider_settings.openai_pending {
+            match receiver.try_recv() {
+                Ok(result) => {
+                    self.provider_settings.openai_pending = None;
+                    self.provider_settings.sidekick_status = result.unwrap_or_else(|e| e);
+                }
+                Err(std::sync::mpsc::TryRecvError::Disconnected) => {
+                    self.provider_settings.openai_pending = None;
+                    self.provider_settings.sidekick_status = "Connection check stopped.".into();
+                }
+                Err(std::sync::mpsc::TryRecvError::Empty) => {
+                    ui.ctx()
+                        .request_repaint_after(std::time::Duration::from_millis(100));
+                }
+            }
+        }
+        if self.provider_settings.sidekick_connection.is_none() {
+            match crate::sidekick_provider::Connection::load() {
+                Ok(connection) => self.provider_settings.sidekick_connection = Some(connection),
+                Err(error) => {
+                    self.provider_settings.sidekick_status = error.to_string();
+                    self.provider_settings.sidekick_connection = Some(Default::default());
+                }
+            }
+        }
+        Self::card(ui, |ui| {
+            ui.heading("Sidekick");
+            let connection = self.provider_settings.sidekick_connection.as_mut().unwrap();
+            ui.horizontal(|ui| {
+                ui.selectable_value(
+                    &mut connection.provider,
+                    crate::sidekick_provider::Provider::OpenRouter,
+                    "OpenRouter",
+                );
+                ui.selectable_value(
+                    &mut connection.provider,
+                    crate::sidekick_provider::Provider::OpenAi,
+                    "OpenAI direct",
+                );
+            });
+            if connection.provider == crate::sidekick_provider::Provider::OpenAi {
+                ui.label("OpenAI API key");
+                ui.add(
+                    eframe::egui::TextEdit::singleline(&mut self.provider_settings.openai_key)
+                        .password(true)
+                        .hint_text("Paste your OpenAI API key")
+                        .desired_width(460.),
+                );
+                ui.horizontal(|ui| {
+                    if ui
+                        .add_enabled(
+                            !self.provider_settings.openai_key.trim().is_empty()
+                                && self.provider_settings.openai_pending.is_none(),
+                            eframe::egui::Button::new("Save key & use OpenAI"),
+                        )
+                        .clicked()
+                    {
+                        match validate_key(&self.provider_settings.openai_key)
+                            .and_then(|key| crate::credentials::Provider::OpenAi.save(key))
+                        {
+                            Ok(()) => {
+                                self.provider_settings.openai_key.clear();
+                                self.provider_settings.sidekick_status = match connection.save() {
+                                    Ok(()) => {
+                                        "OpenAI key saved. Sidekick now uses OpenAI direct.".into()
+                                    }
+                                    Err(e) => {
+                                        format!("Key saved, but Sidekick was not switched: {e}")
+                                    }
+                                };
+                            }
+                            Err(e) => self.provider_settings.sidekick_status = e.to_string(),
+                        }
+                    }
+                    ui.hyperlink_to("Get API key", "https://platform.openai.com/api-keys");
+                    for (label, remove) in [("Test connection", false), ("Remove key", true)] {
+                        if ui
+                            .add_enabled(
+                                self.provider_settings.openai_pending.is_none(),
+                                eframe::egui::Button::new(label),
+                            )
+                            .clicked()
+                        {
+                            let (sender, receiver) = std::sync::mpsc::channel();
+                            self.provider_settings.openai_pending = Some(receiver);
+                            self.provider_settings.sidekick_status = "Checking Keychain…".into();
+                            std::thread::spawn(move || {
+                                let result = if remove {
+                                    crate::credentials::Provider::OpenAi
+                                        .remove()
+                                        .map(|_| "OpenAI key removed from this Mac.".into())
+                                } else {
+                                    crate::sidekick_provider::test_openai_connection()
+                                };
+                                let _ = sender.send(result.map_err(|e| e.to_string()));
+                            });
+                        }
+                    }
+                });
+                ui.label("GPT-6 Astra");
+                connection.openai_model = "gpt-6-astra".into();
+                eframe::egui::ComboBox::from_id_salt("sidekick_effort")
+                    .selected_text(format!("Effort: {}", connection.effort))
+                    .show_ui(ui, |ui| {
+                        for effort in ["low", "medium", "high", "xhigh", "max"] {
+                            ui.selectable_value(&mut connection.effort, effort.into(), effort);
+                        }
+                    });
+            }
+            if ui.button("Save Sidekick settings").clicked() {
+                self.provider_settings.sidekick_status = match connection.save() {
+                    Ok(()) => "Sidekick settings saved. Applies to your next message.".into(),
+                    Err(e) => e.to_string(),
+                };
+            }
+            ui.label(&self.provider_settings.sidekick_status);
+            ui.small(
+                "Video and image generation use OpenRouter. Keys stay in this Mac’s Keychain.",
+            );
+        });
+        ui.add_space(12.);
         Self::card(ui, |ui| {
             ui.heading("OpenRouter");
-            ui.label("One connection for writing, images, and video with sound.");
+            ui.label("WAN video and image generation. Also used for Sidekick when selected above.");
             ui.add_space(10.);
             ui.label("OPENROUTER API KEY");
             ui.add(
@@ -110,7 +235,7 @@ impl crate::Studio {
             }
             ui.small("Stored in macOS Keychain, separate from projects and exports. Saving does not make an API request or start a paid generation.");
             ui.add_space(10.);
-            ui.label("Video & sound: Seedance · Images: Grok Imagine");
+            ui.label("Video & sound: WAN · Images: Grok Imagine");
             if ui
                 .add_enabled(
                     self.provider_settings.catalog_pending.is_none(),

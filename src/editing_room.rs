@@ -38,6 +38,54 @@ impl Cut {
             .sum::<f64>()
             + self.clips[index].gap_before
     }
+    /// Place a new clip without moving existing clips; reject overlaps atomically.
+    pub fn place_clip(&mut self, mut clip: Clip, destination: f64) -> bool {
+        if !destination.is_finite()
+            || destination < 0.
+            || !clip.duration.is_finite()
+            || clip.duration <= 0.
+        {
+            return false;
+        }
+        let mut candidate = self.clone();
+        clip.gap_before = 0.;
+        candidate.clips.push(clip);
+        if !candidate.slide(candidate.clips.len() - 1, destination) {
+            return false;
+        }
+        *self = candidate;
+        true
+    }
+    pub fn snapped_slide_target(&self, index: usize, target: f64, threshold: f64) -> f64 {
+        let Some(moving) = self.clips.get(index) else {
+            return target;
+        };
+        let mut result = target;
+        let mut nearest = threshold;
+        let boundaries = std::iter::once(0.).chain(
+            self.clips
+                .iter()
+                .enumerate()
+                .filter(|(i, _)| *i != index)
+                .flat_map(|(i, clip)| {
+                    let start = self.clip_time(i);
+                    [start, start + clip.duration]
+                }),
+        );
+        for boundary in boundaries {
+            for position in [boundary, boundary - moving.duration] {
+                let distance = (target - position).abs();
+                if position >= 0. && distance <= nearest {
+                    let mut candidate = self.clone();
+                    if candidate.slide(index, position) {
+                        nearest = distance;
+                        result = position;
+                    }
+                }
+            }
+        }
+        result
+    }
     pub fn slide(&mut self, index: usize, destination: f64) -> bool {
         if index >= self.clips.len() || !destination.is_finite() {
             return false;
@@ -350,6 +398,59 @@ mod tests {
         assert_eq!(ripple.clips[1].audio_gain_db, -6.);
         let restored: Cut = serde_json::from_str(&serde_json::to_string(&ripple).unwrap()).unwrap();
         assert_eq!(restored, ripple);
+    }
+    #[test]
+    fn moving_clip_snaps_both_edges_without_overlapping() {
+        let clip = |id: &str| Clip {
+            id: id.into(),
+            asset_id: id.into(),
+            title: id.into(),
+            start: 0.,
+            duration: 3.,
+            gap_before: 0.,
+            audio_fade_out: 0.,
+            audio_fade_in: 0.,
+            audio_gain_db: 0.,
+            audio_muted: false,
+        };
+        let mut cut = Cut::default();
+        assert!(cut.place_clip(clip("left"), 0.));
+        assert!(cut.place_clip(clip("moving"), 5.));
+        assert!(cut.place_clip(clip("right"), 10.));
+        assert_eq!(cut.snapped_slide_target(1, 3.2, 0.4), 3.);
+        assert_eq!(cut.snapped_slide_target(1, 6.8, 0.4), 7.);
+        assert_eq!(cut.snapped_slide_target(1, 5.2, 0.4), 5.2);
+        assert_eq!(cut.snapped_slide_target(1, 5.2, 0.1), 5.2);
+        assert_eq!(cut.snapped_slide_target(1, 2.9, 0.4), 3.);
+    }
+    #[test]
+    fn library_drops_fill_gaps_without_moving_neighbors() {
+        let clip = |id: &str| Clip {
+            id: id.into(),
+            asset_id: id.into(),
+            title: id.into(),
+            start: 0.,
+            duration: 3.,
+            gap_before: 0.,
+            audio_fade_out: 0.,
+            audio_fade_in: 0.,
+            audio_gain_db: 0.,
+            audio_muted: false,
+        };
+        let mut cut = Cut::default();
+        assert!(cut.place_clip(clip("a"), 0.));
+        assert!(cut.place_clip(clip("b"), 10.));
+        assert!(cut.place_clip(clip("c"), 5.));
+        assert_eq!(cut.clip_time(1), 5.);
+        assert_eq!(cut.clip_time(2), 10.);
+        let before = cut.clone();
+        assert!(!cut.place_clip(clip("overlap"), 7.));
+        assert_eq!(cut, before);
+        assert!(cut.place_clip(clip("end"), 13.));
+        assert_eq!(cut.clip_time(3), 13.);
+        assert_eq!(cut.source_at(4.), None);
+        let restored: Cut = serde_json::from_str(&serde_json::to_string(&cut).unwrap()).unwrap();
+        assert_eq!(restored, cut);
     }
     #[test]
     fn slides_preserve_other_positions_and_gaps_survive_playback() {
