@@ -2,6 +2,57 @@
 use crate::store::{Job, Store};
 use anyhow::Result;
 impl Store {
+    pub(crate) fn segment_job_context(&self, job: &str) -> Result<Option<(String, String)>> {
+        use rusqlite::OptionalExtension;
+        if let Some(saved) = self
+            .conn
+            .query_row(
+                "SELECT heading,episode_title FROM job_display_context WHERE job_id=?1",
+                [job],
+                |r| Ok((r.get(0)?, r.get(1)?)),
+            )
+            .optional()?
+        {
+            return Ok(Some(saved));
+        }
+        let binding: Option<(String, String)> = self
+            .conn
+            .query_row(
+                "SELECT episode_id,segment_id FROM segment_generations WHERE job_id=?1",
+                [job],
+                |r| Ok((r.get(0)?, r.get(1)?)),
+            )
+            .optional()?;
+        binding
+            .map(|(episode, segment)| self.segment_display_context(&episode, &segment))
+            .transpose()
+    }
+    pub(crate) fn segment_display_context(
+        &self,
+        episode: &str,
+        segment: &str,
+    ) -> Result<(String, String)> {
+        let saved = self.get_episode(episode)?;
+        let episode_number = self
+            .ordered_gui_episodes(&saved.series_id)?
+            .iter()
+            .position(|item| item.id == episode)
+            .map(|i| i + 1);
+        let segment_number = self
+            .generation_plan(episode)?
+            .segments
+            .iter()
+            .position(|item| item.id == segment)
+            .map(|i| i + 1);
+        let episode_label = episode_number
+            .map(|n| format!("Episode {n:02}"))
+            .unwrap_or_else(|| "Episode unavailable".into());
+        let segment_label = segment_number
+            .map(|n| format!("Segment {n:02}"))
+            .unwrap_or_else(|| "Removed segment".into());
+        Ok((format!("{episode_label} · {segment_label}"), saved.title))
+    }
+
     pub(crate) fn has_newer_segment_job(&self, id: &str) -> Result<bool> {
         Ok(self.conn.query_row("SELECT EXISTS(SELECT 1 FROM segment_generations old JOIN jobs j ON j.id=old.job_id JOIN segment_generations newer ON newer.episode_id=old.episode_id AND newer.segment_id=old.segment_id JOIN jobs n ON n.id=newer.job_id WHERE j.id=?1 AND n.rowid>j.rowid)",[id],|row| row.get(0))?)
     }

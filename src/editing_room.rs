@@ -260,16 +260,15 @@ impl Store {
             cues: vec![],
             captions: vec![],
             burn_captions: false,
-            width: 480,
-            height: 854,
+            width: self.video_dimensions(480, 854).0,
+            height: self.video_dimensions(480, 854).1,
             fps: 24,
         })
     }
     pub fn preview_episode_cut(&self, episode: &str, cut: &Cut) -> Result<crate::store::Job> {
         use rusqlite::OptionalExtension;
         let mut request = self.cut_export_request(episode, cut)?;
-        request.width = 288;
-        request.height = 512;
+        (request.width, request.height) = self.video_dimensions(288, 512);
         let json = serde_json::to_string(&request)?;
         let existing: Option<String> = self.conn.query_row("SELECT id FROM jobs WHERE kind='export' AND prompt='Timeline preview' AND request=?1 AND status IN ('queued','running','completed') ORDER BY rowid DESC LIMIT 1", [&json], |r| r.get(0)).optional()?;
         if let Some(id) = existing {
@@ -491,10 +490,16 @@ mod tests {
     }
     #[test]
     fn actual_export_trims_picture_and_linked_audio() {
+        for ratio in ["9:16", "16:9"] {
+            check_actual_export(ratio);
+        }
+    }
+    fn check_actual_export(ratio: &str) {
         let Some(ffmpeg) = std::env::var_os("DRAMAFACTORY_TEST_FFMPEG") else {
             return;
         };
         let (root, store, episode, job) = fixture();
+        store.set_video_aspect_ratio(ratio).unwrap();
         let path = root.join("source.mp4");
         assert!(
             std::process::Command::new(&ffmpeg)
@@ -580,7 +585,10 @@ mod tests {
             .find(|a| Some(&a.id) == result.output_id.as_ref())
             .unwrap();
         assert!((asset.duration - 2.5).abs() < 0.1);
-        assert_eq!((asset.width, asset.height), (288, 512));
+        assert_eq!(
+            (asset.width, asset.height),
+            store.video_dimensions(288, 512)
+        );
         assert_eq!(
             store.preview_episode_cut(&episode, &cut).unwrap().id,
             export.id

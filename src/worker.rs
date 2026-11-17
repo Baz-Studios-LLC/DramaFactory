@@ -154,7 +154,7 @@ fn execute_export(store: &Store, id: &str) -> Result<()> {
         }
         command.arg("-i").arg(std::fs::canonicalize(&clip.path)?);
         clip.picture_fades.validate(clip.duration)?;
-        graph.push_str(&format!("[{i}:v]trim=start={}:duration={},setpts=PTS-STARTPTS,scale={}:{}:force_original_aspect_ratio=increase,crop={}:{},setsar=1,fps={}",clip.source_start,clip.duration,r.width,r.height,r.width,r.height,r.fps));
+        graph.push_str(&format!("[{i}:v]trim=start={}:duration={},setpts=PTS-STARTPTS,scale={}:{}:force_original_aspect_ratio=decrease,pad={}:{}:(ow-iw)/2:(oh-ih)/2:black,setsar=1,fps={}",clip.source_start,clip.duration,r.width,r.height,r.width,r.height,r.fps));
         if clip.picture_fades.fade_in > 0. {
             graph.push_str(&format!(",fade=t=in:st=0:d={}", clip.picture_fades.fade_in));
         }

@@ -48,17 +48,24 @@ impl Default for SegmentDraft {
     }
 }
 impl SegmentDraft {
-    pub fn video_plan(&self) -> Result<crate::video_plan::VideoPlan> {
+    pub fn video_plan(&self, aspect_ratio: &str) -> Result<crate::video_plan::VideoPlan> {
         use crate::video_plan::{Inputs, VideoPlan};
         Ok(VideoPlan {
             model: self.model.clone(),
-            prompt: self.prompt.clone(),
+            prompt: if aspect_ratio == "16:9" {
+                format!(
+                    "{}\n\nOUTPUT FRAMING: Compose for landscape 16:9. This project format overrides earlier aspect-ratio or orientation directions. Preserve character identity from references regardless of their shape.",
+                    self.prompt
+                )
+            } else {
+                self.prompt.clone()
+            },
             duration: crate::video_plan::model_choice(&self.model)
                 .ok_or_else(|| anyhow::anyhow!("Choose an available video model"))?
                 .duration,
             automatic_duration: false,
             resolution: self.resolution.clone(),
-            aspect_ratio: "9:16".into(),
+            aspect_ratio: aspect_ratio.into(),
             generate_audio: true,
             no_background_music: true,
             inputs: match self.mode {
@@ -235,6 +242,51 @@ impl Store {
 mod tests {
     use super::*;
     #[test]
+    fn project_format_persists_and_queued_requests_keep_their_format() {
+        let root = std::env::temp_dir().join(format!("df-format-{}", uuid::Uuid::new_v4()));
+        let store = Store::open(root.join("db.sqlite")).unwrap();
+        let other = Store::open(root.join("other.sqlite")).unwrap();
+        let series = store.create_series("Series", "Premise").unwrap();
+        let episode = store.create_episode(&series.id, "One").unwrap();
+        let mut draft = store.generation_plan(&episode.id).unwrap();
+        draft.segments[0].prompt = "Portrait 9:16 conversation".into();
+        let catalog = crate::openrouter::Catalog {
+            videos: vec![
+                serde_json::json!({"id":"alibaba/wan-3.0","supported_durations":[30],"supported_resolutions":["480p"],"supported_aspect_ratios":["9:16","16:9"],"generate_audio":true}),
+            ],
+            images: vec![],
+            fetched_unix_seconds: 0,
+        };
+        let (saved, portrait) = store.save_and_enqueue_segment(&draft, 0, &catalog).unwrap();
+        store.set_video_aspect_ratio("16:9").unwrap();
+        assert_eq!(other.video_aspect_ratio(), "9:16");
+        assert_eq!(store.video_dimensions(480, 854), (854, 480));
+        let (_, landscape) = store.save_and_enqueue_segment(&saved, 0, &catalog).unwrap();
+        assert_ne!(portrait.id, landscape.id);
+        let request = |id: &str| -> serde_json::Value {
+            let text: String = store
+                .conn
+                .query_row("SELECT request FROM jobs WHERE id=?1", [id], |r| r.get(0))
+                .unwrap();
+            serde_json::from_str(&text).unwrap()
+        };
+        assert_eq!(request(&portrait.id)["aspect_ratio"], "9:16");
+        assert_eq!(request(&landscape.id)["aspect_ratio"], "16:9");
+        assert!(
+            request(&landscape.id)["prompt"]
+                .as_str()
+                .unwrap()
+                .contains("OUTPUT FRAMING")
+        );
+        assert!(store.set_video_aspect_ratio("1:1").is_err());
+        drop(store);
+        let reopened = Store::open(root.join("db.sqlite")).unwrap();
+        assert_eq!(reopened.video_aspect_ratio(), "16:9");
+        drop(reopened);
+        drop(other);
+        std::fs::remove_dir_all(root).unwrap();
+    }
+    #[test]
     fn model_selection_persists_and_jobs_keep_their_original_model() {
         let root = std::env::temp_dir().join(format!("df-model-choice-{}", uuid::Uuid::new_v4()));
         let store = Store::open(root.join("db.sqlite")).unwrap();
@@ -246,8 +298,11 @@ mod tests {
         let mut legacy = serde_json::to_value(&draft.segments[0]).unwrap();
         legacy.as_object_mut().unwrap().remove("model");
         let legacy: SegmentDraft = serde_json::from_value(legacy).unwrap();
-        assert_eq!(legacy.video_plan().unwrap().model, "bytedance/seedance-2.5");
-        assert_eq!(legacy.video_plan().unwrap().duration, 30);
+        assert_eq!(
+            legacy.video_plan("9:16").unwrap().model,
+            "bytedance/seedance-2.5"
+        );
+        assert_eq!(legacy.video_plan("9:16").unwrap().duration, 30);
         let catalog = crate::openrouter::Catalog {
             videos: crate::video_plan::MODEL_CHOICES.iter().map(|choice| serde_json::json!({
                 "id":choice.id,"supported_durations":[choice.duration],"supported_resolutions":[choice.minimum_resolution],
@@ -354,7 +409,7 @@ mod tests {
     }
     #[test]
     fn legacy_profiles_keep_defaults_and_custom_profiles_reach_the_video_request() {
-        let new = SegmentDraft::default().video_plan().unwrap();
+        let new = SegmentDraft::default().video_plan("9:16").unwrap();
         assert_eq!(new.resolution, "480p");
         assert_eq!(new.aspect_ratio, "9:16");
         let legacy:SegmentDraft=serde_json::from_value(serde_json::json!({"id":"legacy","prompt":"A person walks and speaks","mode":0,"first":"","last":"","references":""})).unwrap();
@@ -363,7 +418,7 @@ mod tests {
         let mut updated = legacy;
         updated.duration = 24;
         updated.resolution = "480p".into();
-        let plan = updated.video_plan().unwrap();
+        let plan = updated.video_plan("9:16").unwrap();
         assert_eq!(plan.duration, 30);
         assert!(!plan.automatic_duration);
         assert_eq!(plan.resolution, "480p");

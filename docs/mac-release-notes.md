@@ -1,23 +1,9 @@
 ## New in this release
 
-- Sidekick can edit supplied series and selected-episode drafts across tabs without navigation.
-- Save notifications use a compact upper-left circular close control.
-
-- Compact Edit/Delete icons and a Copy message icon in Sidekick, with hover labels.
-
-- Avoid provider schema-state-limit errors for character replies by using JSON mode with strict local validation.
-
-- Added right-click Copy/Paste menus for portraits, shared text forms, character profiles and Sidekick.
-- Sidekick plans missing cast and creates one complete character per request automatically, with queue progress and Stop. Errors stop the queue without retrying; completed characters remain saved. Pending queues do not resume automatically after quitting. Portrait generation is excluded from the cast queue.
-
-- Preserve portrait aspect ratios in character cards and generation cast selection; show the full image without stretching.
-
-- Added Use my image and portrait drag-and-drop to existing character cards, so you can import your own portrait without generating one.
-
-- Improved Cmd+V image paste in Sidekick and removed the extra Paste image button.
-- Added a Stop button for pending Sidekick replies.
-- Added reference-image drag and drop, previews and validation to character/location creation.
-- Updated Sidekick instructions to apply requested form edits immediately without an extra conversational confirmation.
+- Choose Portrait (9:16) or Landscape (16:9) for each project from the sidebar. The format is saved with portable projects.
+- Video generation, editor canvases, previews and final exports follow the project format. Existing queued requests retain their submitted format.
+- Fit existing clips into the output canvas without stretching or cropping; mismatched aspect ratios use black bars.
+- Generation activity cards prominently identify the episode and segment, including retained context for new jobs.
 
 Download the **macOS-arm64.zip**, unzip it, and drag DramaFactory.app to Applications. Requires an Apple Silicon Mac.
 

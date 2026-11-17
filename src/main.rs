@@ -685,7 +685,12 @@ impl Studio {
                 for (column, (job, kind)) in row.iter().enumerate() {
                     let ui = &mut uis[column];
             Self::card(ui, |ui| {
-                ui.set_height(280.);
+                ui.set_height(320.);
+                if let Ok(Some((heading, title))) = self.store.segment_job_context(&job.id) {
+                    ui.label(RichText::new(heading).size(20.).strong().color(GOLD));
+                    ui.add(egui::Label::new(RichText::new(title).color(MUTED)).truncate());
+                    ui.add_space(8.);
+                }
                 let retryable_status =
                     ["failed", "canceled", "blocked"].contains(&job.status.as_str());
                 let uncertain_video = kind.as_deref() == Some("openrouter_video")
@@ -1092,7 +1097,7 @@ impl Studio {
             .unwrap_or(75.);
         ui.label(
             RichText::new(format!(
-                "{:.2}s / {:.0}s target   ·   1080 × 1920   ·   24 fps",
+                "{:.2}s / {:.0}s target   ·   24 fps",
                 total, target
             ))
             .color(GOLD),
@@ -1500,6 +1505,23 @@ impl eframe::App for Studio {
                 });
                 ui.add_space(12.);
                 self.current_series_picker(ui);
+                ui.add_space(8.);
+                ui.small("PROJECT VIDEO FORMAT");
+                let original = self.store.video_aspect_ratio();
+                let mut ratio = original;
+                egui::ComboBox::from_id_salt("project-video-format")
+                    .width(ui.available_width())
+                    .selected_text(if ratio == "16:9" { "Landscape · 16:9" } else { "Portrait · 9:16" })
+                    .show_ui(ui, |ui| {
+                        ui.selectable_value(&mut ratio, "9:16", "Portrait · 9:16");
+                        ui.selectable_value(&mut ratio, "16:9", "Landscape · 16:9");
+                    });
+                if ratio != original {
+                    match self.store.set_video_aspect_ratio(ratio) {
+                        Ok(()) => { self.editor.stop(); self.message = format!("Video format: {ratio}. Applies across workspaces to new generations and exports; existing clips and queued jobs keep their original format."); }
+                        Err(error) => self.message = error.to_string(),
+                    }
+                }
                 ui.add_space(8.);
                 self.workflow_navigation(ui);
             });

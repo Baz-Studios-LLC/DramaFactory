@@ -121,6 +121,7 @@ impl Studio {
             .collect();
         let context = serde_json::json!({
             "available_portraits":available_portraits,
+            "video_aspect_ratio": self.store.video_aspect_ratio(),
             "video_models":crate::video_plan::MODEL_CHOICES.iter().map(|m| serde_json::json!({"id":m.id,"clip_seconds":m.duration,"max_character_references":m.references})).collect::<Vec<_>>(),
             "series_id":series,
             "saved_episode":saved_episode,

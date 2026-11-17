@@ -296,7 +296,7 @@ impl Studio {
                 .ok_or_else(|| anyhow::anyhow!("Checking model capabilities…"))
                 .and_then(|catalog| {
                     for (number, segment) in plan.segments.iter().enumerate() {
-                        segment.video_plan().and_then(|request| request.preview(catalog))
+                        segment.video_plan(self.store.video_aspect_ratio()).and_then(|request| request.preview(catalog))
                             .map_err(|error| anyhow::anyhow!("Segment {}: {error}", number + 1))?;
                     }
                     Ok(())
@@ -383,7 +383,7 @@ impl Studio {
                 if model.is_none() {
                     ui.small("Checking available model settings…");
                 }
-                ui.small("9:16 · Sound on");
+                ui.small(format!("{} · Sound on", self.store.video_aspect_ratio()));
                 ui.horizontal_wrapped(|ui| {
                     ui.selectable_value(&mut draft.mode, 0, "Prompt only");
                     ui.selectable_value(&mut draft.mode, 1, "Reference images");
@@ -480,7 +480,7 @@ impl Studio {
                     ui.small("15-second maximum — use a shorter scene for natural dialogue.");
                 }
 
-                if let Ok(request) = draft.video_plan() {
+                if let Ok(request) = draft.video_plan(self.store.video_aspect_ratio()) {
                     let count = request.assembled_prompt().chars().count();
                     let label = match request.prompt_limit() {
                         Some(limit) => format!(
@@ -492,17 +492,19 @@ impl Studio {
                     };
                     ui.small(label);
                 }
-                let valid = draft.video_plan().and_then(|request| {
-                    if let Some(error) = &cast_error {
-                        anyhow::bail!("{error}");
-                    }
-                    request.preview(
-                        state
-                            .catalog
-                            .as_ref()
-                            .ok_or_else(|| anyhow::anyhow!("Wait for the capability check"))?,
-                    )
-                });
+                let valid = draft
+                    .video_plan(self.store.video_aspect_ratio())
+                    .and_then(|request| {
+                        if let Some(error) = &cast_error {
+                            anyhow::bail!("{error}");
+                        }
+                        request.preview(
+                            state
+                                .catalog
+                                .as_ref()
+                                .ok_or_else(|| anyhow::anyhow!("Wait for the capability check"))?,
+                        )
+                    });
                 if let Err(error) = &valid {
                     ui.colored_label(crate::GOLD, error.to_string());
                 }

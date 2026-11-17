@@ -232,6 +232,39 @@ impl Studio {
         }
     }
 }
+
+impl Store {
+    pub(crate) fn video_aspect_ratio(&self) -> &'static str {
+        let value: Option<String> = self
+            .conn
+            .query_row(
+                "SELECT value FROM settings WHERE key='video:aspect_ratio'",
+                [],
+                |r| r.get(0),
+            )
+            .ok();
+        if value.as_deref() == Some("16:9") {
+            "16:9"
+        } else {
+            "9:16"
+        }
+    }
+    pub(crate) fn video_dimensions(&self, short: u32, long: u32) -> (u32, u32) {
+        if self.video_aspect_ratio() == "16:9" {
+            (long, short)
+        } else {
+            (short, long)
+        }
+    }
+    pub(crate) fn set_video_aspect_ratio(&self, ratio: &str) -> Result<()> {
+        if !["9:16", "16:9"].contains(&ratio) {
+            bail!("Choose portrait or landscape");
+        }
+        self.conn.execute("INSERT INTO settings(key,value) VALUES('video:aspect_ratio',?1) ON CONFLICT(key) DO UPDATE SET value=excluded.value", [ratio])?;
+        Ok(())
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

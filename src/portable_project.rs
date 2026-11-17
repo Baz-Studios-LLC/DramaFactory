@@ -41,6 +41,7 @@ const TABLES: &[&str] = &[
     "generation_plans",
     "segment_takes",
     "segment_generations",
+    "job_display_context",
     "sidekick_messages",
     "sidekick_images",
     "assets",
@@ -167,9 +168,10 @@ fn isolate(conn: &Connection, series: &str) -> Result<()> {
             let f = &row.fields;
             let owned = if row.table == "settings" {
                 f.get("key").is_some_and(|key| {
-                    SETTING_PREFIXES
-                        .iter()
-                        .any(|prefix| key.strip_prefix(prefix).is_some_and(|id| ids.contains(id)))
+                    key == "video:aspect_ratio"
+                        || SETTING_PREFIXES.iter().any(|prefix| {
+                            key.strip_prefix(prefix).is_some_and(|id| ids.contains(id))
+                        })
                 })
             } else if row.table == "series" {
                 f.get("id").is_some_and(|id| id == series)
@@ -821,6 +823,7 @@ mod tests {
             )
             .unwrap();
         store.conn.execute("INSERT INTO sidekick_messages VALUES('message',?1,'assistant','Remember our story','Synopsis')",[&series.id]).unwrap();
+        store.set_video_aspect_ratio("16:9").unwrap();
         store.remember_gui_series(&series.id).unwrap();
         store.remember_gui_episode(&episode.id).unwrap();
         let folder = temp.join("Traveling.dramafactory");
@@ -854,6 +857,7 @@ mod tests {
         }
         let opened = open(&folder, &mac_two).unwrap();
         let second = Store::open(opened).unwrap();
+        assert_eq!(second.video_aspect_ratio(), "16:9");
         assert_eq!(second.series().unwrap().len(), 1);
         assert_eq!(second.series().unwrap()[0].id, series.id);
         assert_eq!(

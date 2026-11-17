@@ -72,7 +72,14 @@ impl Studio {
         let workspace = ui.available_rect_before_wrap();
         let upper_height = (workspace.height() - 330.).max(180.);
         let viewer_height = upper_height - 48.;
-        let viewer_width = (viewer_height * 9. / 16.).max(156.);
+        let aspect = if self.store.video_aspect_ratio() == "16:9" {
+            16. / 9.
+        } else {
+            9. / 16.
+        };
+        let viewer_width = (viewer_height * aspect)
+            .max(156.)
+            .min((workspace.width() * 0.58).max(156.));
         let left_width = (workspace.width() - viewer_width - 20.).max(220.);
         ui.set_max_width(left_width);
         ui.heading("Editing room");
@@ -280,7 +287,7 @@ impl Studio {
                                                         &self.store.root(),
                                                         &ffmpeg,
                                                     );
-                                                    let (rect, drag) = ui.allocate_exact_size(egui::vec2(width, width*16./9.), egui::Sense::click_and_drag());
+                                                    let (rect, drag) = ui.allocate_exact_size(egui::vec2(width, width/aspect), egui::Sense::click_and_drag());
                                                     ui.painter().rect_filled(rect, 5, crate::theme::SURFACE);
                                                     if let Some(path) = thumb {
                                                         egui::Image::from_uri(format!("file://{}", path.display())).corner_radius(5).paint_at(ui, rect);
@@ -356,9 +363,17 @@ impl Studio {
                 egui::pos2(viewer_rect.left(), viewer_rect.bottom() - caption_height),
                 viewer_rect.right_bottom(),
             );
-            let video_rect = egui::Rect::from_min_max(
+            let available_video_rect = egui::Rect::from_min_max(
                 egui::pos2(viewer_rect.left(), ui.cursor().top()),
                 egui::pos2(viewer_rect.right(), caption_rect.top() - 4.),
+            );
+            let canvas_height = available_video_rect
+                .height()
+                .min(available_video_rect.width() / aspect)
+                .max(1.);
+            let video_rect = egui::Rect::from_center_size(
+                available_video_rect.center(),
+                egui::vec2(canvas_height * aspect, canvas_height),
             );
             let viewer_height = video_rect.height().max(1.);
             if let Some(player) = &mut state.player {

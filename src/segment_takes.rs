@@ -159,6 +159,13 @@ impl Store {
                 }],
             });
         }
+        let (short, long) = if plan.segments.iter().any(|s| s.resolution == "1080p") {
+            (1080, 1920)
+        } else if plan.segments.iter().any(|s| s.resolution == "720p") {
+            (720, 1280)
+        } else {
+            (480, 854)
+        };
         Ok(ExportRequest {
             episode_id: episode.into(),
             screenplay: episode_data.screenplay,
@@ -167,36 +174,8 @@ impl Store {
             cues: Vec::new(),
             captions: Vec::new(),
             burn_captions: false,
-            width: if plan
-                .segments
-                .iter()
-                .any(|segment| segment.resolution == "1080p")
-            {
-                1080
-            } else if plan
-                .segments
-                .iter()
-                .any(|segment| segment.resolution == "720p")
-            {
-                720
-            } else {
-                480
-            },
-            height: if plan
-                .segments
-                .iter()
-                .any(|segment| segment.resolution == "1080p")
-            {
-                1920
-            } else if plan
-                .segments
-                .iter()
-                .any(|segment| segment.resolution == "720p")
-            {
-                1280
-            } else {
-                854
-            },
+            width: self.video_dimensions(short, long).0,
+            height: self.video_dimensions(short, long).1,
             fps: 24,
         })
     }

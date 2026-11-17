@@ -32,7 +32,7 @@ impl Store {
         if saved.revision != revision || !saved.segments.contains(segment) {
             bail!("Save/reload the current episode plan before generating this segment");
         }
-        let plan = segment.video_plan()?;
+        let plan = segment.video_plan(self.video_aspect_ratio())?;
         self.enqueue_seedance_bound(&plan, Some((episode, revision, segment)))
     }
     fn enqueue_seedance_bound(
@@ -90,6 +90,11 @@ impl Store {
             if let Some(existing) = existing {
                 return self.job(&existing);
             }
+            let (heading, title) = self.segment_display_context(episode, &segment.id)?;
+            tx.execute(
+                "INSERT INTO job_display_context(job_id,heading,episode_title) VALUES(?1,?2,?3)",
+                params![id, heading, title],
+            )?;
             tx.execute("INSERT INTO segment_generations(job_id,episode_id,segment_id,plan_revision,snapshot) VALUES(?1,?2,?3,?4,?5)",params![id,episode,segment.id,revision,serde_json::to_string(segment)?])?;
         }
         tx.execute("INSERT INTO jobs(id,prompt,status,kind,request,created_at,updated_at) VALUES(?1,?2,'queued','openrouter_video',?3,datetime('now'),datetime('now'))",params![id,plan.prompt,serde_json::to_string(&plan)?])?;
@@ -112,9 +117,11 @@ impl Store {
         )?;
         let saved = self.save_generation_plan_in_transaction(draft)?;
         let segment = saved.segments.get(index).context("Choose a segment")?;
-        segment.video_plan()?.preview(catalog)?;
+        segment
+            .video_plan(self.video_aspect_ratio())?
+            .preview(catalog)?;
         let job = self.enqueue_seedance_in_transaction(
-            &segment.video_plan()?,
+            &segment.video_plan(self.video_aspect_ratio())?,
             Some((&saved.episode_id, saved.revision, segment)),
         )?;
         tx.commit()?;
@@ -133,12 +140,14 @@ impl Store {
         let saved = self.save_generation_plan_in_transaction(draft)?;
         let mut queued = 0;
         for segment in &saved.segments {
-            segment.video_plan()?.preview(catalog)?;
+            segment
+                .video_plan(self.video_aspect_ratio())?
+                .preview(catalog)?;
             let snapshot = serde_json::to_string(segment)?;
-            let existing: Option<String> = self.conn.query_row("SELECT g.job_id FROM segment_generations g JOIN jobs j ON j.id=g.job_id WHERE g.episode_id=?1 AND g.segment_id=?2 AND g.snapshot=?3 AND j.request=?4 LIMIT 1", params![saved.episode_id, segment.id, snapshot, serde_json::to_string(&segment.video_plan()?)?], |row| row.get(0)).optional()?;
+            let existing: Option<String> = self.conn.query_row("SELECT g.job_id FROM segment_generations g JOIN jobs j ON j.id=g.job_id WHERE g.episode_id=?1 AND g.segment_id=?2 AND g.snapshot=?3 AND j.request=?4 LIMIT 1", params![saved.episode_id, segment.id, snapshot, serde_json::to_string(&segment.video_plan(self.video_aspect_ratio())?)?], |row| row.get(0)).optional()?;
             if existing.is_none() {
                 self.enqueue_seedance_in_transaction(
-                    &segment.video_plan()?,
+                    &segment.video_plan(self.video_aspect_ratio())?,
                     Some((&saved.episode_id, saved.revision, segment)),
                 )?;
                 queued += 1;

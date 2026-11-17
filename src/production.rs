@@ -163,6 +163,7 @@ impl Store {
         self.conn.execute_batch("CREATE TABLE IF NOT EXISTS deleted_characters(library_id TEXT PRIMARY KEY REFERENCES library(id),deleted_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP);")?;
         self.conn.execute_batch("CREATE TABLE IF NOT EXISTS character_profiles(library_id TEXT PRIMARY KEY REFERENCES library(id),document TEXT NOT NULL);")?;
         self.conn.execute_batch("CREATE TABLE IF NOT EXISTS segment_takes(episode_id TEXT NOT NULL REFERENCES episodes(id),segment_id TEXT NOT NULL,asset_id TEXT NOT NULL REFERENCES assets(id),PRIMARY KEY(episode_id,segment_id));")?;
+        self.conn.execute_batch("CREATE TABLE IF NOT EXISTS job_display_context(job_id TEXT PRIMARY KEY,heading TEXT NOT NULL,episode_title TEXT NOT NULL);")?;
         self.conn.execute_batch("CREATE TABLE IF NOT EXISTS segment_generations(job_id TEXT PRIMARY KEY REFERENCES jobs(id) DEFERRABLE INITIALLY DEFERRED,episode_id TEXT NOT NULL REFERENCES episodes(id),segment_id TEXT NOT NULL,plan_revision INTEGER NOT NULL,snapshot TEXT NOT NULL);")?;
         self.conn.execute_batch("CREATE TABLE IF NOT EXISTS job_timing(job_id TEXT PRIMARY KEY REFERENCES jobs(id),started_unix INTEGER NOT NULL,finished_unix INTEGER);")?;
         self.conn.execute_batch("CREATE TABLE IF NOT EXISTS remote_video_jobs(job_id TEXT PRIMARY KEY REFERENCES jobs(id),state TEXT NOT NULL,remote_id TEXT);")?;
@@ -842,8 +843,8 @@ impl Store {
             cues,
             episode_id: episode.into(),
             clips,
-            width: 1080,
-            height: 1920,
+            width: self.video_dimensions(1080, 1920).0,
+            height: self.video_dimensions(1080, 1920).1,
             fps: 24,
         };
         Ok(request)
@@ -851,7 +852,7 @@ impl Store {
     pub fn enqueue_export(&self, episode: &str) -> Result<crate::store::Job> {
         let request = self.export_request(episode)?;
         let id = uuid::Uuid::new_v4().to_string();
-        self.conn.execute("INSERT INTO jobs(id,prompt,status,error,request,kind,created_at,updated_at) VALUES(?1,'Assemble episode · 1080 × 1920 / 24 fps','queued','',?2,'export',datetime('now'),datetime('now'))",params![id,serde_json::to_string(&request)?])?;
+        self.conn.execute("INSERT INTO jobs(id,prompt,status,error,request,kind,created_at,updated_at) VALUES(?1,'Assemble episode · project format / 24 fps','queued','',?2,'export',datetime('now'),datetime('now'))",params![id,serde_json::to_string(&request)?])?;
         self.job(&id)
     }
 }
