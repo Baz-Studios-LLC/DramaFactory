@@ -48,6 +48,7 @@ mod project_context;
 mod project_save;
 mod provider_settings;
 mod readiness;
+mod reference_drop;
 mod rehearsal;
 mod reviews;
 mod runtime;
@@ -417,15 +418,8 @@ impl Studio {
                     self.new_portrait_style = self.store.series_portrait_style(&series).unwrap_or_default().unwrap_or_default();
                     ui.small(format!("Image style: {} · set on Synopsis", self.new_portrait_style.label()));
                 }
-                ui.horizontal(|ui| {
-                    if ui.button("Choose reference image").clicked() {
-                        self.library_reference = rfd::FileDialog::new()
-                            .add_filter("Image", &["png", "jpg", "jpeg", "webp"])
-                            .pick_file();
-                    }
-                    if let Some(p) = &self.library_reference {
-                        ui.label(p.file_name().unwrap_or_default().to_string_lossy());
-                    }
+                self.reference_drop_zone(ui, (&series, kind));
+                ui.horizontal_wrapped(|ui| {
                     if kind == "character" && ui.add_enabled(
                         !self.library_name.trim().is_empty() && !self.new_character_profile.brief().trim().is_empty(),
                         egui::Button::new("Create character & portrait"),

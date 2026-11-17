@@ -1,3 +1,10 @@
+## New in this release
+
+- Improved Cmd+V image paste in Sidekick and removed the extra Paste image button.
+- Added a Stop button for pending Sidekick replies.
+- Added reference-image drag and drop, previews and validation to character/location creation.
+- Updated Sidekick instructions to apply requested form edits immediately without an extra conversational confirmation.
+
 Download the **macOS-arm64.zip**, unzip it, and drag DramaFactory.app to Applications. Requires an Apple Silicon Mac.
 
 **Updating:** v008 and newer can update automatically. To check immediately, open Settings → Check for updates, wait for the update to be verified and staged, then quit and reopen after installation. Builds v007 and earlier need a one-time manual installation because v008 introduced a new update-verification key.

@@ -170,6 +170,7 @@ pub struct Sidekick {
     progress: std::sync::Arc<std::sync::atomic::AtomicU8>,
     request_started: Option<std::time::Instant>,
     pending: Option<PendingReply>,
+    canceled: std::sync::Arc<std::sync::atomic::AtomicBool>,
     error: String,
     plot_request: Option<(String, crate::story::SeriesPlan)>,
     episode_request: Option<crate::sidekick_episode::EpisodeDraft>,
@@ -214,6 +215,19 @@ impl Sidekick {
         self.editing_message = None;
         self.error.clear();
         // Keep per-series drafts and in-flight replies attached to their origin.
+    }
+}
+impl Sidekick {
+    fn stop(&mut self) {
+        self.canceled
+            .store(true, std::sync::atomic::Ordering::Relaxed);
+        self.pending = None; // Disconnect the old result: it can never apply edits or queue media.
+        self.request_started = None;
+        self.plot_request = None;
+        self.episode_request = None;
+        self.generation_request = None;
+        self.episode_creation_request = None;
+        self.error = "Stopped. Your message is retained; no reply changes will be applied. OpenRouter may still charge for a request already sent.".into();
     }
 }
 impl Studio {
@@ -529,6 +543,7 @@ impl Studio {
         if !self.sidekick_visible {
             return;
         }
+        let mut stop_requested = false;
         eframe::egui::SidePanel::right("series-sidekick").resizable(true).default_width(350.).width_range(290. ..=520.)
         .frame(eframe::egui::Frame::new().fill(eframe::egui::Color32::from_rgb(21,23,27)).inner_margin(18.)).show(ctx,|ui|{
             ui.add_space(2.);ui.heading("Creative sidekick");ui.label(eframe::egui::RichText::new("Your story, in good company.").small().color(MUTED));
@@ -579,10 +594,22 @@ impl Studio {
                 }
             }
             let (images,saved_images)=self.sidekick.image_drafts.get_mut(&series).expect("loaded image draft");
-            // egui-winit consumes Cmd+V key-down for text paste; key-up still reaches us for image-only clipboards.
-            let paste_shortcut=ui.memory(|memory|memory.has_focus(composer_id)) && ui.input(|input|input.events.iter().any(|event|matches!(event,eframe::egui::Event::Key{key:eframe::egui::Key::V,pressed:false,modifiers,..} if modifiers.command)));
-            if paste_shortcut && images.len()<4 && let Ok(image) = crate::chat_images::ChatImage::clipboard() {
-                images.push(image);
+            let paste_requested = ui.memory(|memory|memory.has_focus(composer_id))
+                && ui.input(|input|input.events.iter().any(|event|matches!(event,eframe::egui::Event::Paste(_))));
+            if paste_requested {
+                match crate::chat_images::ChatImage::clipboard() {
+                    Ok(image) => {
+                        // A clipboard may contain both an image and a URL/filename. Attach it once,
+                        // and don't also insert that fallback text into the message.
+                        ui.input_mut(|input|input.events.retain(|event|!matches!(event,eframe::egui::Event::Paste(_))));
+                        if images.len() >= 4 {self.sidekick.error="Attach up to four images per message. Remove one before pasting another.".into();}
+                        else {images.push(image);self.sidekick.error.clear();}
+                    },
+                    Err(error) => {
+                        let text_paste=ui.input(|input|input.events.iter().any(|event|matches!(event,eframe::egui::Event::Paste(text) if !text.is_empty())));
+                        if !text_paste {self.sidekick.error=error.to_string();}
+                    }
+                }
             }
             let mut remove=None;
             ui.horizontal_wrapped(|ui| {
@@ -624,7 +651,11 @@ impl Studio {
             ui.horizontal(|ui| {
                 ui.spacing_mut().button_padding = eframe::egui::vec2(10., 5.);
                 ui.with_layout(eframe::egui::Layout::right_to_left(eframe::egui::Align::Center), |ui| {
-                    send_clicked = ui.add_enabled(can_send, crate::theme::primary("Send")).on_hover_text("Enter to send").clicked();
+                    if self.sidekick.pending.is_some() {
+                        stop_requested = ui.button("Stop").on_hover_text("Stop waiting and discard this reply. Provider billing may continue.").clicked();
+                    } else {
+                        send_clicked = ui.add_enabled(can_send, crate::theme::primary("Send")).on_hover_text("Enter to send").clicked();
+                    }
                     if self.sidekick.pending.as_ref().is_some_and(|(id,_,_,_,_)| id == &series) {
                         let stage = match self.sidekick.progress.load(std::sync::atomic::Ordering::Relaxed) {
                             1 => "Authorizing", 2 => "Waiting for reply", 3 => "Awaiting full reply", _ => "Preparing",
@@ -660,9 +691,11 @@ impl Studio {
                             self.story_drafts.get(&series).cloned().or_else(||self.store.series_plan(&series).ok()).map(|plan|(series.clone(),plan))
                         } else { None };
                         self.sidekick.request_started=Some(std::time::Instant::now());
-                        self.sidekick.progress.store(0,std::sync::atomic::Ordering::Relaxed);
+                        self.sidekick.progress=Default::default();
+                        self.sidekick.canceled=Default::default();
+                        let canceled=self.sidekick.canceled.clone();
                         let progress=self.sidekick.progress.clone();
-                        self.sidekick.pending=Some((series.clone(),context.clone(),receiver,if self.page==Page::Synopsis{self.synopsis_drafts.get(&series).cloned()}else{None},character_snapshots));std::thread::spawn(move||{let _=sender.send(crate::sidekick::reply(&messages,&project_context,"google/gemini-4-argon",&progress).map_err(|error|error.to_string()));});},Err(error)=>self.sidekick.error=error.to_string()}},Err(error)=>self.sidekick.error=error.to_string()}
+                        self.sidekick.pending=Some((series.clone(),context.clone(),receiver,if self.page==Page::Synopsis{self.synopsis_drafts.get(&series).cloned()}else{None},character_snapshots));std::thread::spawn(move||{let _=sender.send(crate::sidekick::reply(&messages,&project_context,"google/gemini-4-argon",&progress,&canceled).map_err(|error|error.to_string()));});},Err(error)=>self.sidekick.error=error.to_string()}},Err(error)=>self.sidekick.error=error.to_string()}
             }
             });
             eframe::egui::ScrollArea::vertical().id_salt(("sidekick-history",&series)).stick_to_bottom(true).auto_shrink([false, false]).max_height(ui.available_height()).show(ui,|ui|{
@@ -683,5 +716,27 @@ impl Studio {
                 }
             });
         });
+        if stop_requested {
+            self.sidekick.stop();
+        }
+    }
+}
+
+#[cfg(test)]
+mod stop_tests {
+    use super::*;
+    #[test]
+    fn stopped_reply_cannot_arrive_or_poison_a_new_request() {
+        let mut sidekick = Sidekick::default();
+        let (sender, receiver) = std::sync::mpsc::channel();
+        sidekick.pending = Some(("series".into(), "Synopsis".into(), receiver, None, vec![]));
+        let canceled = sidekick.canceled.clone();
+        sidekick.stop();
+        assert!(canceled.load(std::sync::atomic::Ordering::Relaxed));
+        assert!(sender.send(Err("late result".into())).is_err());
+        assert!(sidekick.pending.is_none());
+        sidekick.canceled = Default::default();
+        assert!(!sidekick.canceled.load(std::sync::atomic::Ordering::Relaxed));
+        assert!(canceled.load(std::sync::atomic::Ordering::Relaxed));
     }
 }
