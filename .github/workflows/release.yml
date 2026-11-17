@@ -1,0 +1,57 @@
+name: Mac release
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+permissions:
+  contents: write
+concurrency:
+  group: mac-release
+  cancel-in-progress: false
+jobs:
+  release:
+    runs-on: macos-26
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+      - name: Choose the next whole-number release
+        run: |
+          python3 - <<'PY'
+          import os, re, subprocess, tomllib
+          tags = subprocess.check_output(['git','tag','--list'],text=True).splitlines()
+          versions = [int(t[1:]) for t in tags if re.fullmatch(r'v[0-9]{3,}',t)]
+          source = int(tomllib.load(open('Cargo.toml','rb'))['package']['version'].split('.')[1])
+          version = f'v{max(source,max(versions,default=0)+1):03}'
+          with open(os.environ['GITHUB_ENV'],'a') as f:
+              f.write(f'DRAMAFACTORY_RELEASE_VERSION={version}\n')
+          PY
+      - run: cargo fmt --check
+      - run: cargo clippy --all-targets -- -D warnings
+      - run: cargo test
+      - name: Build and audit the Mac app
+        run: scripts/bundle-macos.sh
+      - name: Install signing dependency
+        run: |
+          python3 -m venv "$RUNNER_TEMP/release-python"
+          "$RUNNER_TEMP/release-python/bin/pip" install cryptography==50.0.2
+      - name: Sign update and package download
+        env:
+          UPDATE_SIGNING_KEY: ${{ secrets.DRAMAFACTORY_UPDATE_SIGNING_KEY }}
+        run: |
+          set -eu
+          umask 077
+          key="$RUNNER_TEMP/update-private.pem"
+          trap 'rm -f "$key"' EXIT
+          printf '%s' "$UPDATE_SIGNING_KEY" > "$key"
+          "$RUNNER_TEMP/release-python/bin/python" scripts/sign-release.py --version "$DRAMAFACTORY_RELEASE_VERSION" --binary target/release/dramafactory --output target/release-assets --key "$key"
+          ditto -c -k --norsrc --noextattr --keepParent target/DramaFactory.app "target/release-assets/DramaFactory-$DRAMAFACTORY_RELEASE_VERSION-macOS-arm64.zip"
+          shasum -a 256 target/release-assets/*.zip > target/release-assets/SHA256SUMS.txt
+      - name: Publish
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "$DRAMAFACTORY_RELEASE_VERSION" target/release-assets/* --target "$GITHUB_SHA" --title "DramaFactory $DRAMAFACTORY_RELEASE_VERSION for Mac" --notes-file docs/mac-release-notes.md --latest

@@ -207,6 +207,9 @@ pub struct Sidekick {
     >,
 }
 impl Sidekick {
+    pub(crate) fn busy(&self) -> bool {
+        self.pending.is_some()
+    }
     pub(crate) fn reset_context(&mut self) {
         self.editing_message = None;
         self.error.clear();

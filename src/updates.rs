@@ -1,12 +1,12 @@
-//! Release discovery runs away from the UI thread. Installation is deliberately
-//! gated on a future signed-artifact verifier; release metadata is not trusted code.
+//! Background release discovery; only authenticated updates are installed after exit.
 use serde::Deserialize;
 use std::path::PathBuf;
 use std::sync::mpsc::{self, Receiver};
 pub struct UpdateStatus {
     pub message: String,
 }
-pub const CURRENT: u32 = 6;
+include!(concat!(env!("OUT_DIR"), "/version.rs"));
+pub const LABEL: &str = env!("DF_PUBLIC_VERSION");
 pub const REPOSITORY: &str = "Baz-Studios-LLC/DramaFactory";
 #[derive(Deserialize)]
 struct Release {
@@ -21,8 +21,9 @@ pub fn version(tag: &str) -> Option<u32> {
     }
     digits.parse().ok().filter(|v| *v > 0)
 }
-pub fn check(root: PathBuf, automatic: bool) -> Receiver<UpdateStatus> {
+pub fn check(database: PathBuf, automatic: bool) -> Receiver<UpdateStatus> {
     let (tx, rx) = mpsc::channel();
+    let root = crate::store::default_path().parent().unwrap().to_path_buf();
     std::thread::spawn(move || {
         let result = (|| -> anyhow::Result<String> {
             let config = ureq::Agent::config_builder()
@@ -33,15 +34,18 @@ pub fn check(root: PathBuf, automatic: bool) -> Receiver<UpdateStatus> {
                 .get(&format!(
                     "https://api.github.com/repos/{REPOSITORY}/releases/latest"
                 ))
-                .header("User-Agent", "DramaFactory-v007")
+                .header(
+                    "User-Agent",
+                    concat!("DramaFactory-", env!("DF_PUBLIC_VERSION")),
+                )
                 .header("Accept", "application/vnd.github+json")
                 .call();
             let mut response = match response {
                 Ok(response) => response,
                 Err(ureq::Error::StatusCode(404)) => {
-                    return Ok(
-                        "No published releases are available yet. Development build: v007.".into(),
-                    );
+                    return Ok(format!(
+                        "No published releases available. Current version: {LABEL}."
+                    ));
                 }
                 Err(error) => return Err(error.into()),
             };
@@ -53,8 +57,13 @@ pub fn check(root: PathBuf, automatic: bool) -> Receiver<UpdateStatus> {
             }
             Ok(if latest > CURRENT {
                 if automatic {
-                    let manifest = crate::updater::stage(&release.tag_name, &root)?;
-                    crate::updater::schedule_install(&manifest, &root.join("studio.sqlite"))?;
+                    static SCHEDULED: std::sync::atomic::AtomicBool =
+                        std::sync::atomic::AtomicBool::new(false);
+                    if !SCHEDULED.load(std::sync::atomic::Ordering::SeqCst) {
+                        let manifest = crate::updater::stage(&release.tag_name, &root)?;
+                        crate::updater::schedule_install(&manifest, &database)?;
+                        SCHEDULED.store(true, std::sync::atomic::Ordering::SeqCst);
+                    }
                     format!(
                         "{} verified and staged. It will install after exit and render completion.",
                         release.tag_name

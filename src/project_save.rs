@@ -6,6 +6,9 @@ fn equal(a: &impl serde::Serialize, b: &impl serde::Serialize) -> bool {
 }
 impl Studio {
     pub(crate) fn save_project(&mut self) {
+        if self.portable_task.is_some() {
+            return;
+        }
         let Some(series) = self.selected.clone() else {
             return;
         };
@@ -19,6 +22,22 @@ impl Studio {
             ),
             Err(error) => format!("Project save stopped: {error}. Your drafts remain in place."),
         };
+        if complete {
+            match crate::portable_project::link(&self.store, &series) {
+                Ok(Some(link)) => {
+                    self.begin_portable_save(link.folder, Some(link.revision));
+                    return;
+                }
+                Err(e) => {
+                    self.message =
+                        format!("Saved locally, but could not read the project folder: {e}");
+                    self.project_save_notice =
+                        Some((false, self.message.clone(), std::time::Instant::now()));
+                    return;
+                }
+                _ => {}
+            }
+        }
         self.project_save_notice =
             Some((complete, self.message.clone(), std::time::Instant::now()));
     }
@@ -52,7 +71,7 @@ impl Studio {
                                 ui.add_space(12.);
                                 dismiss = ui.small_button("×").on_hover_text("Dismiss").clicked();
                             });
-                            ui.small("All workspaces saved");
+                            ui.add(egui::Label::new(&message).wrap());
                         });
                 });
         } else {
@@ -81,7 +100,7 @@ impl Studio {
             self.project_save_notice = None;
         }
     }
-    fn save_project_inner(&mut self, series: &str) -> Result<Vec<String>> {
+    pub(crate) fn save_project_inner(&mut self, series: &str) -> Result<Vec<String>> {
         // Preserve all drafts before any service advances its saved baseline.
         let directory = self.store.root().join("drafts");
         std::fs::create_dir_all(&directory)?;
@@ -106,6 +125,9 @@ impl Studio {
             .map(|e| e.id)
             .collect();
         let mut issues = Vec::new();
+        if let Err(error) = self.editor.save_for_series(&self.store, series) {
+            issues.push(format!("Editing room: {error}"));
+        }
         macro_rules! attempt {
             ($label:expr,$expr:expr,$ok:expr) => {
                 match $expr {

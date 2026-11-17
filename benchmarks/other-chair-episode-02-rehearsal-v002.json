@@ -113,7 +113,7 @@
             "duration": 0.936,
             "hash": "302a0018f1fecbbf7a0b680d14b95dd8a5502b14d69ae292248a5f4b320ea2cb",
             "line_id": "92d4b4bc-c090-5e09-bec1-776ae673dc21",
-            "path": "/Users/brettbazaar/Library/Application Support/studio.DramaFactory.DramaFactory/jobs/4d17849c-1b25-4b81-b800-1d067931d3d8/attempt-1/dialogue.wav",
+            "path": "/Users/local-user/Library/Application Support/studio.DramaFactory.DramaFactory/jobs/4d17849c-1b25-4b81-b800-1d067931d3d8/attempt-1/dialogue.wav",
             "start": 0.0,
             "text": "Nora?",
             "voice": "am_michael"
@@ -122,7 +122,7 @@
             "duration": 2.0639583333333333,
             "hash": "db2e5d72a281413513689abde93c0d2edb2726995d30f238d56fddd3a42a99c3",
             "line_id": "05705903-275e-531b-b196-283a5817b102",
-            "path": "/Users/brettbazaar/Library/Application Support/studio.DramaFactory.DramaFactory/jobs/1b9663e7-e240-4d5d-a698-1bc1107ceb66/attempt-1/dialogue.wav",
+            "path": "/Users/local-user/Library/Application Support/studio.DramaFactory.DramaFactory/jobs/1b9663e7-e240-4d5d-a698-1bc1107ceb66/attempt-1/dialogue.wav",
             "start": 1.0,
             "text": "I heard you. Can I call you back?",
             "voice": "af_bella"
@@ -131,7 +131,7 @@
             "duration": 1.6166666666666667,
             "hash": "8ee7485da638354e1a0a889ade979556aae7caf4b630ff55dbaba33390893668",
             "line_id": "b69f3fb7-dae0-51f9-adb5-f2be7fdc8b45",
-            "path": "/Users/brettbazaar/Library/Application Support/studio.DramaFactory.DramaFactory/jobs/9e62f1b4-0d33-4cf6-a2b5-fc0f265e533e/attempt-1/dialogue.wav",
+            "path": "/Users/local-user/Library/Application Support/studio.DramaFactory.DramaFactory/jobs/9e62f1b4-0d33-4cf6-a2b5-fc0f265e533e/attempt-1/dialogue.wav",
             "start": 4.0,
             "text": "Yeah. Of course.",
             "voice": "am_michael"
@@ -140,7 +140,7 @@
             "duration": 1.06,
             "hash": "e1feddc0cc0874231630e8482fe19ce3f1cba718440b735d8d43b79af65a3dae",
             "line_id": "b08e10a7-95f3-5ba7-a9b2-8942499e6dad",
-            "path": "/Users/brettbazaar/Library/Application Support/studio.DramaFactory.DramaFactory/jobs/88a8b183-0b71-446a-9c4f-ea9f79980efb/attempt-1/dialogue.wav",
+            "path": "/Users/local-user/Library/Application Support/studio.DramaFactory.DramaFactory/jobs/88a8b183-0b71-446a-9c4f-ea9f79980efb/attempt-1/dialogue.wav",
             "start": 6.0,
             "text": "You wanted half.",
             "voice": "af_bella"
@@ -149,7 +149,7 @@
             "duration": 3.687333333333333,
             "hash": "4b4ae42c4a783a4dd0d392bca1cfc5c5d472e59ca283d187a6567ccd484f1e5e",
             "line_id": "668ae7b4-7e14-577e-9dc7-31836b5fe009",
-            "path": "/Users/brettbazaar/Library/Application Support/studio.DramaFactory.DramaFactory/jobs/6d8199c5-e3a5-484e-9cb0-ac7887389099/attempt-1/dialogue.wav",
+            "path": "/Users/local-user/Library/Application Support/studio.DramaFactory.DramaFactory/jobs/6d8199c5-e3a5-484e-9cb0-ac7887389099/attempt-1/dialogue.wav",
             "start": 8.0,
             "text": "You wanted to change the subject. Look at us, negotiating.",
             "voice": "af_heart"
@@ -158,7 +158,7 @@
             "duration": 2.2333333333333334,
             "hash": "b0a80605157427e4cfdbbf7cc3ab2936e33de0a6b813ac887e25f74f95e7ffc2",
             "line_id": "52f46afc-43d2-59ea-b8a4-1baec029483b",
-            "path": "/Users/brettbazaar/Library/Application Support/studio.DramaFactory.DramaFactory/jobs/302125b4-6672-4948-b454-fa91e7ffc922/attempt-1/dialogue.wav",
+            "path": "/Users/local-user/Library/Application Support/studio.DramaFactory.DramaFactory/jobs/302125b4-6672-4948-b454-fa91e7ffc922/attempt-1/dialogue.wav",
             "start": 13.0,
             "text": "I do the talking. You do the chairs.",
             "voice": "af_bella"
@@ -167,7 +167,7 @@
             "duration": 6.505958333333333,
             "hash": "5a46370422079797a0cd595a9955b67a03ff2e81d84a0bceaa73fcbd56248324",
             "line_id": "225f3c4e-aab0-53d2-92ae-91eb430d119b",
-            "path": "/Users/brettbazaar/Library/Application Support/studio.DramaFactory.DramaFactory/jobs/0ebf0d1e-0188-4055-b942-4f90d9f2e34b/attempt-1/dialogue.wav",
+            "path": "/Users/local-user/Library/Application Support/studio.DramaFactory.DramaFactory/jobs/0ebf0d1e-0188-4055-b942-4f90d9f2e34b/attempt-1/dialogue.wav",
             "start": 17.0,
             "text": "And the rent. And the electricity. And explaining why a bride is shouting at a woman she met eight minutes ago.",
             "voice": "af_heart"
@@ -176,7 +176,7 @@
             "duration": 2.4952916666666667,
             "hash": "070f614c5013ceac02be8aee07a00a76d10d147a16f7629dbe237793912c7aa4",
             "line_id": "e04f3e6a-9bf5-57fd-8945-76e71f496fae",
-            "path": "/Users/brettbazaar/Library/Application Support/studio.DramaFactory.DramaFactory/jobs/5572bb40-9dd7-4ae9-a334-5f83df6a0d84/attempt-1/dialogue.wav",
+            "path": "/Users/local-user/Library/Application Support/studio.DramaFactory.DramaFactory/jobs/5572bb40-9dd7-4ae9-a334-5f83df6a0d84/attempt-1/dialogue.wav",
             "start": 27.0,
             "text": "Ten minutes. Twenty dollars. Half each.",
             "voice": "af_bella"
@@ -185,7 +185,7 @@
             "duration": 1.3913333333333333,
             "hash": "d9b4b5f588c4adfc8b7037d53fd809add5156c11e323b81c971e5fcd411728cf",
             "line_id": "b038bd59-508c-5876-8087-8ba867e9202c",
-            "path": "/Users/brettbazaar/Library/Application Support/studio.DramaFactory.DramaFactory/jobs/4f1e8d8f-bd59-437d-8ac3-ada76ea9233e/attempt-1/dialogue.wav",
+            "path": "/Users/local-user/Library/Application Support/studio.DramaFactory.DramaFactory/jobs/4f1e8d8f-bd59-437d-8ac3-ada76ea9233e/attempt-1/dialogue.wav",
             "start": 32.0,
             "text": "No filming in here.",
             "voice": "af_heart"
@@ -194,7 +194,7 @@
             "duration": 1.2659583333333333,
             "hash": "f573d5badda94f51878d0de0c19be9ccbc73d9535651a51b08d032ab58c7b311",
             "line_id": "aef9bb54-f762-5aaa-a31e-7bbabfece66c",
-            "path": "/Users/brettbazaar/Library/Application Support/studio.DramaFactory.DramaFactory/jobs/ae903ca1-cee8-47b3-a8e5-0c206c9a96aa/attempt-1/dialogue.wav",
+            "path": "/Users/local-user/Library/Application Support/studio.DramaFactory.DramaFactory/jobs/ae903ca1-cee8-47b3-a8e5-0c206c9a96aa/attempt-1/dialogue.wav",
             "start": 34.0,
             "text": "Absolutely not.",
             "voice": "af_bella"
@@ -203,7 +203,7 @@
             "duration": 2.200625,
             "hash": "82a2decd868c125314294a5439efc136320801da4357a79bcfaa512a7086f953",
             "line_id": "4498f113-2a74-521e-b4fe-791d4d53a46a",
-            "path": "/Users/brettbazaar/Library/Application Support/studio.DramaFactory.DramaFactory/jobs/e38d252b-0c3f-4d20-8935-15511bd0c4dc/attempt-1/dialogue.wav",
+            "path": "/Users/local-user/Library/Application Support/studio.DramaFactory.DramaFactory/jobs/e38d252b-0c3f-4d20-8935-15511bd0c4dc/attempt-1/dialogue.wav",
             "start": 37.0,
             "text": "No telling people what anyone said.",
             "voice": "af_heart"
@@ -212,7 +212,7 @@
             "duration": 1.2232916666666669,
             "hash": "2c4c4440c8d2be5e3eb6f4d4557e4284516256b402adb4940a879d5b7d700ade",
             "line_id": "0886df5c-3947-5238-9c87-2123b99762fe",
-            "path": "/Users/brettbazaar/Library/Application Support/studio.DramaFactory.DramaFactory/jobs/d20a2292-10bf-43eb-943f-c8ffdd64496b/attempt-1/dialogue.wav",
+            "path": "/Users/local-user/Library/Application Support/studio.DramaFactory.DramaFactory/jobs/d20a2292-10bf-43eb-943f-c8ffdd64496b/attempt-1/dialogue.wav",
             "start": 42.0,
             "text": "Even the good bits?",
             "voice": "af_bella"
@@ -221,7 +221,7 @@
             "duration": 0.7526666666666667,
             "hash": "6661ab6d890636e0771767ee9952e055ba91ccddcf0a4d0fc144ded6e0fc7aa2",
             "line_id": "22bf1782-4678-5316-83fb-696bab2fecb6",
-            "path": "/Users/brettbazaar/Library/Application Support/studio.DramaFactory.DramaFactory/jobs/536d0869-09b1-4371-b1bf-2202f9891645/attempt-1/dialogue.wav",
+            "path": "/Users/local-user/Library/Application Support/studio.DramaFactory.DramaFactory/jobs/536d0869-09b1-4371-b1bf-2202f9891645/attempt-1/dialogue.wav",
             "start": 46.0,
             "text": "Fine.",
             "voice": "af_bella"
@@ -230,7 +230,7 @@
             "duration": 1.7012916666666666,
             "hash": "ddef98756d2efaef81f70e39839293f0dd53d53f5cf791eaf4123c5e934f1728",
             "line_id": "fbba0dd0-bb84-509a-81e6-1bd06ec7a1c6",
-            "path": "/Users/brettbazaar/Library/Application Support/studio.DramaFactory.DramaFactory/jobs/a8d3eeed-32f7-4bed-9361-1d6e9aa7530b/attempt-1/dialogue.wav",
+            "path": "/Users/local-user/Library/Application Support/studio.DramaFactory.DramaFactory/jobs/a8d3eeed-32f7-4bed-9361-1d6e9aa7530b/attempt-1/dialogue.wav",
             "start": 49.0,
             "text": "And what are we actually selling?",
             "voice": "af_heart"
@@ -239,7 +239,7 @@
             "duration": 1.4152916666666666,
             "hash": "df0f40aa0917049649229b5089695e130609267d5ad653c4875e1644914f932f",
             "line_id": "8a2cb8eb-506f-5cf1-8725-83284faac699",
-            "path": "/Users/brettbazaar/Library/Application Support/studio.DramaFactory.DramaFactory/jobs/8289e275-2b55-4fec-8931-27bb7f9f51cb/attempt-1/dialogue.wav",
+            "path": "/Users/local-user/Library/Application Support/studio.DramaFactory.DramaFactory/jobs/8289e275-2b55-4fec-8931-27bb7f9f51cb/attempt-1/dialogue.wav",
             "start": 53.0,
             "text": "A chance to practice.",
             "voice": "af_bella"
@@ -248,7 +248,7 @@
             "duration": 1.4126666666666667,
             "hash": "13c100c5fe4aeaee8ad23abafa95f31e78dc46a7ec58e2ea5ec589356acc10c0",
             "line_id": "3665126c-d8d0-52f1-bb8f-5de694fef68a",
-            "path": "/Users/brettbazaar/Library/Application Support/studio.DramaFactory.DramaFactory/jobs/4464755e-e23e-4df2-b80d-5940a745b1ad/attempt-1/dialogue.wav",
+            "path": "/Users/local-user/Library/Application Support/studio.DramaFactory.DramaFactory/jobs/4464755e-e23e-4df2-b80d-5940a745b1ad/attempt-1/dialogue.wav",
             "start": 56.0,
             "text": "Not a happy ending.",
             "voice": "af_heart"
@@ -257,7 +257,7 @@
             "duration": 1.818,
             "hash": "4d19af5ce59d8376cacbdd3d73db71b9b543591dc6bdd6f7e4f50ac0d31c0282",
             "line_id": "c1dd22c9-597a-52aa-bf8c-024427facd06",
-            "path": "/Users/brettbazaar/Library/Application Support/studio.DramaFactory.DramaFactory/jobs/f3a3d725-4bc1-4594-805b-948dbd0fbe70/attempt-1/dialogue.wav",
+            "path": "/Users/local-user/Library/Application Support/studio.DramaFactory.DramaFactory/jobs/f3a3d725-4bc1-4594-805b-948dbd0fbe70/attempt-1/dialogue.wav",
             "start": 59.0,
             "text": "I'm good. I'm not that good.",
             "voice": "af_bella"
@@ -266,7 +266,7 @@
             "duration": 1.34,
             "hash": "80cbfbf509e10369442ebd624ba6d0c0f8a44cf183256538be5e050b88789050",
             "line_id": "e7c116be-b37b-5cfb-bbe3-cc1d07badc26",
-            "path": "/Users/brettbazaar/Library/Application Support/studio.DramaFactory.DramaFactory/jobs/c525fb90-3770-4f50-a48d-28479a7c090d/attempt-1/dialogue.wav",
+            "path": "/Users/local-user/Library/Application Support/studio.DramaFactory.DramaFactory/jobs/c525fb90-3770-4f50-a48d-28479a7c090d/attempt-1/dialogue.wav",
             "start": 66.0,
             "text": "She only just left.",
             "voice": "af_bella"
@@ -275,7 +275,7 @@
             "duration": 2.4952916666666667,
             "hash": "57b5aa8a86ddedc55e9dbf9ca53e4f3ce6e3546adc70c4ef0a6ba96ff6259718",
             "line_id": "b55ef840-972a-52af-bccb-e810bee5682d",
-            "path": "/Users/brettbazaar/Library/Application Support/studio.DramaFactory.DramaFactory/jobs/d4503b3e-2344-49ed-a3c8-1bba60ec053c/attempt-1/dialogue.wav",
+            "path": "/Users/local-user/Library/Application Support/studio.DramaFactory.DramaFactory/jobs/d4503b3e-2344-49ed-a3c8-1bba60ec053c/attempt-1/dialogue.wav",
             "start": 69.0,
             "text": "No happy endings. Put it on speaker.",
             "voice": "af_heart"
@@ -284,7 +284,7 @@
             "duration": 1.1733333333333331,
             "hash": "36d180cb64f69079c89ce186501b4f9a9d052a447668765455e8b6237a0454f3",
             "line_id": "927f3ffa-b2da-5562-9986-f9620bf5a16d",
-            "path": "/Users/brettbazaar/Library/Application Support/studio.DramaFactory.DramaFactory/jobs/3367f396-cb10-4e7c-9749-5240560a584a/attempt-1/dialogue.wav",
+            "path": "/Users/local-user/Library/Application Support/studio.DramaFactory.DramaFactory/jobs/3367f396-cb10-4e7c-9749-5240560a584a/attempt-1/dialogue.wav",
             "start": 76.0,
             "text": "Ask first.",
             "voice": "af_heart"
@@ -293,7 +293,7 @@
             "duration": 0.668625,
             "hash": "75a8f7d278c042157c0947dbb4f7562121282c324ac8567cab31214e06014bbb",
             "line_id": "e43181c3-8ab5-5f95-8c01-e4b2aca9f22d",
-            "path": "/Users/brettbazaar/Library/Application Support/studio.DramaFactory.DramaFactory/jobs/7e5ce03f-bfdf-4d2b-a6fb-d65907b50716/attempt-1/dialogue.wav",
+            "path": "/Users/local-user/Library/Application Support/studio.DramaFactory.DramaFactory/jobs/7e5ce03f-bfdf-4d2b-a6fb-d65907b50716/attempt-1/dialogue.wav",
             "start": 80.0,
             "text": "Emma?",
             "voice": "af_bella"
@@ -302,7 +302,7 @@
             "duration": 1.492625,
             "hash": "2fd44cacc342b940252d7ce4f46e66441ef1c9a4365a931fb8a3de13721715a9",
             "line_id": "30d59aa4-e9cc-57d5-b515-65d4b2755fb4",
-            "path": "/Users/brettbazaar/Library/Application Support/studio.DramaFactory.DramaFactory/jobs/bd260f35-a576-42e0-b8df-ed0b40b8cfb2/attempt-1/dialogue.wav",
+            "path": "/Users/local-user/Library/Application Support/studio.DramaFactory.DramaFactory/jobs/bd260f35-a576-42e0-b8df-ed0b40b8cfb2/attempt-1/dialogue.wav",
             "start": 83.0,
             "text": "I'm outside her house.",
             "voice": "af_sarah"
@@ -311,7 +311,7 @@
         "screenplay": "THE OTHER CHAIR\nEPISODE 02 \u2014 TEN MINUTES\nAssistant-authored development draft\nTarget: 60\u201390 seconds, to be measured with speech and acting. Continues directly from episode 01.\n\nINT. SLOANE'S SECONDHAND \u2014 AFTERNOON\n\nNora holds her phone. Leah still holds Emma's twenty-dollar bill.\n\nBEN \u2014 PHONE\nNora?\n\nNORA\nI heard you. Can I call you back?\n\nBEN \u2014 PHONE\nYeah. Of course.\n\nShe ends the call. Looks relieved. Then notices Leah noticing.\n\nNORA\nYou wanted half.\n\nLEAH\nYou wanted to change the subject. Look at us, negotiating.\n\nNora takes the bill. Tears a receipt from Leah's pad, draws a line down the middle.\n\nNORA\nI do the talking. You do the chairs.\n\nLEAH\nAnd the rent. And the electricity. And explaining why a bride is shouting at a woman she met eight minutes ago.\n\nNORA\nTen minutes. Twenty dollars. Half each.\n\nLeah gets a pen. Writes a heading: RULES.\n\nLEAH\nNo filming in here.\n\nNORA\nAbsolutely not.\n\nLEAH\nNo telling people what anyone said.\n\nNORA\nEven the good bits?\n\nLeah waits. Nora draws a tiny, regretful line through GOOD BITS.\n\nNORA\nFine.\n\nLEAH\nAnd what are we actually selling?\n\nNORA\nA chance to practice.\n\nLEAH\nNot a happy ending.\n\nNORA\nI'm good. I'm not that good.\n\nLeah slides ten dollars back to Nora. A partnership, small enough to fit under two coffee cups.\n\nNora writes OTHER CHAIR beneath the heading. Her phone rings. EMMA.\n\nNORA\nShe only just left.\n\nLEAH\nNo happy endings. Put it on speaker.\n\nNora looks up.\n\nLeah catches herself. Pushes the phone gently back toward her.\n\nLEAH\nAsk first.\n\nNora answers privately.\n\nNORA\nEmma?\n\nEMMA \u2014 PHONE\nI'm outside her house.\n\nCUT.\n"
       }
     },
-    "path": "/Users/brettbazaar/Library/Application Support/studio.DramaFactory.DramaFactory/jobs/4c6eaaf6-c76d-4ab1-9c6a-5070334412ad/attempt-1/rehearsal.wav",
+    "path": "/Users/local-user/Library/Application Support/studio.DramaFactory.DramaFactory/jobs/4c6eaaf6-c76d-4ab1-9c6a-5070334412ad/attempt-1/rehearsal.wav",
     "review": "unreviewed",
     "width": 0
   },

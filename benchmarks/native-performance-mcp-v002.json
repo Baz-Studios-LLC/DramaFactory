@@ -5,7 +5,7 @@
   "shot_id": "96edaa2a-cb79-4171-9e33-dafdc3676143",
   "job_id": "ede31f98-7d3a-4957-84fe-9f2043ebb91b",
   "asset_id": "2ea2f2ba-3957-40b6-a380-78c5eb06be58",
-  "path": "/Users/brettbazaar/Library/Application Support/studio.DramaFactory.DramaFactory/jobs/ede31f98-7d3a-4957-84fe-9f2043ebb91b/attempt-1/performance.mp4",
+  "path": "/Users/local-user/Library/Application Support/studio.DramaFactory.DramaFactory/jobs/ede31f98-7d3a-4957-84fe-9f2043ebb91b/attempt-1/performance.mp4",
   "review": "rejected",
   "visual_review": "Rejected for production: sampled face sequence holds the reference smile through roughly 1.3s; visible articulation begins around 1.5s while the supplied recording begins near the start. Gesture/body action also remains limited. No independent synchronization score.",
   "reference_sha256": "5f34cb433b68afdcfaec44a3008e2234c7f2841a70037b1bbbe57adf1ec175b0",

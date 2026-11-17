@@ -7,11 +7,11 @@
     "status": "awaiting_actual_review",
     "pid": 62153,
     "hypothesis": "Jointly generating speech and picture may produce more coherent articulation than freezing an external voice track. First mode evaluation, not a duration-matched controlled ablation.",
-    "model_path": "/Users/brettbazaar/Library/Application Support/studio.DramaFactory.DramaFactory/models/ltx-2.3-q8-evaluation",
-    "encoder_path": "/Users/brettbazaar/Library/Application Support/studio.DramaFactory.DramaFactory/models/ltx-gemma3-encoder-evaluation",
+    "model_path": "/Users/local-user/Library/Application Support/studio.DramaFactory.DramaFactory/models/ltx-2.3-q8-evaluation",
+    "encoder_path": "/Users/local-user/Library/Application Support/studio.DramaFactory.DramaFactory/models/ltx-gemma3-encoder-evaluation",
     "source_commit": "747b30ef10e92a011e85b2aa0f6c4ee86ced5218",
     "reference_sha256": "5f34cb433b68afdcfaec44a3008e2234c7f2841a70037b1bbbe57adf1ec175b0",
-    "reference": "/Users/brettbazaar/Library/Application Support/studio.DramaFactory.DramaFactory/benchmarks/ltx-ben-joint-597d46a0-4e13-4510-a010-63736f41e602/reference.png",
+    "reference": "/Users/local-user/Library/Application Support/studio.DramaFactory.DramaFactory/benchmarks/ltx-ben-joint-597d46a0-4e13-4510-a010-63736f41e602/reference.png",
     "prompt": "A live-action medium portrait of the same adult 25-year-old man as the reference image, standing in the warm furniture showroom. He shifts his weight, raises one hand in a small open-palmed gesture, and says clearly in a natural young American male voice, \"I need to talk to my girlfriend.\" His nervous sincerity shows in his eyebrows and his face as he speaks, then he lowers his hand and listens. Preserve his youthful olive face, dark curly hair, brown eyes, very light stubble, navy overshirt and ivory T-shirt. His face stays visible. Steady eye-level camera, one continuous shot, realistic skin and hands. Audio: his spoken sentence, quiet room tone, no music.",
     "frames": 97,
     "fps": 24,
@@ -20,7 +20,7 @@
     "seed": 186,
     "stage1_steps": 8,
     "stage2_steps": 3,
-    "output": "/Users/brettbazaar/Library/Application Support/studio.DramaFactory.DramaFactory/benchmarks/ltx-ben-joint-597d46a0-4e13-4510-a010-63736f41e602/joint-dialogue.mp4",
+    "output": "/Users/local-user/Library/Application Support/studio.DramaFactory.DramaFactory/benchmarks/ltx-ben-joint-597d46a0-4e13-4510-a010-63736f41e602/joint-dialogue.mp4",
     "supplied_audio": false,
     "lip_compositing": false,
     "notes": "Single free local benchmark, no production config/selection/review changes. Exact approved Ben reference retained. Generated voice identity/transcript and acting require review.",
@@ -47,11 +47,11 @@
     "results": [
       {
         "name": "native_joint_unapproved",
-        "source": "/Users/brettbazaar/Library/Application Support/studio.DramaFactory.DramaFactory/benchmarks/ltx-ben-joint-597d46a0-4e13-4510-a010-63736f41e602/joint-dialogue.mp4",
+        "source": "/Users/local-user/Library/Application Support/studio.DramaFactory.DramaFactory/benchmarks/ltx-ben-joint-597d46a0-4e13-4510-a010-63736f41e602/joint-dialogue.mp4",
         "source_sha256": "e2287af837239aa6a01f26c178310d64fae449223e807e0ba7b9fb3ba830aa52",
         "tracks": [
           {
-            "track": "/Users/brettbazaar/Code/DramaFactory/benchmarks/local/sync-evaluation-8afe7618-dcb8-4ab6-90bb-8755405a1d1f/native_joint_unapproved/pycrop/native_joint_unapproved-94fa0c39/00000.avi",
+            "track": "/Users/local-user/Code/DramaFactory/benchmarks/local/sync-evaluation-8afe7618-dcb8-4ab6-90bb-8755405a1d1f/native_joint_unapproved/pycrop/native_joint_unapproved-94fa0c39/00000.avi",
             "offset_frames_at_25fps": 0,
             "confidence_raw": 4.052,
             "min_embedding_distance": 7.563,
@@ -61,10 +61,10 @@
         "wall_seconds": 20.264696666999953
       }
     ],
-    "directory": "/Users/brettbazaar/Code/DramaFactory/benchmarks/local/sync-evaluation-8afe7618-dcb8-4ab6-90bb-8755405a1d1f",
+    "directory": "/Users/local-user/Code/DramaFactory/benchmarks/local/sync-evaluation-8afe7618-dcb8-4ab6-90bb-8755405a1d1f",
     "source_revision": "907c0b579c2e2d83f0eae1b2ac9e720cde4e5623",
     "detector": {
-      "path": "/Users/brettbazaar/Library/Application Support/studio.DramaFactory.DramaFactory/models/syncnet-evaluation/sfd_face.pth",
+      "path": "/Users/local-user/Library/Application Support/studio.DramaFactory.DramaFactory/models/syncnet-evaluation/sfd_face.pth",
       "bytes": 89844381,
       "sha256": "d54a87c2b7543b64729c9a25eafd188da15fd3f6e02f0ecec76ae1b30d86c491",
       "url": "https://www.robots.ox.ac.uk/~vgg/software/lipsync/data/sfd_face.pth"

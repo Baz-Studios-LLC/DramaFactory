@@ -96,6 +96,7 @@ impl Studio {
         {
             self.save_project();
         }
+        self.project_file_menu(ui);
         ui.add_space(12.);
         ui.label(RichText::new("WORKSPACE").size(10.).color(MUTED));
         ui.add_space(4.);

@@ -252,6 +252,29 @@ pub fn apply(args: &[String]) -> Result<()> {
         }
         std::thread::sleep(Duration::from_secs(2));
     }
+    // Serialize installers and never let an older waiting helper downgrade a bundle.
+    let install_lock = OpenOptions::new()
+        .create(true)
+        .truncate(false)
+        .read(true)
+        .write(true)
+        .open(
+            directory
+                .parent()
+                .context("Missing update root")?
+                .join("install.lock"),
+        )?;
+    install_lock.lock_exclusive()?;
+    let installed = plist::Value::from_file(&info)?;
+    let installed_version = installed
+        .as_dictionary()
+        .and_then(|d| d.get("CFBundleVersion"))
+        .and_then(plist::Value::as_string)
+        .and_then(|s| s.parse::<u32>().ok())
+        .context("Invalid installed bundle version")?;
+    if installed_version >= crate::updates::version(&manifest.version).unwrap() {
+        return Ok(());
+    }
     let pending = target.with_file_name("DramaFactory.pending");
     // Backups live outside the sealed app bundle. Keeping extra executable or
     // plist backups inside Contents would invalidate or complicate its signature.

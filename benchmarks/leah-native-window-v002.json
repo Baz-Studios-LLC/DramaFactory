@@ -31,7 +31,7 @@
       "kind": "performance",
       "quality": "Technical validation does not establish acting, identity or synchronization quality",
       "request": {
-        "audio": "/Users/brettbazaar/Library/Application Support/studio.DramaFactory.DramaFactory/jobs/0ebf0d1e-0188-4055-b942-4f90d9f2e34b/attempt-1/dialogue.wav",
+        "audio": "/Users/local-user/Library/Application Support/studio.DramaFactory.DramaFactory/jobs/0ebf0d1e-0188-4055-b942-4f90d9f2e34b/attempt-1/dialogue.wav",
         "audio_hash": "5a46370422079797a0cd595a9955b67a03ff2e81d84a0bceaa73fcbd56248324",
         "audio_start": 0.10000000000000142,
         "audio_window": {
@@ -55,7 +55,7 @@
                 "id": "44bc00e6-115f-4d96-b5f1-66bc08b3c22b",
                 "kind": "character",
                 "name": "Leah Sloane",
-                "reference": "/Users/brettbazaar/Library/Application Support/studio.DramaFactory.DramaFactory/references/44bc00e6-115f-4d96-b5f1-66bc08b3c22b.png",
+                "reference": "/Users/local-user/Library/Application Support/studio.DramaFactory.DramaFactory/references/44bc00e6-115f-4d96-b5f1-66bc08b3c22b.png",
                 "series_id": "fe1435c7-24f5-4c93-b310-c55f3fa004d5",
                 "voice": "af_heart"
               },
@@ -113,7 +113,7 @@
             "id": "12688f82-56e2-4a32-a732-7eb3ed05a277",
             "kind": "location",
             "name": "Sloane's Secondhand \u2014 display room",
-            "reference": "/Users/brettbazaar/Library/Application Support/studio.DramaFactory.DramaFactory/jobs/db06f63b-fc30-4a84-a4d7-dd9355aa5d4f/attempt-1/image.png",
+            "reference": "/Users/local-user/Library/Application Support/studio.DramaFactory.DramaFactory/jobs/db06f63b-fc30-4a84-a4d7-dd9355aa5d4f/attempt-1/image.png",
             "series_id": "fe1435c7-24f5-4c93-b310-c55f3fa004d5",
             "voice": "af_heart"
           },
@@ -128,20 +128,20 @@
         "frames": 73,
         "height": 1280,
         "prompt": "Live-action dialogue performance. Follow only the supplied speech segment, including words already in progress at the start. Do not invent or compress unheard words. Keep natural mouth shapes synchronized with that segment and listen when it ends. Live-action grounded slice-of-life scene in Sloane\u2019s Secondhand. Leah counts the real costs on her fingers, amused but serious. No grand gesture. Preserve the selected room layout, late-afternoon left-window light, amber lamp, receipt, bill and two coffee cups. Same continuous afternoon; stable wardrobe and eyelines. No cuts inside the take.\nMedium close-up of Leah beside the right rehearsal chair\nRecognizable everyday behavior and small emotional stakes. Understated reactions, awkward pauses and warm or tense relationship subtext. Avoid exaggerated melodramatic gestures.\nCharacter Leah Sloane: Age 26. Exceptionally beautiful adult furniture restorer and young shop owner; long copper-auburn waves, green eyes, fair peach complexion. Forest-green silk shirt, cream tailored trousers, brown leather watch. Recently inherited the shop and its financial pressure; composed, funny, guarded. Provisional casting concept.. Preserve the established face, age and identity.\nLocation: Sloane's Secondhand \u2014 display room. Warm afternoon light from tall windows at camera left. Nora chair left, Emma chair right; amber lamp and small table between them. Aisle behind Nora leads toward till and front door. Secondhand furniture, honest wear, small price tags. Preserve floor plan, window direction and props across cuts.\nCamera L2: Medium close-up of Leah beside the right rehearsal chair. Placement: Aisle side near Nora\u2019s left chair, matching N2. Eyeline: Leah looks frame left to Nora. Screen axis: Nora screen left, Leah screen right; table and lamp remain between chair positions.. Keep this geometry consistent with other shots in this setup.\nDramatic beat: Leah counts the real costs on her fingers, amused but serious. No grand gesture.\nPerformance: Small motivated actions and clear listening. Off-screen dialogue must never animate a visible listener\u2019s mouth.\nWardrobe continuity: Same day-one costumes: Nora plum blazer/ivory T-shirt, Leah forest-green shirt/cream trousers. Receipt, twenty-dollar bill, two cups and phone continuity.",
-        "reference": "/Users/brettbazaar/Library/Application Support/studio.DramaFactory.DramaFactory/references/44bc00e6-115f-4d96-b5f1-66bc08b3c22b.png",
+        "reference": "/Users/local-user/Library/Application Support/studio.DramaFactory.DramaFactory/references/44bc00e6-115f-4d96-b5f1-66bc08b3c22b.png",
         "reference_hash": "df00dc224bd7bb240d397a4ebe58d51f3615ac930b6c77925142330d8e329755",
         "seed": 186,
         "setup": {
-          "ffmpeg": "/Users/brettbazaar/Code/DramaFactory/.venv/lib/python3.12/site-packages/imageio_ffmpeg/binaries/ffmpeg-macos-aarch64-v9.0",
-          "image_model": "/Users/brettbazaar/Library/Application Support/studio.DramaFactory.DramaFactory/models/flux2-klein-4b-q4",
-          "image_python": "/Users/brettbazaar/Code/DramaFactory/.venv-images/bin/python",
-          "lipsync_model": "/Users/brettbazaar/Library/Application Support/studio.DramaFactory.DramaFactory/models/musetalk-q4",
-          "lipsync_python": "/Users/brettbazaar/Code/DramaFactory/.venv-lipsync/bin/python",
-          "model": "/Users/brettbazaar/Library/Application Support/studio.DramaFactory.DramaFactory/models/wan22-5b-q8",
-          "performance_encoder": "/Users/brettbazaar/Library/Application Support/studio.DramaFactory.DramaFactory/models/ltx-gemma3-encoder-evaluation",
-          "performance_model": "/Users/brettbazaar/Library/Application Support/studio.DramaFactory.DramaFactory/models/ltx-2.3-q8-evaluation",
-          "performance_python": "/Users/brettbazaar/Code/DramaFactory/.venv-ltx-eval/bin/python",
-          "python": "/Users/brettbazaar/Code/DramaFactory/.venv/bin/python",
+          "ffmpeg": "/Users/local-user/Code/DramaFactory/.venv/lib/python3.12/site-packages/imageio_ffmpeg/binaries/ffmpeg-macos-aarch64-v9.0",
+          "image_model": "/Users/local-user/Library/Application Support/studio.DramaFactory.DramaFactory/models/flux2-klein-4b-q4",
+          "image_python": "/Users/local-user/Code/DramaFactory/.venv-images/bin/python",
+          "lipsync_model": "/Users/local-user/Library/Application Support/studio.DramaFactory.DramaFactory/models/musetalk-q4",
+          "lipsync_python": "/Users/local-user/Code/DramaFactory/.venv-lipsync/bin/python",
+          "model": "/Users/local-user/Library/Application Support/studio.DramaFactory.DramaFactory/models/wan22-5b-q8",
+          "performance_encoder": "/Users/local-user/Library/Application Support/studio.DramaFactory.DramaFactory/models/ltx-gemma3-encoder-evaluation",
+          "performance_model": "/Users/local-user/Library/Application Support/studio.DramaFactory.DramaFactory/models/ltx-2.3-q8-evaluation",
+          "performance_python": "/Users/local-user/Code/DramaFactory/.venv-ltx-eval/bin/python",
+          "python": "/Users/local-user/Code/DramaFactory/.venv/bin/python",
           "speech_model": ""
         },
         "shot_id": "859a3996-62c8-442e-9592-d0d8957ee737",
@@ -173,7 +173,7 @@
         "wall_seconds": 78.87871529199765
       }
     },
-    "path": "/Users/brettbazaar/Library/Application Support/studio.DramaFactory.DramaFactory/jobs/887f2eef-7dd3-46c7-a7d2-d7a9dc0cd802/attempt-2/performance.mp4",
+    "path": "/Users/local-user/Library/Application Support/studio.DramaFactory.DramaFactory/jobs/887f2eef-7dd3-46c7-a7d2-d7a9dc0cd802/attempt-2/performance.mp4",
     "review": "rejected",
     "width": 704
   },

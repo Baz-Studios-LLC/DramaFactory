@@ -1,8 +1,20 @@
-# DramaFactory · v007
+# DramaFactory · v008
 
-A Rust-native, Mac-first studio for developing a coherent short drama series, from synopsis and cast to generated episodes. MIT licensed. **v007 is a work in progress, not a finished production release.**
+A Rust-native, Mac-first studio for developing a coherent short drama series, from synopsis and cast to generated episodes. MIT licensed. **v008 is a work in progress, not a finished production release.**
 
-## New in v007
+## New in v008
+
+- Portable per-series project folders for iCloud Drive, including media, chat and edits.
+- Signed Mac downloads and quiet update checks at launch and every six hours; installation waits for app exit.
+- Release bundles use an explicit file allowlist and are scanned for credentials and personal home-folder paths.
+
+Pushes to `main` run the Mac release workflow. Successful builds receive the next whole-number public version and publish a download plus an Ed25519-signed update. CI injects the public build label; Cargo's version is the source-development baseline. The private update key is a GitHub Actions secret, never a source file or app resource. Failed builds do not publish an update.
+
+The app keeps API credentials in macOS Keychain and project data outside its bundle. Only the public update-verification key is embedded. Pattern-based release scans are an additional safeguard, not a proof that arbitrary content contains no private information. Historical git commits may retain old benchmark paths; current reports use a generic username.
+
+Mac downloads are currently Apple Silicon, ad-hoc signed and not notarized. See [installation notes](docs/mac-release-notes.md).
+
+## Previous v007 changes
 
 - Video model selection, full-request prompt counts and Wan prompt-length validation.
 - Timeline clip sliding with gaps, reliable timeline transport, and clip context menus for splitting, duplication, removal, volume and audio fades.
@@ -31,6 +43,14 @@ Hosted image/video transport has fixture-based integration coverage. Local episo
 Character cards include a **Character profile** form with optional physical traits, personality, background, relationships, and episode-specific continuity. **Full character brief** previews the combined text; **Save profile** stays visible when the card sections are collapsed and saves the form and production brief together. Existing biographies stay in Story notes, and approved portraits stay selected. Sidekick profile edits remain drafts with Undo. Image generation uses the entire saved profile alongside additional portrait direction and the selected visual style. Save form changes first; **Full prompt for next image** shows the combined request. Choose **Photorealistic**, **Cinematic**, **3D / CGI**, **Animated film**, **Cartoon**, **Cel-shaded**, or **Illustrated** on **Synopsis**. The series style is automatically used by every character for the next image; existing portraits remain unchanged.
 
 Use **Delete character…** on a card to remove it from the active cast. Confirm deletion, then restore it anytime from **Deleted characters** at the bottom of the cast page. Original images and saved details are retained. Saved story/shot/generation-plan links and active generation jobs must be resolved before deletion.
+
+## Projects in iCloud Drive
+
+Use **Project… → Save project as…** below Save project to choose a new `.dramafactory` folder in iCloud Drive (or any normal folder). Each folder contains one series, its media and immutable saved revisions. Subsequent **Save project** actions update that folder. Finish generation jobs before saving a portable snapshot, and wait for Finder to finish syncing before switching Macs.
+
+On another Mac, use **Project… → Open project…** and select the project folder. The app verifies and copies its media into local application storage; it never edits a live database inside iCloud. The local working copy is remembered on restart. Open the folder again to load a newer save made on another Mac. Conflicting saves are preserved and reported rather than silently overwritten. Do not edit the same series on both Macs simultaneously. iCloud synchronization itself is handled by macOS and has not been tested across two physical Macs.
+
+OpenRouter credentials and machine configuration are not transferred. Set up the key and local FFmpeg video tools on each Mac. **Local projects** returns to the original local library. Your original projects and media are preserved.
 
 ## Run on macOS
 

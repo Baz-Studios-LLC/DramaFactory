@@ -23,7 +23,7 @@
       },
       "model_id": "wan22-ti2v-5b-q8",
       "passed": true,
-      "python": "/Users/brettbazaar/Code/DramaFactory/.venv/bin/python",
+      "python": "/Users/local-user/Code/DramaFactory/.venv/bin/python",
       "scope": "Import/executable check only. No checkpoint loaded, integrity check, generation, download, or acting/synchronization approval. Versions are reported, not certified compatible."
     },
     {
@@ -53,7 +53,7 @@
       },
       "model_id": "flux2-klein-4b-q4",
       "passed": true,
-      "python": "/Users/brettbazaar/Code/DramaFactory/.venv-images/bin/python",
+      "python": "/Users/local-user/Code/DramaFactory/.venv-images/bin/python",
       "scope": "Import/executable check only. No checkpoint loaded, integrity check, generation, download, or acting/synchronization approval. Versions are reported, not certified compatible."
     },
     {
@@ -83,7 +83,7 @@
       },
       "model_id": "kokoro-int8",
       "passed": true,
-      "python": "/Users/brettbazaar/Code/DramaFactory/.venv/bin/python",
+      "python": "/Users/local-user/Code/DramaFactory/.venv/bin/python",
       "scope": "Import/executable check only. No checkpoint loaded, integrity check, generation, download, or acting/synchronization approval. Versions are reported, not certified compatible."
     },
     {
@@ -123,7 +123,7 @@
       },
       "model_id": "musetalk-q4-experimental",
       "passed": true,
-      "python": "/Users/brettbazaar/Code/DramaFactory/.venv-lipsync/bin/python",
+      "python": "/Users/local-user/Code/DramaFactory/.venv-lipsync/bin/python",
       "scope": "Import/executable check only. No checkpoint loaded, integrity check, generation, download, or acting/synchronization approval. Versions are reported, not certified compatible."
     },
     {
@@ -148,7 +148,7 @@
       },
       "model_id": "ltx-2.3-q8-performance-experimental",
       "passed": true,
-      "python": "/Users/brettbazaar/Code/DramaFactory/.venv-ltx-eval/bin/python",
+      "python": "/Users/local-user/Code/DramaFactory/.venv-ltx-eval/bin/python",
       "scope": "Import/executable check only. No checkpoint loaded, integrity check, generation, download, or acting/synchronization approval. Versions are reported, not certified compatible."
     }
   ],

@@ -17,7 +17,7 @@
     "job_id": "db06f63b-fc30-4a84-a4d7-dd9355aa5d4f",
     "metadata": {
       "kind": "image",
-      "model": "/Users/brettbazaar/Library/Application Support/studio.DramaFactory.DramaFactory/models/flux2-klein-4b-q4",
+      "model": "/Users/local-user/Library/Application Support/studio.DramaFactory.DramaFactory/models/flux2-klein-4b-q4",
       "request": {
         "height": 704,
         "library_context_before": {
@@ -43,7 +43,7 @@
         "wall_seconds": 4.301475167012541
       }
     },
-    "path": "/Users/brettbazaar/Library/Application Support/studio.DramaFactory.DramaFactory/jobs/db06f63b-fc30-4a84-a4d7-dd9355aa5d4f/attempt-1/image.png",
+    "path": "/Users/local-user/Library/Application Support/studio.DramaFactory.DramaFactory/jobs/db06f63b-fc30-4a84-a4d7-dd9355aa5d4f/attempt-1/image.png",
     "review": "approved",
     "width": 1280
   },

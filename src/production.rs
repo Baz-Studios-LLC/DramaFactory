@@ -258,11 +258,20 @@ impl Store {
             .query_row("SELECT value FROM settings WHERE key='worker'", [], |r| {
                 r.get::<_, String>(0)
             });
-        match value {
-            Ok(v) => Ok(serde_json::from_str(&v)?),
-            Err(rusqlite::Error::QueryReturnedNoRows) => Ok(WorkerConfig::default()),
-            Err(e) => Err(e.into()),
+        let mut config: WorkerConfig = match value {
+            Ok(v) => serde_json::from_str(&v)?,
+            Err(rusqlite::Error::QueryReturnedNoRows) => WorkerConfig::default(),
+            Err(e) => return Err(e.into()),
+        };
+        if !config.ffmpeg.is_file() {
+            for candidate in ["/opt/homebrew/bin/ffmpeg", "/usr/local/bin/ffmpeg"] {
+                if std::path::Path::new(candidate).is_file() {
+                    config.ffmpeg = candidate.into();
+                    break;
+                }
+            }
         }
+        Ok(config)
     }
     pub fn save_config(&self, c: &WorkerConfig) -> Result<()> {
         self.conn.execute("INSERT INTO settings VALUES('worker',?1) ON CONFLICT(key) DO UPDATE SET value=excluded.value",[serde_json::to_string(c)?])?;

@@ -9,7 +9,7 @@ import re
 import shutil
 import subprocess
 from pathlib import Path
-from cryptography.hazmat.primitives.serialization import load_pem_private_key
+from cryptography.hazmat.primitives.serialization import load_pem_private_key, Encoding, PublicFormat
 
 parser = argparse.ArgumentParser()
 parser.add_argument("--version", required=True)
@@ -22,6 +22,9 @@ if not re.fullmatch(r"v[0-9]{3,}", args.version) or int(args.version[1:]) < 1:
 if subprocess.check_output([str(args.binary.absolute()), "--version"], text=True).strip() != args.version:
     parser.error("Executable's embedded version does not match release label")
 key = load_pem_private_key(args.key.read_bytes(), password=None)
+expected = bytes.fromhex((Path(__file__).resolve().parents[1]/"branding/update-public-key.hex").read_text().strip())
+if key.public_key().public_bytes(Encoding.Raw, PublicFormat.Raw) != expected:
+    parser.error("Signing key does not match the application trust root")
 data = args.binary.read_bytes()
 manifest = dict(version=args.version, target="aarch64-apple-darwin",
                 binary=f"DramaFactory-{args.version}-aarch64-apple-darwin",

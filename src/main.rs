@@ -35,6 +35,7 @@ mod openrouter;
 mod orchestration;
 mod performance;
 mod performance_window;
+mod portable_project;
 mod portrait_deletion;
 mod portrait_delivery;
 mod portrait_gallery;
@@ -144,11 +145,13 @@ struct Studio {
     library_description: String,
     library_reference: Option<PathBuf>,
     message: String,
+    portable_task: Option<portable_project::Task>,
     project_save_notice: Option<(bool, String, std::time::Instant)>,
     config: WorkerConfig,
     update_rx: Option<std::sync::mpsc::Receiver<updates::UpdateStatus>>,
     update_status: String,
     automatic_updates: bool,
+    last_update_check: std::time::Instant,
     dialogue_workspace: dialogue_workspace::DialogueWorkspace,
     new_dialogue_drafts: std::collections::HashMap<String, dialogue_workspace::NewLineDraft>,
     dialogue_text: String,
@@ -174,7 +177,10 @@ impl Studio {
         egui_extras::install_image_loaders(&cc.egui_ctx);
         theme::install(&cc.egui_ctx);
         let mut app = Self::from_store(store);
-        app.update_rx = Some(updates::check(app.store.root(), app.automatic_updates));
+        app.update_rx = Some(updates::check(
+            app.store.path.clone(),
+            app.automatic_updates,
+        ));
         app.message = worker::spawn_detached(&app.store.path)
             .err()
             .map(|e| e.to_string())
@@ -241,9 +247,11 @@ impl Studio {
             library_reference: None,
             message: String::new(),
             project_save_notice: None,
+            portable_task: None,
             config,
             update_rx: None,
             automatic_updates,
+            last_update_check: std::time::Instant::now(),
             dialogue_workspace: Default::default(),
             new_dialogue_drafts: Default::default(),
             dialogue_text: String::new(),
@@ -1381,7 +1389,10 @@ impl Studio {
                 let r = self.store.set_automatic_updates(self.automatic_updates);
                 self.result(r, "Update preference saved");
             }
-            ui.label("v007 · MIT · Baz-Studios-LLC / DramaFactory");
+            ui.label(concat!(
+                env!("DF_PUBLIC_VERSION"),
+                " · MIT · Baz-Studios-LLC / DramaFactory"
+            ));
             ui.label(&self.update_status);
             if ui
                 .add_enabled(
@@ -1390,7 +1401,10 @@ impl Studio {
                 )
                 .clicked()
             {
-                self.update_rx = Some(updates::check(self.store.root(), self.automatic_updates));
+                self.update_rx = Some(updates::check(
+                    self.store.path.clone(),
+                    self.automatic_updates,
+                ));
                 self.update_status = "Checking published releases…".into();
             }
             ui.label(RichText::new("Updates require a signature from Baz Studios and wait for active renders to finish. This local build is not Apple notarized.").color(MUTED));
@@ -1430,6 +1444,13 @@ impl eframe::App for Studio {
         if ctx.input(|i| i.modifiers.command && i.key_pressed(egui::Key::S)) && self.save_script() {
             self.message = "Screenplay saved".into();
         }
+        if self.automatic_updates
+            && self.update_rx.is_none()
+            && self.last_update_check.elapsed() > std::time::Duration::from_secs(6 * 60 * 60)
+        {
+            self.last_update_check = std::time::Instant::now();
+            self.update_rx = Some(updates::check(self.store.path.clone(), true));
+        }
         if let Some(rx) = &self.update_rx
             && let Ok(s) = rx.try_recv()
         {
@@ -1456,7 +1477,11 @@ impl eframe::App for Studio {
                         .size(11.),
                     );
                     ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                        ui.label(RichText::new("v007 / DEVELOPMENT").color(MUTED).size(10.));
+                        ui.label(
+                            RichText::new(concat!(env!("DF_PUBLIC_VERSION"), " / DEVELOPMENT"))
+                                .color(MUTED)
+                                .size(10.),
+                        );
                     });
                 });
             });
@@ -1569,6 +1594,7 @@ impl eframe::App for Studio {
         }
         self.image_inspector_window(ctx);
         self.project_save_confirmation(ctx);
+        self.portable_progress(ctx);
         ctx.request_repaint_after(std::time::Duration::from_millis(500));
     }
     fn on_exit(&mut self, _: Option<&eframe::glow::Context>) {
@@ -1772,7 +1798,7 @@ fn run() -> anyhow::Result<()> {
     let args: Vec<String> = std::env::args().collect();
     if args.get(1).is_some_and(|x| x == "--help") {
         println!(
-            "DramaFactory v007\n\n(no arguments) Launch studio\n--mcp Start local stdio MCP\n--worker Drain durable queue\n--worker-once Drain if no other worker owns the queue\n--data-path Print database path\n--configure-worker PYTHON WAN_MODEL FFMPEG KOKORO_MODEL\n--configure-images PYTHON FLUX_MODEL\n--configure-lipsync PYTHON MUSETALK_MODEL\n--configure-performance PYTHON LTX_MODEL ENCODER\n--version Print public version"
+            "DramaFactory\n\n(no arguments) Launch studio\n--mcp Start local stdio MCP\n--worker Drain durable queue\n--worker-once Drain if no other worker owns the queue\n--data-path Print database path\n--configure-worker PYTHON WAN_MODEL FFMPEG KOKORO_MODEL\n--configure-images PYTHON FLUX_MODEL\n--configure-lipsync PYTHON MUSETALK_MODEL\n--configure-performance PYTHON LTX_MODEL ENCODER\n--version Print public version"
         );
         return Ok(());
     }
@@ -1795,7 +1821,7 @@ fn run() -> anyhow::Result<()> {
         anyhow::bail!("Unknown option '{flag}'. Use --help");
     }
     if args.get(1).is_some_and(|x| x == "--version") {
-        println!("v007");
+        println!("{}", updates::LABEL);
         return Ok(());
     }
     if args.get(1).is_some_and(|x| x == "--install-staged-update") {
@@ -1814,7 +1840,11 @@ fn run() -> anyhow::Result<()> {
         println!("{}", store::default_path().display());
         return Ok(());
     }
-    let store = Store::open(store::default_path())?;
+    let store = Store::open(if args.len() == 1 {
+        portable_project::startup_path()
+    } else {
+        store::default_path()
+    })?;
     if args.get(1).is_some_and(|x| x == "--configure-worker") {
         if args.len() != 6 {
             anyhow::bail!("Usage: --configure-worker PYTHON WAN_MODEL FFMPEG KOKORO_DIRECTORY");
@@ -1875,7 +1905,7 @@ fn run() -> anyhow::Result<()> {
         return mcp::run(store);
     }
     let viewport = egui::ViewportBuilder::default()
-        .with_title("DramaFactory · v007")
+        .with_title(format!("DramaFactory · {}", updates::LABEL))
         .with_inner_size([1380., 900.])
         .with_min_inner_size([1100., 740.]);
     // macOS resolves the system-rendered Icon Composer asset from the bundle.

@@ -31,6 +31,22 @@ pub struct Editor {
     scrubbing: bool,
 }
 impl Editor {
+    pub(crate) fn save_for_series(
+        &mut self,
+        store: &crate::store::Store,
+        series: &str,
+    ) -> anyhow::Result<()> {
+        if let Some(episode) = &self.episode
+            && store.get_episode(episode)?.series_id == series
+            && self.cut != self.saved
+        {
+            store.save_episode_cut(episode, &self.saved, &self.cut)?;
+            self.saved = self.cut.clone();
+            self.error.clear();
+        }
+        Ok(())
+    }
+
     pub fn stop(&mut self) {
         self.player = None;
         self.preview_job = None;
