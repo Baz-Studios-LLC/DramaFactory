@@ -1,6 +1,7 @@
 ## New in v016
 
 - Sidekick prepares a compact cast brief for each video segment. Selected portraits travel with their character names, and full biographies stay available for writing.
+- Sidekick messages reflow when you resize the chat panel or app window.
 - Use a direct OpenAI connection for Sidekick while generating video and portraits through OpenRouter.
 - Preview where a clip will land as you drag it onto the timeline, and snap it against neighboring clips.
 - Prepare episode publishing drafts for TikTok, YouTube Shorts, and Instagram in the Publish tab.

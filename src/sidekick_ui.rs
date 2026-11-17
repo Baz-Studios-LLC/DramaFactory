@@ -84,134 +84,143 @@ fn message_bubble(
     let mut action = None;
     use eframe::egui::{Align, Color32, Frame, Layout, RichText, Stroke};
     let user = message.role == "user";
-    let width = (ui.available_width() * 0.88).max(120.);
-    let layout = if user {
-        Layout::right_to_left(Align::TOP)
+    let row = ui.available_rect_before_wrap();
+    let width = row.width() * 0.88;
+    let mut bounds = row;
+    if user {
+        bounds.min.x = row.right() - width;
     } else {
-        Layout::left_to_right(Align::TOP)
-    };
+        bounds.max.x = row.left() + width;
+    }
     let bounds_id = ui.make_persistent_id(("sidekick-bubble-bounds", &message.id));
     let hover = ui
         .data(|data| data.get_temp::<eframe::egui::Rect>(bounds_id))
         .is_some_and(|rect| ui.rect_contains_pointer(rect));
-    ui.with_layout(layout, |ui| {
-        let frame = Frame::new()
-            .fill(if user {
-                Color32::from_rgb(48, 43, 35)
-            } else {
-                Color32::from_rgb(25, 27, 32)
-            })
-            .stroke(Stroke::new(
-                1_f32,
-                if user {
-                    Color32::from_rgb(73, 63, 46)
+    ui.scope_builder(
+        eframe::egui::UiBuilder::new()
+            .max_rect(bounds)
+            .layout(Layout::top_down(Align::LEFT)),
+        |ui| {
+            let frame = Frame::new()
+                .fill(if user {
+                    Color32::from_rgb(48, 43, 35)
                 } else {
-                    Color32::from_rgb(40, 43, 49)
-                },
-            ))
-            .corner_radius(12)
-            .inner_margin(12.)
-            .show(ui, |ui| {
-                ui.set_max_width(width - 24.);
-                ui.with_layout(Layout::top_down(Align::LEFT), |ui| {
-                    ui.spacing_mut().item_spacing.y = 4.;
-                    ui.scope(|ui| {
-                        // Header controls share the speaker row rather than reserving
-                        // an invisible, full-height action row below every message.
-                        ui.spacing_mut().interact_size.y =
-                            ui.text_style_height(&eframe::egui::TextStyle::Small);
-                        ui.spacing_mut().button_padding = eframe::egui::vec2(4., 2.);
-                        ui.spacing_mut().item_spacing.x = 6.;
-                        ui.horizontal(|ui| {
-                            ui.label(
-                                RichText::new(if user { "You" } else { "Sidekick" })
-                                    .size(18.)
-                                    .strong()
-                                    .color(if user { GOLD } else { MUTED }),
-                            );
-                            if editing
-                                .as_ref()
-                                .is_none_or(|(original, _)| original.id != message.id)
-                            {
-                                ui.scope_builder(
-                                    if hover {
-                                        eframe::egui::UiBuilder::new()
-                                    } else {
-                                        eframe::egui::UiBuilder::new().invisible()
-                                    }
-                                    .layout(Layout::right_to_left(Align::Center)),
-                                    |ui| {
-                                        if user
-                                            && message_icon(ui, MessageIcon::Delete, enabled)
-                                                .clicked()
-                                        {
-                                            action = Some(MessageAction::Delete(message.clone()));
-                                        }
-                                        if user
-                                            && message_icon(ui, MessageIcon::Edit, enabled)
-                                                .clicked()
-                                        {
-                                            action = Some(MessageAction::Edit(message.clone()));
-                                        }
-                                        if message_icon(ui, MessageIcon::Copy, true).clicked() {
-                                            ui.ctx().copy_text(message.text.clone());
-                                        }
-                                    },
-                                );
-                            }
-                        });
-                    });
-                    if !message.images.is_empty() {
-                        ui.horizontal_wrapped(|ui| {
-                            for image in &message.images {
-                                image.thumbnail(ui);
-                            }
-                        });
-                    }
-                    if let Some((original, text)) = editing
-                        .as_mut()
-                        .filter(|(original, _)| original.id == message.id)
-                    {
-                        ui.add(
-                            eframe::egui::TextEdit::multiline(text)
-                                .desired_width(width - 24.)
-                                .desired_rows(3),
-                        );
-                        ui.small("Save changes only; the sidekick will not be called again.");
-                        ui.horizontal(|ui| {
-                            if ui
-                                .add_enabled(
-                                    enabled && !text.trim().is_empty(),
-                                    eframe::egui::Button::new("Save changes"),
-                                )
-                                .clicked()
-                            {
-                                action = Some(MessageAction::Save(original.clone(), text.clone()));
-                            }
-                            if ui.button("Cancel").clicked() {
-                                action = Some(MessageAction::Cancel);
-                            }
-                        });
-                    } else if !user {
-                        ui.push_id(&message.id, |ui| {
-                            ui.visuals_mut().override_text_color =
-                                Some(Color32::from_rgb(235, 237, 242));
-                            crate::chat_markdown::show(ui, markdown, &message.text);
-                        });
+                    Color32::from_rgb(25, 27, 32)
+                })
+                .stroke(Stroke::new(
+                    1_f32,
+                    if user {
+                        Color32::from_rgb(73, 63, 46)
                     } else {
-                        ui.add(
-                            eframe::egui::Label::new(
-                                RichText::new(&message.text)
-                                    .color(Color32::from_rgb(235, 237, 242)),
-                            )
-                            .wrap()
-                            .selectable(true),
-                        );
-                    }
+                        Color32::from_rgb(40, 43, 49)
+                    },
+                ))
+                .corner_radius(12)
+                .inner_margin(12.)
+                .show(ui, |ui| {
+                    ui.set_width(ui.available_width());
+                    ui.with_layout(Layout::top_down(Align::LEFT), |ui| {
+                        ui.spacing_mut().item_spacing.y = 4.;
+                        ui.scope(|ui| {
+                            // Header controls share the speaker row rather than reserving
+                            // an invisible, full-height action row below every message.
+                            ui.spacing_mut().interact_size.y =
+                                ui.text_style_height(&eframe::egui::TextStyle::Small);
+                            ui.spacing_mut().button_padding = eframe::egui::vec2(4., 2.);
+                            ui.spacing_mut().item_spacing.x = 6.;
+                            ui.horizontal(|ui| {
+                                ui.label(
+                                    RichText::new(if user { "You" } else { "Sidekick" })
+                                        .size(18.)
+                                        .strong()
+                                        .color(if user { GOLD } else { MUTED }),
+                                );
+                                if editing
+                                    .as_ref()
+                                    .is_none_or(|(original, _)| original.id != message.id)
+                                {
+                                    ui.scope_builder(
+                                        if hover {
+                                            eframe::egui::UiBuilder::new()
+                                        } else {
+                                            eframe::egui::UiBuilder::new().invisible()
+                                        }
+                                        .layout(Layout::right_to_left(Align::Center)),
+                                        |ui| {
+                                            if user
+                                                && message_icon(ui, MessageIcon::Delete, enabled)
+                                                    .clicked()
+                                            {
+                                                action =
+                                                    Some(MessageAction::Delete(message.clone()));
+                                            }
+                                            if user
+                                                && message_icon(ui, MessageIcon::Edit, enabled)
+                                                    .clicked()
+                                            {
+                                                action = Some(MessageAction::Edit(message.clone()));
+                                            }
+                                            if message_icon(ui, MessageIcon::Copy, true).clicked() {
+                                                ui.ctx().copy_text(message.text.clone());
+                                            }
+                                        },
+                                    );
+                                }
+                            });
+                        });
+                        if !message.images.is_empty() {
+                            ui.horizontal_wrapped(|ui| {
+                                for image in &message.images {
+                                    image.thumbnail(ui);
+                                }
+                            });
+                        }
+                        if let Some((original, text)) = editing
+                            .as_mut()
+                            .filter(|(original, _)| original.id == message.id)
+                        {
+                            ui.add(
+                                eframe::egui::TextEdit::multiline(text)
+                                    .desired_width(ui.available_width())
+                                    .desired_rows(3),
+                            );
+                            ui.small("Save changes only; the sidekick will not be called again.");
+                            ui.horizontal(|ui| {
+                                if ui
+                                    .add_enabled(
+                                        enabled && !text.trim().is_empty(),
+                                        eframe::egui::Button::new("Save changes"),
+                                    )
+                                    .clicked()
+                                {
+                                    action =
+                                        Some(MessageAction::Save(original.clone(), text.clone()));
+                                }
+                                if ui.button("Cancel").clicked() {
+                                    action = Some(MessageAction::Cancel);
+                                }
+                            });
+                        } else if !user {
+                            ui.push_id(&message.id, |ui| {
+                                ui.visuals_mut().override_text_color =
+                                    Some(Color32::from_rgb(235, 237, 242));
+                                crate::chat_markdown::show(ui, markdown, &message.text);
+                            });
+                        } else {
+                            ui.add(
+                                eframe::egui::Label::new(
+                                    RichText::new(&message.text)
+                                        .color(Color32::from_rgb(235, 237, 242)),
+                                )
+                                .wrap()
+                                .selectable(true),
+                            );
+                        }
+                    });
                 });
-            });
-        ui.data_mut(|data| data.insert_temp(bounds_id, frame.response.rect));
-    });
+            ui.data_mut(|data| data.insert_temp(bounds_id, frame.response.rect));
+        },
+    );
     ui.add_space(10.);
     action
 }
@@ -861,7 +870,8 @@ impl Studio {
                         self.sidekick.pending=Some((series.clone(),context.clone(),receiver,self.synopsis_drafts.get(&series).cloned(),character_snapshots));std::thread::spawn(move||{let _=sender.send(crate::sidekick::reply(&messages,&project_context,"google/gemini-4-argon",&progress,&canceled).map_err(|error|error.to_string()));});},Err(error)=>self.sidekick.error=error.to_string()}},Err(error)=>self.sidekick.error=error.to_string()}
             }
             });
-            eframe::egui::ScrollArea::vertical().id_salt(("sidekick-history",&series)).stick_to_bottom(true).auto_shrink([false, false]).max_height(ui.available_height()).show(ui,|ui|{
+            eframe::egui::ScrollArea::vertical().id_salt(("sidekick-history",&series)).stick_to_bottom(true).horizontal_scroll_offset(0.).auto_shrink([false, false]).max_height(ui.available_height()).show_viewport(ui,|ui, viewport|{
+                ui.set_width(viewport.width());
                 if messages.is_empty(){ui.label("Tell me the kind of show you want to make, or an idea you want to explore.");}
                 for message in &messages {
                     if let Some(action)=message_bubble(ui,message,&mut self.sidekick.markdown,&mut self.sidekick.editing_message,self.sidekick.pending.is_none()) {
@@ -968,5 +978,48 @@ mod stop_tests {
         sidekick.canceled = Default::default();
         assert!(!sidekick.canceled.load(std::sync::atomic::Ordering::Relaxed));
         assert!(canceled.load(std::sync::atomic::Ordering::Relaxed));
+    }
+}
+
+#[cfg(test)]
+mod resize_tests {
+    use super::*;
+    use eframe::egui;
+
+    #[test]
+    fn conversation_bubbles_reflow_inside_the_resized_history() {
+        let ctx = egui::Context::default();
+        let mut cache = egui_commonmark::CommonMarkCache::default();
+        for width in [520., 290., 410.] {
+            let input = egui::RawInput {
+                screen_rect: Some(egui::Rect::from_min_size(
+                    egui::Pos2::ZERO,
+                    egui::vec2(width, 600.),
+                )),
+                ..Default::default()
+            };
+            let _ = ctx.run(input, |ctx| {
+                egui::CentralPanel::default().show(ctx, |ui| {
+                    for role in ["user", "assistant"] {
+                        let message = Message {
+                            id: role.into(),
+                            role: role.into(),
+                            context: String::new(),
+                            text: "A message with enough words to wrap across several lines. "
+                                .repeat(4),
+                            images: vec![],
+                        };
+                        let row = ui.available_rect_before_wrap();
+                        let id = ui.make_persistent_id(("sidekick-bubble-bounds", &message.id));
+                        message_bubble(ui, &message, &mut cache, &mut None, true);
+                        let bubble = ui.data(|d| d.get_temp::<egui::Rect>(id)).unwrap();
+                        assert!(
+                            bubble.left() >= row.left() - 1. && bubble.right() <= row.right() + 1.,
+                            "{role}: {bubble:?} outside {row:?}"
+                        );
+                    }
+                });
+            });
+        }
     }
 }
