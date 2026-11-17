@@ -27,6 +27,8 @@ pub struct Reply {
     pub new_character: Option<crate::character_edit::NewCharacter>,
     #[serde(default)]
     pub new_characters: Option<Vec<crate::character_edit::NewCharacter>>,
+    #[serde(default)]
+    pub cast_queue: Option<Vec<crate::cast_queue::Task>>,
 }
 /// Request provider-enforced output rather than relying on prose instructions alone.
 pub fn response_format() -> serde_json::Value {
@@ -50,7 +52,7 @@ pub fn response_format() -> serde_json::Value {
 pub fn response_format_for(workspace: &str) -> serde_json::Value {
     let active: &[&str] = match workspace {
         "Synopsis" => &["synopsis"],
-        "Characters" | "Locations" => &["character", "new_characters"],
+        "Characters" | "Locations" => &["character", "new_characters", "cast_queue"],
         "Overall plot" => &["plot", "new_episodes"],
         "Episode plot" => &["episode", "new_episodes"],
         "Episode generation" => &["generation"],
@@ -60,6 +62,7 @@ pub fn response_format_for(workspace: &str) -> serde_json::Value {
     let character_schema =
         format["json_schema"]["schema"]["properties"]["new_character"]["anyOf"][1].clone();
     format["json_schema"]["schema"]["properties"]["new_characters"] = serde_json::json!({"anyOf":[{"type":"null"},{"type":"array","minItems":1,"maxItems":12,"items":character_schema}]});
+    format["json_schema"]["schema"]["properties"]["cast_queue"] = serde_json::json!({"anyOf":[{"type":"null"},{"type":"array","items":{"type":"object","additionalProperties":false,"required":["name","brief"],"properties":{"name":{"type":"string"},"brief":{"type":"string"}}}}]});
     if let Some(properties) = format["json_schema"]["schema"]["properties"].as_object_mut() {
         properties.retain(|key, _| key == "message" || active.contains(&key.as_str()));
         let required: Vec<_> = properties.keys().cloned().collect();
@@ -112,12 +115,27 @@ pub fn retained_reply(text: &str, truncated: bool) -> Result<Reply> {
         character: None,
         new_character: None,
         new_characters: None,
+        cast_queue: None,
     })
 }
 pub fn parse_reply(text: &str) -> Result<Reply> {
     let reply: Reply = serde_json::from_str(text).map_err(|_| {
         anyhow::anyhow!("Sidekick returned an invalid document response. Nothing was applied.")
     })?;
+    if let Some(tasks) = &reply.cast_queue {
+        crate::cast_queue::validate(tasks)?;
+        if reply.new_character.is_some()
+            || reply.new_characters.is_some()
+            || reply.character.is_some()
+            || reply.synopsis.is_some()
+            || reply.plot.is_some()
+            || reply.episode.is_some()
+            || reply.new_episodes.is_some()
+            || reply.generation.is_some()
+        {
+            bail!("Cast planning cannot be combined with document changes");
+        }
+    }
     if reply.generation.is_some()
         && (reply.synopsis.is_some()
             || reply.character.is_some()

@@ -170,6 +170,8 @@ pub struct Sidekick {
     progress: std::sync::Arc<std::sync::atomic::AtomicU8>,
     request_started: Option<std::time::Instant>,
     pending: Option<PendingReply>,
+    cast_queue: Option<crate::cast_queue::Queue>,
+    request_context: Option<String>,
     canceled: std::sync::Arc<std::sync::atomic::AtomicBool>,
     error: String,
     plot_request: Option<(String, crate::story::SeriesPlan)>,
@@ -221,6 +223,8 @@ impl Sidekick {
     fn stop(&mut self) {
         self.canceled
             .store(true, std::sync::atomic::Ordering::Relaxed);
+        self.cast_queue = None;
+        self.request_context = None;
         self.pending = None; // Disconnect the old result: it can never apply edits or queue media.
         self.request_started = None;
         self.plot_request = None;
@@ -302,9 +306,38 @@ impl Studio {
         if let Some((series, context, received, snapshot, characters)) = received {
             match received {
                 Ok(result) => {
+                    let result = result.and_then(|reply| {
+                        if let Some(queue) = &self.sidekick.cast_queue {
+                            crate::cast_queue::validate_reply(
+                                &reply,
+                                queue.remaining.front().expect("active cast task"),
+                            )
+                            .map_err(|error| error.to_string())?;
+                        }
+                        Ok(reply)
+                    });
                     match result {
-                        Ok(reply) => {
+                        Ok(mut reply) => {
                             let mut text = reply.message;
+                            if let Some(tasks) = reply.cast_queue.take() {
+                                let source =
+                                    self.sidekick.request_context.as_deref().unwrap_or("{}");
+                                let queued_context: serde_json::Value =
+                                    serde_json::from_str(source).unwrap_or_default();
+                                if context != "Characters" && context != "Locations" {
+                                    text.push_str("\nCast queue was not started outside the character workspace.");
+                                } else {
+                                    let total = tasks.len();
+                                    self.sidekick.cast_queue = Some(crate::cast_queue::Queue {
+                                        series: series.clone(),
+                                        context: queued_context,
+                                        remaining: tasks.into(),
+                                        total,
+                                        completed: 0,
+                                    });
+                                    text.push_str(&format!("\nQueued {total} characters. Creating one at a time; Stop cancels the remaining queue. No portraits will be generated."));
+                                }
+                            }
                             if let Some(proposals) = reply.new_episodes {
                                 let result = (|| -> anyhow::Result<Vec<String>> {
                                     let (request_id, origin, expected) = self
@@ -495,9 +528,24 @@ impl Studio {
                                 .chain(reply.new_characters.into_iter().flatten())
                             {
                                 let id = uuid::Uuid::new_v4().to_string();
-                                match self.store.create_sidekick_character(&series,&id,&proposal) {
-                                    Ok(())=>{
+                                match self
+                                    .store
+                                    .create_sidekick_character(&series, &id, &proposal)
+                                {
+                                    Ok(()) => {
                                         text.push_str(&format!("\n\nCreated {} in Characters with its profile and portrait prompt.", proposal.name));
+                                        if let Some(queue) = &mut self.sidekick.cast_queue {
+                                            queue.remaining.pop_front();
+                                            queue.completed += 1;
+                                            text.push_str(&format!(
+                                                " Cast progress: {}/{}.",
+                                                queue.completed, queue.total
+                                            ));
+                                            if queue.remaining.is_empty() {
+                                                text.push_str(" Cast queue complete.");
+                                                self.sidekick.cast_queue = None;
+                                            }
+                                        }
                                         if proposal.generate_portrait {
                                             match self.store.enqueue_grok_portrait(&id,&proposal.portrait_prompt) {
                                                 Ok(job)=>{
@@ -506,9 +554,14 @@ impl Studio {
                                                 },
                                                 Err(error)=>text.push_str(&format!("\nCharacter saved, but portrait could not be queued: {error}")),
                                             }
-                                        } else {text.push_str(" No image was generated.");}
-                                    },
-                                    Err(error)=>text.push_str(&format!("\n\nCharacter was not created: {error}\nProposal retained:\n{}",serde_json::to_string_pretty(&proposal).unwrap_or_default())),
+                                        } else {
+                                            text.push_str(" No image was generated.");
+                                        }
+                                    }
+                                    Err(error) => {
+                                        self.sidekick.cast_queue = None;
+                                        text.push_str(&format!("\n\nCharacter was not created: {error}. Any remaining cast queue was stopped; completed characters are retained.\nProposal retained:\n{}",serde_json::to_string_pretty(&proposal).unwrap_or_default()));
+                                    }
                                 }
                             }
                             let message = Message {
@@ -522,9 +575,15 @@ impl Studio {
                                 self.store.append_sidekick_message(&series, &message)
                             {
                                 self.sidekick.error = error.to_string();
+                                self.sidekick.cast_queue = None;
                             }
                         }
-                        Err(error) => self.sidekick.error = error,
+                        Err(error) => {
+                            self.sidekick.cast_queue = None;
+                            self.sidekick.error = format!(
+                                "{error} Any remaining cast queue was stopped; completed characters are retained."
+                            );
+                        }
                     };
                     self.sidekick.pending = None;
                     self.sidekick.plot_request = None;
@@ -533,6 +592,7 @@ impl Studio {
                     self.sidekick.episode_creation_request = None;
                 }
                 Err(std::sync::mpsc::TryRecvError::Disconnected) => {
+                    self.sidekick.cast_queue = None;
                     self.sidekick.error =
                         "Reply task stopped. Message retained; no automatic retry.".into();
                     self.sidekick.pending = None;
@@ -544,7 +604,18 @@ impl Studio {
                 Err(std::sync::mpsc::TryRecvError::Empty) => {}
             }
         }
+        if self.sidekick.pending.is_none() && self.sidekick.cast_queue.is_some() {
+            if let Err(error) = self.start_next_cast_task() {
+                self.sidekick.cast_queue = None;
+                self.sidekick.error =
+                    format!("Cast queue stopped: {error}. Completed characters are retained.");
+            }
+            ctx.request_repaint();
+        }
         if !self.sidekick_visible {
+            if self.sidekick.pending.is_some() {
+                ctx.request_repaint_after(std::time::Duration::from_millis(200));
+            }
             return;
         }
         let mut stop_requested = false;
@@ -555,6 +626,7 @@ impl Studio {
             let context=match self.page{Page::Synopsis=>"Synopsis",Page::Cast=>"Characters",Page::Locations=>"Locations",Page::Story=>"Overall plot",Page::Series=>"Episode plot",Page::Queue|Page::Scenes=>"Episode generation",_=>"Studio workspace"}.to_owned();
             ui.label(eframe::egui::RichText::new(format!("Working on: {context}")).color(GOLD));
             ui.small("Gemini 4 Argon · via OpenRouter");
+            if let Some(queue) = &self.sidekick.cast_queue && let Some(task) = queue.remaining.front() { ui.label(format!("Cast queue · {} of {} · {}", queue.completed + 1, queue.total, task.name)); }
             ui.separator();
             let messages=match self.store.sidekick_messages(&series){Ok(messages)=>messages,Err(error)=>{ui.label(error.to_string());return;}};
             // Size the footer from its actual content and anchor it to the bottom.
@@ -702,6 +774,7 @@ impl Studio {
                         self.sidekick.plot_request = if self.page == Page::Story {
                             self.story_drafts.get(&series).cloned().or_else(||self.store.series_plan(&series).ok()).map(|plan|(series.clone(),plan))
                         } else { None };
+                        self.sidekick.request_context=Some(project_context.clone());
                         self.sidekick.request_started=Some(std::time::Instant::now());
                         self.sidekick.progress=Default::default();
                         self.sidekick.canceled=Default::default();
@@ -734,6 +807,61 @@ impl Studio {
     }
 }
 
+impl Studio {
+    fn start_next_cast_task(&mut self) -> anyhow::Result<()> {
+        let queue = self.sidekick.cast_queue.as_ref().expect("cast queue");
+        let task = queue
+            .remaining
+            .front()
+            .expect("nonempty cast queue")
+            .clone();
+        let series = queue.series.clone();
+        let mut context = queue.context.clone();
+        let characters = self.character_drafts(&series)?;
+        if characters.iter().any(|character| {
+            character
+                .brief
+                .name
+                .trim()
+                .eq_ignore_ascii_case(task.name.trim())
+        }) {
+            anyhow::bail!(
+                "{} already exists; review the cast before requesting the remaining characters",
+                task.name
+            );
+        }
+        context["workspace"] = "Characters".into();
+        context["character_drafts"] = serde_json::json!(
+            characters
+                .iter()
+                .map(crate::character_edit::CharacterDraft::model_context)
+                .collect::<Vec<_>>()
+        );
+        let mut messages = self.store.sidekick_messages(&series)?;
+        messages.push(Message { id: uuid::Uuid::new_v4().to_string(), role: "user".into(), context: "Characters".into(), images: vec![], text: format!("Continue the authorized cast queue. Create ONLY this character now: {}. Story brief: {}. Return exactly one new_characters item with a complete profile. Do not replan the queue, edit existing characters, or generate a portrait. The app will advance to the next character automatically.", task.name, task.brief) });
+        let (sender, receiver) = std::sync::mpsc::channel();
+        self.sidekick.progress = Default::default();
+        self.sidekick.canceled = Default::default();
+        self.sidekick.request_started = Some(std::time::Instant::now());
+        let progress = self.sidekick.progress.clone();
+        let canceled = self.sidekick.canceled.clone();
+        self.sidekick.pending = Some((series, "Characters".into(), receiver, None, characters));
+        std::thread::spawn(move || {
+            let _ = sender.send(
+                crate::sidekick::reply(
+                    &messages,
+                    &context.to_string(),
+                    "google/gemini-4-argon",
+                    &progress,
+                    &canceled,
+                )
+                .map_err(|error| error.to_string()),
+            );
+        });
+        Ok(())
+    }
+}
+
 #[cfg(test)]
 mod stop_tests {
     use super::*;
@@ -743,7 +871,19 @@ mod stop_tests {
         let (sender, receiver) = std::sync::mpsc::channel();
         sidekick.pending = Some(("series".into(), "Synopsis".into(), receiver, None, vec![]));
         let canceled = sidekick.canceled.clone();
+        sidekick.cast_queue = Some(crate::cast_queue::Queue {
+            series: "series".into(),
+            context: serde_json::json!({}),
+            remaining: vec![crate::cast_queue::Task {
+                name: "Lead".into(),
+                brief: "Healer".into(),
+            }]
+            .into(),
+            total: 1,
+            completed: 0,
+        });
         sidekick.stop();
+        assert!(sidekick.cast_queue.is_none());
         assert!(canceled.load(std::sync::atomic::Ordering::Relaxed));
         assert!(sender.send(Err("late result".into())).is_err());
         assert!(sidekick.pending.is_none());

@@ -1,6 +1,7 @@
 mod asset_browser;
 mod asset_catalog;
 mod captions;
+mod cast_queue;
 mod cast_reference;
 mod character_deletion;
 mod character_edit;

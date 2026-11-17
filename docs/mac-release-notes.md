@@ -3,7 +3,7 @@
 - Avoid provider schema-state-limit errors for character replies by using JSON mode with strict local validation.
 
 - Added right-click Copy/Paste menus for portraits, shared text forms, character profiles and Sidekick.
-- Sidekick can create up to twelve complete cast members in one reply, with duplicate-name and complete-profile validation.
+- Sidekick plans missing cast and creates one complete character per request automatically, with queue progress and Stop. Errors stop the queue without retrying; completed characters remain saved. Pending queues do not resume automatically after quitting. Portrait generation is excluded from the cast queue.
 
 - Preserve portrait aspect ratios in character cards and generation cast selection; show the full image without stretching.
 
