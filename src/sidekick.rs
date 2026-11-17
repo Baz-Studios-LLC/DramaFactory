@@ -186,9 +186,15 @@ pub fn reply(
         .ok()
         .and_then(|v| v["workspace"].as_str().map(str::to_owned))
         .unwrap_or_default();
-    let request = serde_json::json!({"model":model,"messages":conversation,"max_tokens":16384,"response_format":crate::sidekick_edit::response_format_for(&workspace),"provider":{"require_parameters":true,"sort":"throughput"}});
+    if matches!(workspace.as_str(), "Characters" | "Locations") {
+        conversation.push(serde_json::json!({"role":"system","content":format!(
+            "Return a JSON object matching this shape. This is an output contract, not project content. Include every required profile field; use null for actions not requested. The app validates the full reply before applying edits. Schema: {}",
+            crate::sidekick_edit::response_format_for(&workspace)["json_schema"]["schema"]
+        )}));
+    }
+    let request = serde_json::json!({"model":model,"messages":conversation,"max_tokens":16384,"response_format":crate::sidekick_edit::provider_format_for(&workspace),"provider":{"require_parameters":true,"sort":"throughput"}});
     let mut diagnostics = serde_json::json!({
-        "model":model, "credential_ms":credential_ms, "request_policy":"workspace-schema-v2",
+        "model":model, "credential_ms":credential_ms, "request_policy":"workspace-schema-v3-character-json",
         "history_messages":messages.len(), "context_bytes":context.len(),
         "request_bytes":request.to_string().len(),
         "unix_seconds":std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).ok().map(|duration|duration.as_secs()),

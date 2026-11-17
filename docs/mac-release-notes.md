@@ -1,5 +1,7 @@
 ## New in this release
 
+- Avoid provider schema-state-limit errors for character replies by using JSON mode with strict local validation.
+
 - Added right-click Copy/Paste menus for portraits, shared text forms, character profiles and Sidekick.
 - Sidekick can create up to twelve complete cast members in one reply, with duplicate-name and complete-profile validation.
 

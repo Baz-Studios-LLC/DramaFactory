@@ -67,6 +67,15 @@ pub fn response_format_for(workspace: &str) -> serde_json::Value {
     }
     format
 }
+/// Character profiles exceed some providers' grammar-state budgets. Keep the
+/// shape in the prompt and apply the same strict local validation before edits.
+pub fn provider_format_for(workspace: &str) -> serde_json::Value {
+    if matches!(workspace, "Characters" | "Locations") {
+        serde_json::json!({"type":"json_object"})
+    } else {
+        response_format_for(workspace)
+    }
+}
 /// Keep an unusable reply in the conversation without applying any document edits.
 pub fn retained_reply(text: &str, truncated: bool) -> Result<Reply> {
     if !truncated && let Ok(reply) = parse_reply(text) {
@@ -298,6 +307,10 @@ mod transport_tests {
         let duplicate =
             serde_json::json!({"message":"Cast","new_characters":[member("A"),member(" a ")]});
         assert!(parse_reply(&duplicate.to_string()).is_err());
+        assert_eq!(
+            provider_format_for("Characters"),
+            serde_json::json!({"type":"json_object"})
+        );
         let schema = response_format_for("Characters");
         assert!(
             schema["json_schema"]["schema"]["properties"]
