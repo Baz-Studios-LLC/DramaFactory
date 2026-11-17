@@ -25,18 +25,39 @@ impl Studio {
             {
                 self.select_episode(&episodes[index - 1].id);
             }
-            ui.label(
-                index
-                    .map(|i| {
-                        format!(
-                            "Episode {:02} of {} · {}",
-                            i + 1,
-                            episodes.len(),
-                            episodes[i].title
-                        )
-                    })
-                    .unwrap_or("No episode selected".into()),
-            );
+            if self.page == Page::EditingRoom {
+                if let Some(i) = index {
+                    egui::Frame::new()
+                        .fill(GOLD.gamma_multiply(0.16))
+                        .corner_radius(6)
+                        .inner_margin(egui::Margin::symmetric(10, 4))
+                        .show(ui, |ui| {
+                            ui.label(
+                                RichText::new(format!("EPISODE {:02}", i + 1))
+                                    .size(22.)
+                                    .strong()
+                                    .color(GOLD),
+                            );
+                        });
+                    ui.label(RichText::new(format!("of {}", episodes.len())).color(MUTED));
+                    ui.label(&episodes[i].title);
+                } else {
+                    ui.label(RichText::new("No episode selected").strong().color(GOLD));
+                }
+            } else {
+                ui.label(
+                    index
+                        .map(|i| {
+                            format!(
+                                "Episode {:02} of {} · {}",
+                                i + 1,
+                                episodes.len(),
+                                episodes[i].title
+                            )
+                        })
+                        .unwrap_or("No episode selected".into()),
+                );
+            }
             if ui
                 .add_enabled(
                     index.is_some_and(|i| i + 1 < episodes.len()),
