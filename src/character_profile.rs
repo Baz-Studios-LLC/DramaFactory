@@ -418,9 +418,11 @@ impl crate::Studio {
                     ui.colored_label(crate::GOLD,"The saved name or brief changed. Reload to reconcile; your form has not been overwritten.");
                 }
                 ui.label("NAME");
-                ui.add(egui::TextEdit::singleline(&mut draft.brief.name).desired_width(f32::INFINITY));
+                let mut output = egui::TextEdit::singleline(&mut draft.brief.name).desired_width(f32::INFINITY).show(ui);
+                crate::context_menus::text_menu(&mut output, &mut draft.brief.name, false);
                 ui.label("STORY NOTES / SUMMARY");
-                ui.add(egui::TextEdit::multiline(&mut draft.profile.summary).desired_rows(4).desired_width(f32::INFINITY));
+                let mut output = egui::TextEdit::multiline(&mut draft.profile.summary).desired_rows(4).desired_width(f32::INFINITY).show(ui);
+                crate::context_menus::text_menu(&mut output, &mut draft.profile.summary, false);
                 fields_ui(ui, &entry.id, &mut draft.profile);
                 draft.profile.fields.retain(|_,value| !value.trim().is_empty());
                 draft.refresh_brief();
@@ -517,13 +519,13 @@ pub(crate) fn fields_ui(ui: &mut eframe::egui::Ui, id: &str, profile: &mut Chara
                         for (ui, (key, label, hint)) in uis.iter_mut().zip(fields) {
                             ui.label(RichText::new(*label).small().color(crate::MUTED));
                             let value = profile.fields.entry((*key).into()).or_default();
-                            ui.add(
-                                egui::TextEdit::multiline(value)
-                                    .id_salt((id, key))
-                                    .desired_rows(1)
-                                    .desired_width(f32::INFINITY)
-                                    .hint_text(crate::theme::placeholder(*hint)),
-                            );
+                            let mut output = egui::TextEdit::multiline(&mut *value)
+                                .id_salt((id, key))
+                                .desired_rows(1)
+                                .desired_width(f32::INFINITY)
+                                .hint_text(crate::theme::placeholder(*hint))
+                                .show(ui);
+                            crate::context_menus::text_menu(&mut output, value, false);
                         }
                     });
                 }

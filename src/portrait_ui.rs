@@ -95,6 +95,7 @@ impl Studio {
                         .pick_file();
                 }
             });
+        self.portrait_context_menu(&zone.response, entry, displayed_portrait);
         let over = ui
             .input(|input| input.pointer.hover_pos())
             .map(|pos| zone.response.rect.intersect(ui.clip_rect()).contains(pos));

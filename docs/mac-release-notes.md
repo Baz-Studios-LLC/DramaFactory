@@ -1,5 +1,8 @@
 ## New in this release
 
+- Added right-click Copy/Paste menus for portraits, shared text forms, character profiles and Sidekick.
+- Sidekick can create up to twelve complete cast members in one reply, with duplicate-name and complete-profile validation.
+
 - Preserve portrait aspect ratios in character cards and generation cast selection; show the full image without stretching.
 
 - Added Use my image and portrait drag-and-drop to existing character cards, so you can import your own portrait without generating one.

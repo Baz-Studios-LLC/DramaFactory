@@ -36,7 +36,8 @@ impl Studio {
                                 .get(&entry.id)
                                 .map(|draft| draft.name.as_str())
                         })
-                        .unwrap_or(&entry.name);
+                        .unwrap_or(&entry.name)
+                        .to_owned();
                     let frame = egui::Frame::new()
                         .fill(crate::theme::SURFACE)
                         .stroke(egui::Stroke::new(1., crate::theme::BORDER))
@@ -63,7 +64,9 @@ impl Studio {
                                 );
                             }
                             ui.add_space(6.);
-                            ui.add(egui::Label::new(egui::RichText::new(name).strong()).truncate());
+                            ui.add(
+                                egui::Label::new(egui::RichText::new(&name).strong()).truncate(),
+                            );
                         });
                     });
                     let response = ui.interact(
@@ -71,8 +74,9 @@ impl Studio {
                         ui.make_persistent_id(("open-character", &entry.id)),
                         egui::Sense::click(),
                     );
+                    self.portrait_context_menu(&response, entry, portrait);
                     response.widget_info(|| {
-                        egui::WidgetInfo::labeled(egui::WidgetType::Button, true, name)
+                        egui::WidgetInfo::labeled(egui::WidgetType::Button, true, &name)
                     });
                     if response.hovered() || response.has_focus() {
                         ui.painter().rect_stroke(

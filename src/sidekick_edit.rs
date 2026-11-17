@@ -25,6 +25,8 @@ pub struct Reply {
     pub character: Option<crate::character_edit::CharacterEdit>,
     #[serde(default)]
     pub new_character: Option<crate::character_edit::NewCharacter>,
+    #[serde(default)]
+    pub new_characters: Option<Vec<crate::character_edit::NewCharacter>>,
 }
 /// Request provider-enforced output rather than relying on prose instructions alone.
 pub fn response_format() -> serde_json::Value {
@@ -48,13 +50,16 @@ pub fn response_format() -> serde_json::Value {
 pub fn response_format_for(workspace: &str) -> serde_json::Value {
     let active: &[&str] = match workspace {
         "Synopsis" => &["synopsis"],
-        "Characters" | "Locations" => &["character", "new_character"],
+        "Characters" | "Locations" => &["character", "new_characters"],
         "Overall plot" => &["plot", "new_episodes"],
         "Episode plot" => &["episode", "new_episodes"],
         "Episode generation" => &["generation"],
         _ => &[],
     };
     let mut format = response_format();
+    let character_schema =
+        format["json_schema"]["schema"]["properties"]["new_character"]["anyOf"][1].clone();
+    format["json_schema"]["schema"]["properties"]["new_characters"] = serde_json::json!({"anyOf":[{"type":"null"},{"type":"array","minItems":1,"maxItems":12,"items":character_schema}]});
     if let Some(properties) = format["json_schema"]["schema"]["properties"].as_object_mut() {
         properties.retain(|key, _| key == "message" || active.contains(&key.as_str()));
         let required: Vec<_> = properties.keys().cloned().collect();
@@ -97,6 +102,7 @@ pub fn retained_reply(text: &str, truncated: bool) -> Result<Reply> {
         new_episodes: None,
         character: None,
         new_character: None,
+        new_characters: None,
     })
 }
 pub fn parse_reply(text: &str) -> Result<Reply> {
@@ -107,6 +113,7 @@ pub fn parse_reply(text: &str) -> Result<Reply> {
         && (reply.synopsis.is_some()
             || reply.character.is_some()
             || reply.new_character.is_some()
+            || reply.new_characters.is_some()
             || reply.plot.is_some()
             || reply.episode.is_some()
             || reply.new_episodes.is_some())
@@ -128,7 +135,23 @@ pub fn parse_reply(text: &str) -> Result<Reply> {
     {
         profile.validate_complete()?;
     }
-    if let Some(character) = &reply.new_character {
+    if reply.new_character.is_some() && reply.new_characters.is_some() {
+        bail!("Use one character creation action, not both formats");
+    }
+    if let Some(characters) = &reply.new_characters
+        && (characters.is_empty() || characters.len() > 12)
+    {
+        bail!("Create between one and twelve characters per response");
+    }
+    let mut names = std::collections::HashSet::new();
+    for character in reply
+        .new_character
+        .iter()
+        .chain(reply.new_characters.iter().flatten())
+    {
+        if !names.insert(character.name.trim().to_lowercase()) {
+            bail!("Character batch contains duplicate names");
+        }
         character
             .profile
             .as_ref()
@@ -240,6 +263,47 @@ mod transport_tests {
         assert!(episode.to_string().len() < full.to_string().len() / 2);
         assert!(parse_reply(r#"{"message":"Done","episode":null,"new_episodes":null}"#).is_ok());
         assert!(response_format_for("Characters")["json_schema"]["schema"]["properties"]["character"]["anyOf"].is_array());
+    }
+    #[test]
+    fn batch_characters_validate_profiles_duplicates_and_truncation() {
+        let mut profile = crate::character_profile::CharacterProfile {
+            summary: "Fictional cast".into(),
+            fields: Default::default(),
+        };
+        for (key, _, _) in crate::character_profile::SECTIONS
+            .iter()
+            .flat_map(|section| section.fields.iter())
+        {
+            profile
+                .fields
+                .insert((*key).into(), "Authored detail".into());
+        }
+        let member = |name| serde_json::json!({"name":name,"description":"Cast member","portrait_prompt":"Portrait","profile":profile,"style":null,"generate_portrait":false});
+        let reply =
+            serde_json::json!({"message":"Cast ready","new_characters":[member("A"),member("B")]});
+        assert_eq!(
+            parse_reply(&reply.to_string())
+                .unwrap()
+                .new_characters
+                .unwrap()
+                .len(),
+            2
+        );
+        assert!(
+            retained_reply(&reply.to_string(), true)
+                .unwrap()
+                .new_characters
+                .is_none()
+        );
+        let duplicate =
+            serde_json::json!({"message":"Cast","new_characters":[member("A"),member(" a ")]});
+        assert!(parse_reply(&duplicate.to_string()).is_err());
+        let schema = response_format_for("Characters");
+        assert!(
+            schema["json_schema"]["schema"]["properties"]
+                .get("new_characters")
+                .is_some()
+        );
     }
     #[test]
     fn sidekick_profiles_require_every_field_but_manual_drafts_do_not() {

@@ -9,6 +9,7 @@ mod character_profile;
 mod chat_images;
 mod chat_markdown;
 mod completion;
+mod context_menus;
 mod credentials;
 mod credit_status;
 mod dialogue_direction;
@@ -317,21 +318,21 @@ impl Studio {
     }
     fn field(ui: &mut egui::Ui, label: &str, value: &mut String, rows: usize) {
         ui.label(RichText::new(label).size(10.).color(MUTED));
-        if rows == 1 {
-            ui.add(
-                egui::TextEdit::singleline(value)
-                    .margin(Vec2::new(11., 9.))
-                    .desired_width(f32::INFINITY),
-            );
+        let mut output = if rows == 1 {
+            egui::TextEdit::singleline(value)
+                .margin(Vec2::new(11., 9.))
+                .desired_width(f32::INFINITY)
+                .show(ui)
         } else {
-            ui.add(
-                egui::TextEdit::multiline(value)
-                    .margin(Vec2::new(12., 11.))
-                    .desired_width(f32::INFINITY)
-                    .desired_rows(rows),
-            );
-        }
+            egui::TextEdit::multiline(value)
+                .margin(Vec2::new(12., 11.))
+                .desired_width(f32::INFINITY)
+                .desired_rows(rows)
+                .show(ui)
+        };
+        crate::context_menus::text_menu(&mut output, value, false);
     }
+
     fn save_script(&mut self) -> bool {
         if self.script == self.script_baseline {
             return true;

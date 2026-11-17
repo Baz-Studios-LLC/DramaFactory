@@ -489,11 +489,15 @@ impl Studio {
                                 })();
                                 match result {Ok(())=>text.push_str("\n\nCharacter profile and portrait prompt drafts updated. Save the character in Character profile and the prompt in Manage portrait when ready. Undo is available in Character profile. No image was generated."),Err(error)=>text.push_str(&format!("\n\n{error}\nProposal retained:\n{}",serde_json::to_string_pretty(&edit).unwrap_or_default()))}
                             }
-                            if let Some(proposal) = reply.new_character {
+                            for proposal in reply
+                                .new_character
+                                .into_iter()
+                                .chain(reply.new_characters.into_iter().flatten())
+                            {
                                 let id = uuid::Uuid::new_v4().to_string();
                                 match self.store.create_sidekick_character(&series,&id,&proposal) {
                                     Ok(())=>{
-                                        text.push_str("\n\nCharacter added to this series with its portrait prompt. Open Characters to review it.");
+                                        text.push_str(&format!("\n\nCreated {} in Characters with its profile and portrait prompt.", proposal.name));
                                         if proposal.generate_portrait {
                                             match self.store.enqueue_grok_portrait(&id,&proposal.portrait_prompt) {
                                                 Ok(job)=>{
@@ -634,8 +638,16 @@ impl Studio {
             eframe::egui::ScrollArea::vertical().id_salt(("sidekick-input", &series)).max_height(90.).show(ui, |ui| {
                 // Keep the focus outline inside the scroll area's clipping rectangle.
                 eframe::egui::Frame::NONE.inner_margin(3).show(ui, |ui| {
-                    ui.add(eframe::egui::TextEdit::multiline(draft).margin(eframe::egui::vec2(10.,8.)).id(composer_id).return_key(eframe::egui::KeyboardShortcut::new(eframe::egui::Modifiers::SHIFT,eframe::egui::Key::Enter)).desired_rows(2).desired_width(ui.available_width()).hint_text(crate::theme::placeholder("Discuss your series…")))
-                        .on_hover_text("Enter to send · Shift+Enter for a new line");
+                    let mut output = eframe::egui::TextEdit::multiline(draft).margin(eframe::egui::vec2(10.,8.)).id(composer_id).return_key(eframe::egui::KeyboardShortcut::new(eframe::egui::Modifiers::SHIFT,eframe::egui::Key::Enter)).desired_rows(2).desired_width(ui.available_width()).hint_text(crate::theme::placeholder("Discuss your series…")).show(ui);
+                    if crate::context_menus::text_menu(&mut output, draft, true) {
+                        match crate::chat_images::ChatImage::clipboard() {
+                            Ok(image) if images.len() < 4 => { images.push(image); self.sidekick.error.clear(); }
+                            Ok(_) => self.sidekick.error = "Attach up to four images per message.".into(),
+                            Err(error) => self.sidekick.error = error.to_string(),
+                        }
+                        ui.ctx().request_repaint();
+                    }
+                    output.response.on_hover_text("Enter to send · Shift+Enter for a new line");
                 });
             });
             let baseline=self.sidekick.saved_drafts.get_mut(&series).expect("loaded baseline");
