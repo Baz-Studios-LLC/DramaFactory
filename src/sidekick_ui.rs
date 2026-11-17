@@ -80,15 +80,17 @@ fn message_bubble(
     markdown: &mut egui_commonmark::CommonMarkCache,
     editing: &mut Option<(Message, String)>,
     enabled: bool,
+    history_width: f32,
 ) -> Option<MessageAction> {
     let mut action = None;
     use eframe::egui::{Align, Color32, Frame, Layout, RichText, Stroke};
     let user = message.role == "user";
     let row = ui.available_rect_before_wrap();
-    let width = row.width() * 0.88;
+    let width = history_width * 0.88;
     let mut bounds = row;
     if user {
-        bounds.min.x = row.right() - width;
+        bounds.max.x = row.left() + history_width;
+        bounds.min.x = bounds.max.x - width;
     } else {
         bounds.max.x = row.left() + width;
     }
@@ -874,7 +876,7 @@ impl Studio {
                 ui.set_width(viewport.width());
                 if messages.is_empty(){ui.label("Tell me the kind of show you want to make, or an idea you want to explore.");}
                 for message in &messages {
-                    if let Some(action)=message_bubble(ui,message,&mut self.sidekick.markdown,&mut self.sidekick.editing_message,self.sidekick.pending.is_none()) {
+                    if let Some(action)=message_bubble(ui,message,&mut self.sidekick.markdown,&mut self.sidekick.editing_message,self.sidekick.pending.is_none(), viewport.width()) {
                         match action {
                             MessageAction::Edit(message)=>self.sidekick.editing_message=Some((message.clone(),message.text.clone())),
                             MessageAction::Cancel=>self.sidekick.editing_message=None,
@@ -1000,24 +1002,39 @@ mod resize_tests {
             };
             let _ = ctx.run(input, |ctx| {
                 egui::CentralPanel::default().show(ctx, |ui| {
-                    for role in ["user", "assistant"] {
-                        let message = Message {
-                            id: role.into(),
-                            role: role.into(),
-                            context: String::new(),
-                            text: "A message with enough words to wrap across several lines. "
-                                .repeat(4),
-                            images: vec![],
-                        };
-                        let row = ui.available_rect_before_wrap();
-                        let id = ui.make_persistent_id(("sidekick-bubble-bounds", &message.id));
-                        message_bubble(ui, &message, &mut cache, &mut None, true);
-                        let bubble = ui.data(|d| d.get_temp::<egui::Rect>(id)).unwrap();
-                        assert!(
-                            bubble.left() >= row.left() - 1. && bubble.right() <= row.right() + 1.,
-                            "{role}: {bubble:?} outside {row:?}"
-                        );
-                    }
+                    egui::ScrollArea::vertical()
+                        .stick_to_bottom(true)
+                        .show_viewport(ui, |ui, viewport| {
+                            for role in ["assistant", "user"] {
+                                let message = Message {
+                                    id: role.into(),
+                                    role: role.into(),
+                                    context: String::new(),
+                                    text: format!(
+                                        "Retained response\n\n`{}`",
+                                        "a1b2-c3d4".repeat(4096)
+                                    ),
+                                    images: vec![],
+                                };
+                                let row = ui.available_rect_before_wrap();
+                                let id =
+                                    ui.make_persistent_id(("sidekick-bubble-bounds", &message.id));
+                                message_bubble(
+                                    ui,
+                                    &message,
+                                    &mut cache,
+                                    &mut None,
+                                    true,
+                                    viewport.width(),
+                                );
+                                let bubble = ui.data(|d| d.get_temp::<egui::Rect>(id)).unwrap();
+                                assert!(
+                                    bubble.left() >= row.left() - 1.
+                                        && bubble.right() <= row.right() + 1.,
+                                    "{role}: {bubble:?} outside {row:?}"
+                                );
+                            }
+                        });
                 });
             });
         }

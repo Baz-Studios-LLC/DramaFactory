@@ -305,7 +305,22 @@ impl Store {
             screenplay: self.get_episode(episode)?.screenplay,
             continuity_context: serde_json::json!({"editing_room":cut}),
             clips,
-            cues: vec![],
+            cues: self
+                .audio_cues(episode)?
+                .into_iter()
+                .map(|cue| {
+                    let asset = assets
+                        .iter()
+                        .find(|a| a.id == cue.asset_id)
+                        .context("Music file missing")?;
+                    Ok(crate::sound::ExportCue {
+                        cue,
+                        path: asset.path.clone(),
+                        hash: asset.hash.clone(),
+                        skip: 0.,
+                    })
+                })
+                .collect::<Result<_>>()?,
             captions: vec![],
             burn_captions: false,
             width: self.video_dimensions(480, 854).0,
@@ -313,9 +328,23 @@ impl Store {
             fps: 24,
         })
     }
+    #[cfg(test)]
     pub fn preview_episode_cut(&self, episode: &str, cut: &Cut) -> Result<crate::store::Job> {
+        self.preview_cut_at(episode, cut, 0.)
+    }
+    pub fn preview_cut_at(
+        &self,
+        episode: &str,
+        cut: &Cut,
+        origin: f64,
+    ) -> Result<crate::store::Job> {
         use rusqlite::OptionalExtension;
         let mut request = self.cut_export_request(episode, cut)?;
+        request.cues.retain_mut(|entry| {
+            entry.skip = (origin - entry.cue.start).max(0.);
+            entry.cue.start = (entry.cue.start - origin).max(0.);
+            entry.skip < entry.cue.duration
+        });
         (request.width, request.height) = self.video_dimensions(288, 512);
         let json = serde_json::to_string(&request)?;
         let existing: Option<String> = self.conn.query_row("SELECT id FROM jobs WHERE kind='export' AND prompt='Timeline preview' AND request=?1 AND status IN ('queued','running','completed') ORDER BY rowid DESC LIMIT 1", [&json], |r| r.get(0)).optional()?;
@@ -750,6 +779,80 @@ mod tests {
         assert!(frame.status.success());
         assert_eq!(frame.stdout.len(), 3);
         assert!(frame.stdout.iter().all(|v| *v < 8), "gap must render black");
+        // A cue starting inside the gap plays at the correct source offset after a seek.
+        let wav = root.join("music.wav");
+        let mut writer = hound::WavWriter::create(
+            &wav,
+            hound::WavSpec {
+                channels: 1,
+                sample_rate: 8000,
+                bits_per_sample: 16,
+                sample_format: hound::SampleFormat::Int,
+            },
+        )
+        .unwrap();
+        for n in 0..16000 {
+            writer
+                .write_sample(((n as f64 * 0.47).sin() * 8000.) as i16)
+                .unwrap();
+        }
+        writer.finalize().unwrap();
+        let music = store.import_audio(&wav).unwrap();
+        store
+            .save_audio_cue(
+                &crate::sound::AudioCue {
+                    id: uuid::Uuid::new_v4().to_string(),
+                    episode_id: episode.clone(),
+                    asset_id: music.id,
+                    name: "Score".into(),
+                    kind: "music".into(),
+                    start: 1.,
+                    source_start: 0.,
+                    duration: 1.5,
+                    gain_db: -6.,
+                    fade_in: 0.25,
+                    fade_out: 0.25,
+                },
+                None,
+            )
+            .unwrap();
+        assert_eq!(
+            store.cut_export_request(&episode, &cut).unwrap().cues.len(),
+            1
+        );
+        let seek = store
+            .preview_cut_at(&episode, &cut.playback_from(1.5), 1.5)
+            .unwrap();
+        crate::worker::run(store.path.clone(), true).unwrap();
+        let rendered = store.job(&seek.id).unwrap();
+        assert_eq!(rendered.status, "completed", "{}", rendered.error);
+        let mixed = store
+            .assets()
+            .unwrap()
+            .into_iter()
+            .find(|a| Some(&a.id) == rendered.output_id.as_ref())
+            .unwrap();
+        let pcm = std::process::Command::new(&ffmpeg)
+            .args(["-v", "error", "-i"])
+            .arg(mixed.path)
+            .args(["-vn", "-ac", "1", "-ar", "8000", "-f", "f32le", "pipe:1"])
+            .output()
+            .unwrap();
+        assert!(pcm.status.success());
+        let samples: Vec<_> = pcm
+            .stdout
+            .chunks_exact(4)
+            .map(|b| f32::from_le_bytes(b.try_into().unwrap()))
+            .collect();
+        let power = |from: usize, to: usize| samples[from..to].iter().map(|v| v * v).sum::<f32>();
+        assert!(
+            power(3000, 3800) > 0.05,
+            "score missing over silent picture"
+        );
+        assert!(
+            power(7600, 7950) < power(4000, 4350) * 0.1,
+            "score fade shifted after seek"
+        );
         drop(store);
         std::fs::remove_dir_all(root).unwrap();
     }

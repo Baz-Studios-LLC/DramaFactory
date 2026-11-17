@@ -749,6 +749,7 @@ impl Store {
                 });
                 if line.timeline_start.is_some() {
                     cues.push(crate::sound::ExportCue {
+                        skip: 0.,
                         cue: crate::sound::AudioCue {
                             id: line.id.clone(),
                             episode_id: episode.into(),
@@ -816,6 +817,7 @@ impl Store {
                 );
             }
             cues.push(crate::sound::ExportCue {
+                skip: 0.,
                 cue,
                 path: asset.path.clone(),
                 hash: asset.hash.clone(),

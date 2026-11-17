@@ -57,6 +57,14 @@ fn body(text: &str) -> &str {
     text.trim_end()
 }
 pub fn show(ui: &mut egui::Ui, cache: &mut egui_commonmark::CommonMarkCache, text: &str) {
+    // Raw provider output can contain a whole edit envelope on one line.
+    // Lay those lines out with egui's character-level fallback wrapping.
+    if text.split_whitespace().any(|token| token.len() > 1024)
+        || text.contains("The returned text is retained below for review;")
+    {
+        ui.add(egui::Label::new(text).wrap().selectable(true));
+        return;
+    }
     let mut cursor = 0;
     for list in lists(text) {
         ordinary(ui, cache, text[cursor..list.range.start].trim());

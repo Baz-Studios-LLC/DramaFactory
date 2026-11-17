@@ -152,10 +152,14 @@ pub fn parse_reply(text: &str) -> Result<Reply> {
             || reply.new_character.is_some()
             || reply.new_characters.is_some()
             || reply.plot.is_some()
-            || reply.episode.is_some()
             || reply.new_episodes.is_some())
     {
         bail!("Generation preparation cannot be combined with other document edits");
+    }
+    if let (Some(plan), Some(episode)) = (&reply.generation, &reply.episode)
+        && plan.episode_id != episode.episode_id
+    {
+        bail!("Segment and screenplay revisions must refer to the same episode");
     }
     if let Some(edit) = &reply.generation
         && serde_json::to_vec(edit)?.len() > 256 * 1024
@@ -253,6 +257,14 @@ pub fn undo(
 }
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn segment_and_screenplay_edits_can_target_the_same_episode() {
+        let mut response = serde_json::json!({"message":"Updated drafts","episode":{"episode_id":"a","screenplay":"Updated scene"},"generation":{"episode_id":"a","segments":[{"id":"s","prompt":"Closing shot","duration":22,"resolution":"480p"}]}});
+        assert!(super::parse_reply(&response.to_string()).is_ok());
+        response["generation"]["episode_id"] = "b".into();
+        assert!(super::parse_reply(&response.to_string()).is_err());
+    }
+
     use super::*;
     #[test]
     fn proposal_and_undo_never_clobber_intervening_draft_or_save() {

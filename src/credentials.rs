@@ -19,12 +19,14 @@ impl SessionKey {
 pub enum Provider {
     OpenRouter,
     OpenAi,
+    ElevenLabs,
 }
 impl Provider {
     #[cfg(target_os = "macos")]
     fn service(self) -> &'static str {
         match self {
             Self::OpenRouter => "studio.bazstudios.dramafactory.openrouter",
+            Self::ElevenLabs => "studio.bazstudios.dramafactory.elevenlabs",
             Self::OpenAi => "studio.bazstudios.dramafactory.openai",
         }
     }
@@ -32,9 +34,11 @@ impl Provider {
     fn session(self) -> Result<std::sync::MutexGuard<'static, SessionKey>> {
         static ROUTER: std::sync::Mutex<SessionKey> = std::sync::Mutex::new(SessionKey(None));
         static OPENAI: std::sync::Mutex<SessionKey> = std::sync::Mutex::new(SessionKey(None));
+        static MUSIC: std::sync::Mutex<SessionKey> = std::sync::Mutex::new(SessionKey(None));
         let session = match self {
             Self::OpenRouter => &ROUTER,
             Self::OpenAi => &OPENAI,
+            Self::ElevenLabs => &MUSIC,
         };
         session
             .lock()

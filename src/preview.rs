@@ -223,6 +223,10 @@ impl Preview {
             .lock()
             .map_or(0., |frames| frames.count as f64 / 24.)
     }
+    pub fn is_paused(&self) -> bool {
+        self.paused.load(Ordering::Relaxed)
+    }
+
     pub fn finished(&self) -> bool {
         self.shared
             .lock()

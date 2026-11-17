@@ -4,6 +4,8 @@ use anyhow::{Result, bail};
 pub struct ProviderSettings {
     key_input: String,
     openai_key: String,
+    music_key: String,
+    music_status: String,
     sidekick_connection: Option<crate::sidekick_provider::Connection>,
     sidekick_status: String,
     openai_pending: Option<std::sync::mpsc::Receiver<Result<String, String>>>,
@@ -80,6 +82,39 @@ impl crate::Studio {
                 }
             }
         }
+        Self::card(ui, |ui| {
+            ui.heading("ElevenLabs Music");
+            let settings = &mut self.provider_settings;
+            ui.add(
+                eframe::egui::TextEdit::singleline(&mut settings.music_key)
+                    .password(true)
+                    .hint_text("ElevenLabs API key"),
+            );
+            ui.horizontal(|ui| {
+                let provider = crate::credentials::Provider::ElevenLabs;
+                if ui.button("Save key").clicked() {
+                    settings.music_status = match validate_key(&settings.music_key)
+                        .and_then(|key| provider.save(key))
+                    {
+                        Ok(()) => {
+                            settings.music_key.clear();
+                            "Saved to Keychain".into()
+                        }
+                        Err(e) => e.to_string(),
+                    };
+                }
+                if ui.button("Remove key").clicked() {
+                    settings.music_status = match provider.remove() {
+                        Ok(()) => {
+                            settings.music_key.clear();
+                            "Key removed".into()
+                        }
+                        Err(e) => e.to_string(),
+                    };
+                }
+                ui.weak(&settings.music_status);
+            });
+        });
         Self::card(ui, |ui| {
             ui.heading("Sidekick");
             let connection = self.provider_settings.sidekick_connection.as_mut().unwrap();

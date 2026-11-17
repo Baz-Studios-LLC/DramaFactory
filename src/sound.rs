@@ -27,9 +27,14 @@ pub struct CueDraft {
 }
 #[derive(Clone, Serialize, Deserialize)]
 pub struct ExportCue {
+    #[serde(default, skip_serializing_if = "zero")]
+    pub skip: f64,
     pub cue: AudioCue,
     pub path: std::path::PathBuf,
     pub hash: String,
+}
+fn zero(value: &f64) -> bool {
+    *value == 0.
 }
 impl Store {
     pub fn import_audio(&self, path: &Path) -> Result<Asset> {

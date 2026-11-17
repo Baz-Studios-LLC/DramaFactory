@@ -23,6 +23,7 @@ mod directing_ui;
 mod editing;
 mod editing_room;
 mod editing_room_ui;
+mod episode_music;
 mod episode_ui;
 mod generation_plan;
 mod hosted_image;
@@ -131,6 +132,7 @@ struct Studio {
     publisher: publish_ui::Publisher,
     page: Page,
     asset_browser: asset_browser::AssetBrowser,
+    sidebar_collapsed: bool,
     sidekick_visible: bool,
     selected: Option<String>,
     episode_id: Option<String>,
@@ -233,6 +235,7 @@ impl Studio {
             publisher: Default::default(),
             page: Page::Synopsis,
             asset_browser: Default::default(),
+            sidebar_collapsed: false,
             sidekick_visible: true,
             selected,
             episode_id,
@@ -761,10 +764,14 @@ impl Studio {
                 .flatten()
                 .map(|(heading, _)| heading)
                 .unwrap_or_else(|| "Production details".into());
+            let bounds = ui.ctx().content_rect().shrink(12.);
             egui::Window::new(heading)
-                .id(selection_id.with("window"))
+                .id(selection_id.with("scrolling_window"))
+                .constrain_to(bounds)
+                .max_size((bounds.size() - egui::vec2(24., 80.)).max(egui::vec2(1., 1.)))
+                .vscroll(true)
                 .open(&mut open)
-                .default_width(560.)
+                .default_size(egui::vec2(560., 340.))
                 .resizable(true)
                 .show(ui.ctx(), |ui| {
                 let retryable_status =
@@ -772,11 +779,7 @@ impl Studio {
                 let uncertain_video = kind.as_deref() == Some("openrouter_video")
                     && retryable_status
                     && !self.store.video_retry_available(&job.id).unwrap_or(false);
-                egui::ScrollArea::vertical()
-                    .id_salt(("activity_card", &job.id))
-                    .max_height(230.)
-                    .auto_shrink([false, false])
-                    .show(ui, |ui| {
+
                 ui.horizontal(|ui| {
                     ui.label(
                         RichText::new(job.status.to_uppercase())
@@ -827,7 +830,6 @@ impl Studio {
                         "https://openrouter.ai/workspaces/default/logs?tab=videos",
                     );
                 }
-                    });
                 ui.add_space(12.);
                 ui.horizontal_wrapped(|ui| {
                     ui.spacing_mut().button_padding = egui::vec2(12., 8.);
@@ -1555,22 +1557,35 @@ impl eframe::App for Studio {
                     });
                 });
             });
+        let compact = self.sidebar_collapsed;
         egui::SidePanel::left("navigation")
-            .exact_width(224.)
+            .exact_width(if compact { 54. } else { 224. })
             .frame(
                 egui::Frame::new()
                     .fill(Color32::from_rgb(10, 12, 16))
-                    .inner_margin(18.),
+                    .inner_margin(if compact { 6. } else { 18. }),
             )
             .show(ctx, |ui| {
                 ui.spacing_mut().item_spacing.y = 5.;
                 ui.spacing_mut().button_padding = egui::vec2(8., 6.);
+                if compact {
+                    if crate::workflow_ui::sidebar_toggle(ui, true).clicked() {
+                        self.sidebar_collapsed = false;
+                    }
+                    self.workflow_navigation(ui, true);
+                    return;
+                }
                 ui.horizontal(|ui| {
                     ui.add(
                         egui::Image::new(egui::include_image!("../branding/icon.png"))
                             .fit_to_exact_size(Vec2::splat(36.)),
                     );
                     ui.label(RichText::new("DRAMAFACTORY").size(13.).strong());
+                    ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                        if crate::workflow_ui::sidebar_toggle(ui, false).clicked() {
+                            self.sidebar_collapsed = true;
+                        }
+                    });
                 });
                 ui.add_space(12.);
                 self.current_series_picker(ui);
@@ -1592,7 +1607,7 @@ impl eframe::App for Studio {
                     }
                 }
                 ui.add_space(8.);
-                self.workflow_navigation(ui);
+                self.workflow_navigation(ui, false);
             });
         egui::TopBottomPanel::top("workspace-toolbar")
             .frame(

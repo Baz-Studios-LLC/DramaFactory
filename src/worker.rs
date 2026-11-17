@@ -265,6 +265,9 @@ fn execute_export(store: &Store, id: &str) -> Result<()> {
                     cue.fade_out
                 ));
             }
+            if entry.skip > 0. {
+                graph.push_str(&format!(",atrim=start={},asetpts=PTS-STARTPTS", entry.skip));
+            }
             graph.push_str(&format!(
                 ",adelay={}S:all=1[cue{i}];",
                 (cue.start * 48000.).round() as u64

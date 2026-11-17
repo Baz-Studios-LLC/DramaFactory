@@ -69,6 +69,27 @@ pub const STAGES: [Stage; 7] = [
         actions: &[(Page::Publish, "Publish")],
     },
 ];
+pub(crate) fn sidebar_toggle(ui: &mut egui::Ui, compact: bool) -> egui::Response {
+    let label = if compact {
+        "Expand sidebar"
+    } else {
+        "Collapse sidebar"
+    };
+    let size = egui::vec2(if compact { ui.available_width() } else { 28. }, 28.);
+    let response = ui.add_sized(size, egui::Button::new("").frame(false));
+    response.widget_info(|| egui::WidgetInfo::labeled(egui::WidgetType::Button, true, label));
+    let rect = egui::Rect::from_center_size(response.rect.center(), egui::vec2(18., 14.));
+    let stroke = egui::Stroke::new(1.5, ui.style().interact(&response).fg_stroke.color);
+    ui.painter()
+        .rect_stroke(rect, 2., stroke, egui::StrokeKind::Inside);
+    let x = rect.left() + 5.;
+    ui.painter().line_segment(
+        [egui::pos2(x, rect.top()), egui::pos2(x, rect.bottom())],
+        stroke,
+    );
+    response.on_hover_text(label)
+}
+
 impl Studio {
     fn workflow_link(&mut self, ui: &mut egui::Ui, page: Page, label: &str, sidebar: bool) {
         let active = self.page == page;
@@ -91,11 +112,11 @@ impl Studio {
             self.page = page;
         }
     }
-    pub(crate) fn workflow_navigation(&mut self, ui: &mut egui::Ui) {
+    pub(crate) fn workflow_navigation(&mut self, ui: &mut egui::Ui, compact: bool) {
         if ui
             .add_enabled(
                 self.selected.is_some(),
-                crate::theme::primary("Save project")
+                crate::theme::primary(if compact { "💾" } else { "Save project" })
                     .min_size(egui::vec2(ui.available_width(), 32.)),
             )
             .on_hover_text("Save edits across every workspace in the current series")
@@ -103,9 +124,13 @@ impl Studio {
         {
             self.save_project();
         }
-        self.project_file_menu(ui);
-        ui.add_space(12.);
-        ui.label(RichText::new("WORKSPACE").size(10.).color(MUTED));
+        if !compact {
+            self.project_file_menu(ui);
+            ui.add_space(12.);
+            ui.label(RichText::new("WORKSPACE").size(10.).color(MUTED));
+        } else {
+            ui.separator();
+        }
         ui.add_space(4.);
         for (index, stage) in STAGES.iter().enumerate() {
             let active = stage.actions.iter().any(|(page, _)| *page == self.page);
@@ -132,25 +157,38 @@ impl Studio {
                     GOLD,
                 );
             }
-            ui.painter().text(
-                rect.left_center() + egui::vec2(14., 0.),
-                egui::Align2::LEFT_CENTER,
-                format!("{:02}", index + 1),
-                egui::FontId::proportional(11.),
-                if active { GOLD } else { MUTED },
-            );
             let label = if index == 1 {
                 "Characters & world"
             } else {
                 stage.actions[0].1
             };
-            ui.painter().text(
-                rect.left_center() + egui::vec2(42., 0.),
-                egui::Align2::LEFT_CENTER,
-                label,
-                egui::FontId::proportional(13.),
-                if active { crate::theme::TEXT } else { MUTED },
-            );
+            let response = if compact {
+                let icon = ["✎", "♟", "⌘", "▤", "▶", "✂", "↑"][index];
+                ui.painter().text(
+                    rect.center(),
+                    egui::Align2::CENTER_CENTER,
+                    icon,
+                    egui::FontId::proportional(20.),
+                    if active { GOLD } else { MUTED },
+                );
+                response.on_hover_text(label)
+            } else {
+                ui.painter().text(
+                    rect.left_center() + egui::vec2(14., 0.),
+                    egui::Align2::LEFT_CENTER,
+                    format!("{:02}", index + 1),
+                    egui::FontId::proportional(11.),
+                    if active { GOLD } else { MUTED },
+                );
+                ui.painter().text(
+                    rect.left_center() + egui::vec2(42., 0.),
+                    egui::Align2::LEFT_CENTER,
+                    label,
+                    egui::FontId::proportional(13.),
+                    if active { crate::theme::TEXT } else { MUTED },
+                );
+                response
+            };
             response.widget_info(|| {
                 egui::WidgetInfo::selected(egui::WidgetType::SelectableLabel, true, active, label)
             });
@@ -160,7 +198,21 @@ impl Studio {
             }
         }
         ui.with_layout(egui::Layout::bottom_up(egui::Align::LEFT), |ui| {
-            self.workflow_link(ui, Page::Settings, "Settings", true);
+            if compact {
+                if ui
+                    .add_sized(
+                        [ui.available_width(), 32.],
+                        egui::Button::new("⚙").selected(self.page == Page::Settings),
+                    )
+                    .on_hover_text("Settings")
+                    .clicked()
+                {
+                    self.stop_playback();
+                    self.page = Page::Settings;
+                }
+            } else {
+                self.workflow_link(ui, Page::Settings, "Settings", true);
+            }
             ui.separator();
         });
     }
