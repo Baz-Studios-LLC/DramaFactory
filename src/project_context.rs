@@ -208,8 +208,11 @@ impl Studio {
             .unwrap_or("Choose a series");
         eframe::egui::ComboBox::from_id_salt("global-series")
             .selected_text(name)
+            .height(ui.ctx().content_rect().height())
             .width(ui.available_width())
             .show_ui(ui, |ui| {
+                let local_ids: std::collections::HashSet<_> =
+                    series.iter().map(|s| s.id.clone()).collect();
                 for series in series {
                     if ui
                         .selectable_label(self.selected.as_ref() == Some(&series.id), &series.name)
@@ -217,6 +220,36 @@ impl Studio {
                         && self.select_series(&series.id)
                     {
                         ui.close();
+                    }
+                }
+                if !self.cloud_projects.projects.is_empty() {
+                    for project in self.cloud_projects.projects.clone() {
+                        // One row per project identity, regardless of its working-copy location.
+                        if project
+                            .series
+                            .as_ref()
+                            .is_some_and(|id| local_ids.contains(id))
+                        {
+                            continue;
+                        }
+                        if let Some(path) = project.path {
+                            if ui
+                                .selectable_label(path == self.store.path, &project.name)
+                                .clicked()
+                            {
+                                ui.close();
+                                self.open_discovered_project(path);
+                            }
+                        } else {
+                            ui.add_enabled(
+                                false,
+                                eframe::egui::Button::new(format!(
+                                    "{} · sync needs attention",
+                                    project.name
+                                )),
+                            )
+                            .on_disabled_hover_text(project.issue.unwrap_or_default());
+                        }
                     }
                 }
             });

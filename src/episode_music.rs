@@ -5,6 +5,32 @@ use eframe::egui;
 use serde_json::json;
 use std::{path::PathBuf, process::Command, sync::mpsc, time::Duration};
 
+#[derive(Clone, serde::Serialize, serde::Deserialize)]
+#[serde(deny_unknown_fields)]
+pub(crate) struct MusicDraft {
+    pub episode_id: String,
+    pub direction: String,
+    pub start: f64,
+    pub duration: f64,
+}
+impl MusicDraft {
+    pub(crate) fn validate(&self) -> Result<()> {
+        ensure!(!self.episode_id.is_empty(), "Choose an episode for music");
+        ensure!(
+            (1..=4100).contains(&self.direction.trim().chars().count()),
+            "Music direction must contain 1–4,100 characters"
+        );
+        ensure!(
+            self.start.is_finite()
+                && self.start >= 0.
+                && self.duration.is_finite()
+                && (3. ..=600.).contains(&self.duration),
+            "Music needs a valid start and 3–600 second duration"
+        );
+        Ok(())
+    }
+}
+
 enum Output {
     Direction(String),
     Take,
@@ -88,6 +114,27 @@ fn compose(
 }
 
 impl Panel {
+    pub(crate) fn busy(&self) -> bool {
+        self.pending.is_some()
+    }
+    pub(crate) fn snapshot(&self) -> serde_json::Value {
+        json!({"direction":self.direction,"from":self.from,"until":self.until,"custom":self.custom,"selected_clip":self.selected_clip})
+    }
+    pub(crate) fn prepare(&mut self, draft: &MusicDraft) -> Result<()> {
+        draft.validate()?;
+        ensure!(
+            self.pending.is_none(),
+            "Wait for the current music task to finish"
+        );
+        self.direction = draft.direction.clone();
+        self.from = draft.start;
+        self.until = draft.start + draft.duration;
+        self.custom = true;
+        self.selected_clip = false;
+        self.open = true;
+        self.status = "Sidekick prepared this instrumental score. Generate music sends a paid ElevenLabs request; no music has been generated yet.".into();
+        Ok(())
+    }
     fn run(&mut self, ctx: &egui::Context, work: impl FnOnce() -> Result<Output> + Send + 'static) {
         let (tx, rx) = mpsc::channel();
         self.pending = Some(rx);
@@ -263,6 +310,7 @@ impl Panel {
                             source_start: 0.,
                             duration,
                             gain_db: -18.,
+                            muted: false,
                             fade_in: 0.25,
                             fade_out: 1.,
                         };
@@ -272,7 +320,8 @@ impl Panel {
                         }
                     }
                 });
-                if let Some(old) = cues.iter().find(|c| c.asset_id == asset.id) {
+                for old in cues.iter().filter(|c| c.asset_id == asset.id) {
+                    ui.label(format!("{} · starts at {:.2}s", old.name, old.start));
                     let mut cue = old.clone();
                     ui.horizontal_wrapped(|ui| {
                         for (label, value, max) in [
@@ -290,6 +339,7 @@ impl Panel {
                                     .suffix("s"),
                             );
                         }
+                        ui.checkbox(&mut cue.muted, "Mute");
                         ui.label("Volume");
                         ui.add(
                             egui::DragValue::new(&mut cue.gain_db)
@@ -317,10 +367,17 @@ impl Panel {
                 }
             }
         };
-        egui::Window::new("Episode music")
-            .open(&mut open)
-            .vscroll(true)
-            .show(ui.ctx(), &mut contents);
+        ui.horizontal(|ui| {
+            ui.strong("Episode music");
+            if ui.small_button("Close").clicked() {
+                open = false;
+            }
+        });
+        ui.separator();
+        egui::ScrollArea::vertical()
+            .id_salt("docked-episode-music")
+            .auto_shrink([false, false])
+            .show(ui, &mut contents);
         self.open = open;
         changed
     }

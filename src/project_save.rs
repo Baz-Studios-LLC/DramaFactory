@@ -35,7 +35,18 @@ impl Studio {
                         Some((false, self.message.clone(), std::time::Instant::now()));
                     return;
                 }
-                _ => {}
+                Ok(None) => {
+                    match crate::portable_project::default_project_folder(&self.store, &series) {
+                        Ok(folder) => self.begin_portable_save(folder, None),
+                        Err(error) => {
+                            self.message =
+                                format!("Saved on this Mac; iCloud save needs attention: {error}");
+                            self.project_save_notice =
+                                Some((false, self.message.clone(), std::time::Instant::now()));
+                        }
+                    }
+                    return;
+                }
             }
         }
         self.project_save_notice =

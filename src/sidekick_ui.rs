@@ -398,6 +398,33 @@ impl Studio {
                     match result {
                         Ok(mut reply) => {
                             let mut text = reply.message;
+                            if let Some(music) = reply.music {
+                                let request: serde_json::Value = serde_json::from_str(
+                                    self.sidekick.request_context.as_deref().unwrap_or("{}"),
+                                )
+                                .unwrap_or_default();
+                                let result = (|| -> anyhow::Result<()> {
+                                    anyhow::ensure!(
+                                        request["episode_id"].as_str()
+                                            == Some(music.episode_id.as_str())
+                                            && self.episode_id.as_deref()
+                                                == Some(music.episode_id.as_str())
+                                            && self.selected.as_deref() == Some(series.as_str()),
+                                        "Episode changed; music draft was not applied"
+                                    );
+                                    self.editor.prepare_music(
+                                        &self.store,
+                                        &music,
+                                        &request["music_editor"],
+                                    )?;
+                                    self.page = crate::Page::EditingRoom;
+                                    Ok(())
+                                })();
+                                match result {
+                                    Ok(()) => text.push_str("\n\nMusic direction is ready in the Editing room. Click Generate music to authorize the paid ElevenLabs request. No music has been generated yet."),
+                                    Err(error) => text.push_str(&format!("\n\nMusic draft was not applied: {error}")),
+                                }
+                            }
                             if let Some(tasks) = reply.cast_queue.take() {
                                 let source =
                                     self.sidekick.request_context.as_deref().unwrap_or("{}");
@@ -739,6 +766,9 @@ impl Studio {
                 "available_episodes":self.store.episodes(&series).unwrap_or_default().iter().map(|episode|serde_json::json!({"id":episode.id,"title":episode.title})).collect::<Vec<_>>(),
                 "locations":self.store.library(&series,"location").unwrap_or_default().iter().map(|entry|serde_json::json!({"id":entry.id,"name":entry.name,"description":entry.description})).collect::<Vec<_>>(),
                 "episode_id":self.episode_id,
+                "music_editor":self.editor.music_context(),
+                "music_cut_duration":self.editor.music_cut_duration(&self.store, self.episode_id.as_deref()),
+                "music_capabilities":{"provider":"ElevenLabs","instrumental":true,"sidekick":"prepare direction and time range; user clicks Generate music to authorize payment","voices":false},
                 "episode_draft":episode_snapshot.as_ref().map(|d|serde_json::json!({"episode_id":d.episode_id,"screenplay":d.screenplay,"outline":d.plan.episodes.iter().find(|o|o.episode_id==d.episode_id)})),
                 "current_screenplay_draft":self.script,
                 "synopsis_draft":self.synopsis_drafts.get(&series),

@@ -16,6 +16,27 @@ fn release_number(tag: &str) -> Option<u32> {
 }
 
 fn main() {
+    println!("cargo:rerun-if-changed=native/TimelinePlayer.swift");
+    if std::env::var("CARGO_CFG_TARGET_OS").as_deref() == Ok("macos") {
+        let output =
+            std::path::PathBuf::from(std::env::var_os("OUT_DIR").unwrap()).join("timeline-player");
+        let status = Command::new("xcrun")
+            .args([
+                "swiftc",
+                "-O",
+                "-suppress-warnings",
+                "native/TimelinePlayer.swift",
+                "-o",
+            ])
+            .arg(&output)
+            .status()
+            .expect("Swift compiler required for native Mac playback");
+        assert!(
+            status.success(),
+            "Native timeline player compilation failed"
+        );
+    }
+
     println!("cargo:rerun-if-env-changed=DRAMAFACTORY_RELEASE_VERSION");
     println!("cargo:rerun-if-changed=build.rs");
     println!("cargo:rerun-if-changed=Cargo.toml");

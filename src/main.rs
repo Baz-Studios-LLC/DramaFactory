@@ -9,6 +9,7 @@ mod character_grid;
 mod character_profile;
 mod chat_images;
 mod chat_markdown;
+mod cliffhanger;
 mod completion;
 mod context_menus;
 mod credentials;
@@ -25,6 +26,7 @@ mod editing_room;
 mod editing_room_ui;
 mod episode_music;
 mod episode_ui;
+mod fal_video;
 mod generation_plan;
 mod hosted_image;
 mod hosted_video;
@@ -74,6 +76,7 @@ mod story_ui;
 mod synopsis;
 mod take_gallery;
 mod theme;
+mod timeline_preview;
 mod transitions;
 mod updater;
 mod updates;
@@ -156,6 +159,7 @@ struct Studio {
     library_reference: Option<PathBuf>,
     message: String,
     portable_task: Option<portable_project::Task>,
+    cloud_projects: portable_project::Discovery,
     project_save_notice: Option<(bool, String, std::time::Instant)>,
     config: WorkerConfig,
     update_rx: Option<std::sync::mpsc::Receiver<updates::UpdateStatus>>,
@@ -260,6 +264,7 @@ impl Studio {
             message: String::new(),
             project_save_notice: None,
             portable_task: None,
+            cloud_projects: Default::default(),
             config,
             update_rx: None,
             automatic_updates,
@@ -825,10 +830,10 @@ impl Studio {
                 }
                 if uncertain_video {
                     ui.label("Submission outcome unknown. Retrying is blocked to avoid a duplicate charge.");
-                    ui.hyperlink_to(
-                        "Check OpenRouter video logs",
-                        "https://openrouter.ai/workspaces/default/logs?tab=videos",
-                    );
+                    let fal = self.store.conn.query_row("SELECT request FROM jobs WHERE id=?1", [&job.id], |r|r.get::<_,String>(0)).ok()
+                        .and_then(|s|serde_json::from_str::<serde_json::Value>(&s).ok()).is_some_and(|v|v["fal"] == true);
+                    ui.hyperlink_to(if fal { "Check fal requests" } else { "Check OpenRouter video logs" },
+                        if fal { "https://fal.ai/dashboard/requests" } else { "https://openrouter.ai/workspaces/default/logs?tab=videos" });
                 }
                 ui.add_space(12.);
                 ui.horizontal_wrapped(|ui| {
@@ -1422,6 +1427,7 @@ impl Studio {
                                         source_start: 0.,
                                         duration,
                                         gain_db: if kind == "music" { -18. } else { -6. },
+                                        muted: false,
                                         fade_in: 0.,
                                         fade_out: 0.,
                                     };
@@ -1438,52 +1444,83 @@ impl Studio {
     }
     fn settings(&mut self, ui: &mut egui::Ui) {
         ui.set_max_width(ui.available_width().min(900.));
-        Self::title(
-            ui,
-            "STUDIO PREFERENCES",
-            "Made to stay yours.",
-            "AI connections, application updates, and project storage.",
-        );
-        if ui.button("Studio overview").clicked() {
-            self.page = Page::Studio;
-        }
-        self.provider_settings_panel(ui);
-        ui.add_space(18.);
-        Self::card(ui, |ui| {
-            ui.heading("Application updates");
-            if ui
-                .checkbox(
-                    &mut self.automatic_updates,
-                    "Download signed updates silently; install after exit",
-                )
-                .changed()
+        ui.heading("Settings");
+        ui.weak("Your providers, creative assistant, and Mac preferences.");
+        ui.add_space(16.);
+        ui.horizontal_wrapped(|ui| {
+            for (tab, label) in ["Connections", "Sidekick", "Application", "Advanced"]
+                .into_iter()
+                .enumerate()
             {
-                let r = self.store.set_automatic_updates(self.automatic_updates);
-                self.result(r, "Update preference saved");
+                ui.selectable_value(&mut self.provider_settings.tab, tab, label);
             }
-            ui.label(concat!(
-                env!("DF_PUBLIC_VERSION"),
-                " · MIT · Baz-Studios-LLC / DramaFactory"
-            ));
-            ui.label(&self.update_status);
-            if ui
-                .add_enabled(
-                    self.update_rx.is_none(),
-                    egui::Button::new("Check for updates"),
-                )
-                .clicked()
-            {
-                self.update_rx = Some(updates::check(
-                    self.store.path.clone(),
-                    self.automatic_updates,
-                ));
-                self.update_status = "Checking published releases…".into();
-            }
-            ui.label(RichText::new("Updates require a signature from Baz Studios and wait for active renders to finish. This local build is not Apple notarized.").color(MUTED));
         });
+        ui.separator();
+        ui.add_space(12.);
+        self.provider_settings_panel(ui);
+        if self.provider_settings.tab < 2 {
+            return;
+        }
+        if self.provider_settings.tab == 2 {
+            ui.add_space(18.);
+            Self::card(ui, |ui| {
+                ui.heading("Application updates");
+                if ui
+                    .checkbox(
+                        &mut self.automatic_updates,
+                        "Download signed updates silently; install after exit",
+                    )
+                    .changed()
+                {
+                    let r = self.store.set_automatic_updates(self.automatic_updates);
+                    self.result(r, "Update preference saved");
+                }
+                ui.label(concat!(
+                    env!("DF_PUBLIC_VERSION"),
+                    " · MIT · Baz-Studios-LLC / DramaFactory"
+                ));
+                ui.label(&self.update_status);
+                if ui
+                    .add_enabled(
+                        self.update_rx.is_none(),
+                        egui::Button::new("Check for updates"),
+                    )
+                    .clicked()
+                {
+                    self.update_rx = Some(updates::check(
+                        self.store.path.clone(),
+                        self.automatic_updates,
+                    ));
+                    self.update_status = "Checking published releases…".into();
+                }
+                ui.label(RichText::new("Updates require a signature from Baz Studios and wait for active renders to finish. This local build is not Apple notarized.").color(MUTED));
+            });
+            ui.add_space(18.);
+            Self::card(ui, |ui| {
+                ui.heading("Project library");
+                ui.weak("Projects live in iCloud Drive. Working copies stay on this Mac while you edit.");
+                match crate::portable_project::project_directory() {
+                    Ok(folder) => {
+                        ui.label(folder.display().to_string());
+                    }
+                    Err(error) => {
+                        ui.label(error.to_string());
+                    }
+                }
+                if ui.button("Refresh project library").clicked() {
+                    self.cloud_projects = Default::default();
+                }
+            });
+            return;
+        }
         ui.add_space(18.);
         Self::card(ui, |ui| {
-            ui.heading("MCP connection");
+            ui.heading("Developer tools");
+            if ui.button("Studio overview").clicked() {
+                self.page = Page::Studio;
+            }
+            ui.add_space(12.);
+            ui.label("MCP connection");
             ui.label("Local stdio · launched on demand by your MCP client");
             if let Ok(exe) = std::env::current_exe() {
                 ui.code(exe.display().to_string());
@@ -1497,7 +1534,11 @@ impl Studio {
             }
         });
         ui.add_space(18.);
-        ui.label(RichText::new("PROJECT STORAGE").color(GOLD).size(10.));
+        ui.label(
+            RichText::new("LOCAL WORKING DATABASE")
+                .color(GOLD)
+                .size(10.),
+        );
         ui.label(self.store.path.display().to_string());
     }
 }
@@ -1698,6 +1739,7 @@ impl eframe::App for Studio {
         self.image_inspector_window(ctx);
         self.project_save_confirmation(ctx);
         self.portable_progress(ctx);
+        self.cloud_project_progress(ctx);
         ctx.request_repaint_after(std::time::Duration::from_millis(500));
     }
     fn on_exit(&mut self, _: Option<&eframe::glow::Context>) {

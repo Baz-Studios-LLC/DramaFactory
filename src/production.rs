@@ -760,6 +760,7 @@ impl Store {
                             source_start: 0.,
                             duration: speech.duration,
                             gain_db: 0.,
+                            muted: false,
                             fade_in: 0.,
                             fade_out: 0.,
                         },

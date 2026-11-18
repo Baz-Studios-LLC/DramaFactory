@@ -17,6 +17,8 @@ pub struct AudioCue {
     pub source_start: f64,
     pub duration: f64,
     pub gain_db: f64,
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub muted: bool,
     pub fade_in: f64,
     pub fade_out: f64,
 }
@@ -86,6 +88,32 @@ impl Store {
             .find(|a| a.id == id)
             .context("Imported audio missing")
     }
+    /// Atomically apply a timeline gesture, including split/undo, with exact snapshots.
+    pub(crate) fn edit_audio_cues(&self, before: &[AudioCue], after: &[AudioCue]) -> Result<()> {
+        let tx = rusqlite::Transaction::new_unchecked(
+            &self.conn,
+            rusqlite::TransactionBehavior::Immediate,
+        )?;
+        for cue in before {
+            if self.audio_cue(&cue.id)?.as_ref() != Some(cue) {
+                bail!("Music changed since this edit. Reload before trying again.");
+            }
+        }
+        for cue in after {
+            let expected = before.iter().find(|old| old.id == cue.id);
+            if expected.is_none() && self.audio_cue(&cue.id)?.is_some() {
+                bail!("Music clip already exists; your edit was not applied.");
+            }
+            self.write_audio_cue(cue, expected)?;
+        }
+        for cue in before {
+            if !after.iter().any(|next| next.id == cue.id) {
+                tx.execute("DELETE FROM audio_cues WHERE id=?1", [&cue.id])?;
+            }
+        }
+        tx.commit()?;
+        Ok(())
+    }
     pub fn audio_cues(&self, episode: &str) -> Result<Vec<AudioCue>> {
         let values = self
             .conn
@@ -102,6 +130,11 @@ impl Store {
             &self.conn,
             rusqlite::TransactionBehavior::Immediate,
         )?;
+        self.write_audio_cue(cue, expected)?;
+        tx.commit()?;
+        Ok(())
+    }
+    fn write_audio_cue(&self, cue: &AudioCue, expected: Option<&AudioCue>) -> Result<()> {
         self.get_episode(&cue.episode_id)?;
         uuid::Uuid::parse_str(&cue.id).context("Invalid cue ID")?;
         if cue.name.trim().is_empty() || !["music", "sfx"].contains(&cue.kind.as_str()) {
@@ -147,7 +180,6 @@ impl Store {
                     bail!("Cue belongs to another episode");
                 }
                 if current == *cue {
-                    tx.commit()?;
                     return Ok(());
                 }
                 if expected != Some(&current) {
@@ -163,7 +195,6 @@ impl Store {
         }
 
         self.conn.execute("INSERT INTO audio_cues(id,episode_id,start,data) VALUES(?1,?2,?3,?4) ON CONFLICT(id) DO UPDATE SET start=excluded.start,data=excluded.data",params![cue.id,cue.episode_id,cue.start,serde_json::to_string(cue)?])?;
-        tx.commit()?;
         Ok(())
     }
     pub fn audio_cue(&self, id: &str) -> Result<Option<AudioCue>> {
@@ -194,5 +225,94 @@ impl Store {
         }
         tx.commit()?;
         Ok(())
+    }
+}
+
+#[cfg(test)]
+mod timeline_tests {
+    use super::*;
+    #[test]
+    fn split_undo_and_conflicts_are_atomic_and_preserve_source() {
+        let root = tempfile::tempdir().unwrap();
+        let store = Store::open(root.path().join("test.sqlite")).unwrap();
+        let series = store.create_series("Music test", "").unwrap();
+        let episode = store.create_episode(&series.id, "One").unwrap();
+        let path = root.path().join("source.wav");
+        let mut wav = hound::WavWriter::create(
+            &path,
+            hound::WavSpec {
+                channels: 1,
+                sample_rate: 8000,
+                bits_per_sample: 16,
+                sample_format: hound::SampleFormat::Int,
+            },
+        )
+        .unwrap();
+        for _ in 0..80000 {
+            wav.write_sample(1000_i16).unwrap();
+        }
+        wav.finalize().unwrap();
+        let asset = store.import_audio(&path).unwrap();
+        let original = AudioCue {
+            id: uuid::Uuid::new_v4().to_string(),
+            episode_id: episode.id.clone(),
+            asset_id: asset.id.clone(),
+            name: "Score".into(),
+            kind: "music".into(),
+            start: 1.,
+            source_start: 2.,
+            duration: 6.,
+            gain_db: -18.,
+            muted: false,
+            fade_in: 0.25,
+            fade_out: 0.5,
+        };
+        store.save_audio_cue(&original, None).unwrap();
+        let mut left = original.clone();
+        left.duration = 2.;
+        left.fade_out = 0.;
+        let mut right = original.clone();
+        right.id = uuid::Uuid::new_v4().to_string();
+        right.start = 3.;
+        right.source_start = 4.;
+        right.duration = 4.;
+        right.fade_in = 0.;
+        store
+            .edit_audio_cues(
+                std::slice::from_ref(&original),
+                &[left.clone(), right.clone()],
+            )
+            .unwrap();
+        assert_eq!(store.audio_cues(&episode.id).unwrap().len(), 2);
+        assert_eq!(crate::worker::hash_file(&asset.path).unwrap(), asset.hash);
+        store
+            .edit_audio_cues(
+                &[left.clone(), right.clone()],
+                std::slice::from_ref(&original),
+            )
+            .unwrap();
+        assert!(store.audio_cue(&right.id).unwrap().is_none());
+        let mut invalid = right.clone();
+        invalid.duration = 100.;
+        assert!(
+            store
+                .edit_audio_cues(std::slice::from_ref(&original), &[left.clone(), invalid])
+                .is_err()
+        );
+        assert!(store.audio_cue(&original.id).unwrap().as_ref() == Some(&original));
+        let mut newer = original.clone();
+        newer.gain_db = -12.;
+        store.save_audio_cue(&newer, Some(&original)).unwrap();
+        assert!(
+            store
+                .edit_audio_cues(std::slice::from_ref(&original), &[left, right.clone()])
+                .is_err()
+        );
+        assert!(store.audio_cue(&right.id).unwrap().is_none());
+        assert!(store.audio_cue(&original.id).unwrap().as_ref() == Some(&newer));
+        let mut json = serde_json::to_value(&original).unwrap();
+        assert!(json.get("muted").is_none());
+        json["muted"] = true.into();
+        assert!(serde_json::from_value::<AudioCue>(json).unwrap().muted);
     }
 }

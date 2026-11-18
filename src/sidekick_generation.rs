@@ -122,7 +122,7 @@ impl Studio {
         let context = serde_json::json!({
             "available_portraits":available_portraits,
             "video_aspect_ratio": self.store.video_aspect_ratio(),
-            "video_models":crate::video_plan::MODEL_CHOICES.iter().map(|m| serde_json::json!({"id":m.id,"clip_seconds":m.duration,"max_character_references":m.references})).collect::<Vec<_>>(),
+            "video_models":crate::video_plan::MODEL_CHOICES.iter().map(|m| serde_json::json!({"id":m.id,"clip_seconds":m.duration,"max_character_references":m.references,"assembled_prompt_character_limit":if m.id == "alibaba/wan-3.0" {Some(20000)} else {None::<usize>}})).collect::<Vec<_>>(),
             "series_id":series,
             "saved_episode":saved_episode,
             "screenplay_draft":self.script,

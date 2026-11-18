@@ -21,3 +21,7 @@ __pycache__/
 !.env.example
 *.p12
 *.pfx
+
+# Private local credential storage (defense in depth)
+*.credential
+DramaFactory-Credentials/

@@ -3,14 +3,32 @@ use crate::{
     editing_room::{Clip, Cut},
 };
 use eframe::egui;
+fn snap_music_position(value: f64, targets: &[f64], min: f64, max: f64, threshold: f64) -> f64 {
+    let value = value.clamp(min, max);
+    targets
+        .iter()
+        .copied()
+        .filter(|target| *target >= min && *target <= max && (*target - value).abs() <= threshold)
+        .min_by(|a, b| (a - value).abs().total_cmp(&(b - value).abs()))
+        .unwrap_or(value)
+}
+
+enum TimelineEdit {
+    Picture(Cut),
+    Music {
+        before: Vec<crate::sound::AudioCue>,
+        after: Vec<crate::sound::AudioCue>,
+    },
+}
 #[derive(Default)]
 pub struct Editor {
     episode: Option<String>,
     music: crate::episode_music::Panel,
+    cliffhanger: crate::cliffhanger::Panel,
     cut: Cut,
     saved: Cut,
-    undo: Vec<Cut>,
-    redo: Vec<Cut>,
+    undo: Vec<TimelineEdit>,
+    redo: Vec<TimelineEdit>,
     selected: Option<usize>,
     dragged: Option<usize>,
     drag_offset: f64,
@@ -18,11 +36,14 @@ pub struct Editor {
     trim_drag: Option<(usize, bool, Clip, f32)>,
     gesture_before: Option<Cut>,
     thumbnails: crate::take_gallery::Thumbnails,
-    player: Option<crate::media::Preview>,
+    player: Option<crate::timeline_preview::Player>,
     player_title: String,
     timeline_player: Option<Cut>,
+    music_mix_changed: bool,
+    selected_music: Option<String>,
+    music_drag_origin: f32,
+    music_drag: Option<(crate::sound::AudioCue, crate::sound::AudioCue, i8)>,
     timeline_origin: f64,
-    preview_job: Option<(String, Cut, f64)>,
     export_job: Option<String>,
     error: String,
     split_at: f64,
@@ -33,6 +54,57 @@ pub struct Editor {
     scrubbing: bool,
 }
 impl Editor {
+    pub(crate) fn music_cut_duration(
+        &self,
+        store: &crate::store::Store,
+        episode: Option<&str>,
+    ) -> Option<f64> {
+        let episode = episode?;
+        if self.episode.as_deref() == Some(episode) {
+            Some(self.cut.duration())
+        } else {
+            store.episode_cut(episode).ok().map(|cut| cut.duration())
+        }
+    }
+    pub(crate) fn music_context(&self) -> serde_json::Value {
+        serde_json::json!({"episode_id":self.episode,"draft":self.music.snapshot(),"cut_duration":self.cut.duration()})
+    }
+    pub(crate) fn prepare_music(
+        &mut self,
+        store: &crate::store::Store,
+        draft: &crate::episode_music::MusicDraft,
+        expected: &serde_json::Value,
+    ) -> anyhow::Result<()> {
+        anyhow::ensure!(
+            &self.music_context() == expected,
+            "Music settings changed while Sidekick replied. Your current draft is preserved."
+        );
+        draft.validate()?;
+        anyhow::ensure!(
+            !self.music.busy(),
+            "Wait for the current music task to finish"
+        );
+        if self.episode.as_deref() != Some(&draft.episode_id) {
+            let cut = store.episode_cut(&draft.episode_id)?;
+            anyhow::ensure!(
+                draft.start + draft.duration <= cut.duration() + 0.01,
+                "Assemble an episode cut covering this music range first"
+            );
+            let series = store.get_episode(&draft.episode_id)?.series_id;
+            self.save_for_series(store, &series)?;
+            *self = Self {
+                episode: Some(draft.episode_id.clone()),
+                cut: cut.clone(),
+                saved: cut,
+                ..Default::default()
+            };
+        }
+        anyhow::ensure!(
+            draft.start + draft.duration <= self.cut.duration() + 0.01,
+            "Music range exceeds the current episode cut"
+        );
+        self.music.prepare(draft)
+    }
     pub(crate) fn save_for_series(
         &mut self,
         store: &crate::store::Store,
@@ -49,9 +121,56 @@ impl Editor {
         Ok(())
     }
 
+    fn music_edit(
+        &mut self,
+        store: &crate::store::Store,
+        before: Vec<crate::sound::AudioCue>,
+        after: Vec<crate::sound::AudioCue>,
+    ) {
+        if before == after {
+            return;
+        }
+        match store.edit_audio_cues(&before, &after) {
+            Ok(()) => {
+                self.undo.push(TimelineEdit::Music { before, after });
+                self.redo.clear();
+                self.music_mix_changed = true;
+                self.error.clear();
+            }
+            Err(error) => self.error = error.to_string(),
+        }
+    }
+    fn apply_history(&mut self, store: &crate::store::Store, redo: bool) {
+        let stack = if redo { &mut self.redo } else { &mut self.undo };
+        let Some(edit) = stack.pop() else {
+            return;
+        };
+        let inverse = match edit {
+            TimelineEdit::Picture(cut) => {
+                TimelineEdit::Picture(std::mem::replace(&mut self.cut, cut))
+            }
+            TimelineEdit::Music { before, after } => {
+                let result = if redo {
+                    store.edit_audio_cues(&before, &after)
+                } else {
+                    store.edit_audio_cues(&after, &before)
+                };
+                if let Err(error) = result {
+                    self.error = error.to_string();
+                    let stack = if redo { &mut self.redo } else { &mut self.undo };
+                    stack.push(TimelineEdit::Music { before, after });
+                    return;
+                }
+                self.music_mix_changed = true;
+                TimelineEdit::Music { before, after }
+            }
+        };
+        let stack = if redo { &mut self.undo } else { &mut self.redo };
+        stack.push(inverse);
+        self.error.clear();
+    }
     pub fn stop(&mut self) {
         self.player = None;
-        self.preview_job = None;
         self.timeline_player = None;
         self.scrubber = Default::default();
         self.scrubbing = false;
@@ -88,11 +207,23 @@ impl Studio {
         } else {
             9. / 16.
         };
+        let music_docked = self.editor.music.open || self.editor.cliffhanger.open;
+        let viewer_fraction = if music_docked { 0.36 } else { 0.58 };
         let viewer_width = (viewer_height * aspect)
             .max(156.)
-            .min((workspace.width() * 0.58).max(156.));
+            .min((workspace.width() * viewer_fraction).max(156.));
         let left_width = (workspace.width() - viewer_width - 20.).max(220.);
-        ui.set_max_width(left_width);
+        let dock_width = if music_docked {
+            (left_width * 0.48).clamp(180., 380.)
+        } else {
+            0.
+        };
+        let pool_width = if music_docked {
+            (left_width - dock_width - 12.).max(120.)
+        } else {
+            left_width
+        };
+        ui.set_max_width(pool_width);
         ui.heading("Editing room");
         self.episode_picker(ui);
         let Some(episode) = self.episode_id.clone() else {
@@ -128,6 +259,29 @@ impl Studio {
                 }
             }
         }
+        if let Some(result) = state.cliffhanger.poll() {
+            match result {
+                Ok((expected, next)) if state.cut == expected => {
+                    match self.store.save_episode_cut(&episode, &expected, &next) {
+                        Ok(()) => {
+                            state.undo.push(TimelineEdit::Picture(expected));
+                            state.redo.clear();
+                            state.cut = next.clone();
+                            state.saved = next;
+                            state.stop();
+                            state.cliffhanger.status="Ending added. Play the timeline to review; Undo restores your previous cut.".into();
+                            state.cliffhanger.open = false;
+                        }
+                        Err(e) => state.cliffhanger.status = e.to_string(),
+                    }
+                }
+                Ok(_) => {
+                    state.cliffhanger.status =
+                        "Timeline changed while rendering. Your current edit was preserved.".into()
+                }
+                Err(e) => state.cliffhanger.status = e.to_string(),
+            }
+        }
         let before = state.cut.clone();
         let mut history_action = false;
         let assets = match self.store.assets() {
@@ -140,12 +294,12 @@ impl Studio {
         let ffmpeg = self.store.config().map(|c| c.ffmpeg).unwrap_or_default();
         let mut play = None;
         let mut play_timeline = space;
-        let mut open_timeline = false;
         let total = state.cut.duration();
         let undo_shortcut = !editing_text
             && !state.undo.is_empty()
             && state.dragged.is_none()
             && state.trim_drag.is_none()
+            && state.music_drag.is_none()
             && ui.input_mut(|input| input.consume_key(egui::Modifiers::COMMAND, egui::Key::Z));
         ui.horizontal_wrapped(|ui| {
             ui.label(format!("{} clips · {:.1}s", state.cut.clips.len(), total));
@@ -155,8 +309,7 @@ impl Studio {
                 .clicked()
                 || undo_shortcut
             {
-                state.redo.push(state.cut.clone());
-                state.cut = state.undo.pop().unwrap();
+                state.apply_history(&self.store, false);
                 state.selected = None;
                 history_action = true;
             }
@@ -164,8 +317,7 @@ impl Studio {
                 .add_enabled(!state.redo.is_empty(), egui::Button::new("Redo"))
                 .clicked()
             {
-                state.undo.push(state.cut.clone());
-                state.cut = state.redo.pop().unwrap();
+                state.apply_history(&self.store, true);
                 state.selected = None;
                 history_action = true;
             }
@@ -179,7 +331,11 @@ impl Studio {
                 let result = self
                     .store
                     .save_episode_cut(&episode, &state.saved, &state.cut)
-                    .and_then(|()| self.store.export_episode_cut(&episode, &state.cut))
+                    .and_then(|()| {
+                        // Saving succeeded even if exporting or launching the worker fails.
+                        state.saved = state.cut.clone();
+                        self.store.export_episode_cut(&episode, &state.cut)
+                    })
                     .and_then(|job| {
                         crate::worker::spawn_detached(&self.store.path)?;
                         Ok(job)
@@ -200,20 +356,87 @@ impl Studio {
             });
         });
         if ui.button("♫  Music").clicked() {
+            state.cliffhanger.open = false;
             state.music.open = true;
         }
-        if state.music.show(
-            ui,
-            &self.store,
-            &episode,
-            &state.cut,
-            state.selected,
-            &assets,
-        ) {
-            state.stop();
+        let music_before = self.store.audio_cues(&episode).ok();
+        let music_rect = egui::Rect::from_min_size(
+            egui::pos2(workspace.left() + pool_width + 12., workspace.top()),
+            egui::vec2(
+                dock_width.max(180.),
+                (upper_height
+                    - self
+                        .store
+                        .audio_cues(&episode)
+                        .map_or(0., |c| c.len() as f32 * 24.))
+                .max(80.),
+            ),
+        );
+        let mut music_ui = ui.new_child(
+            egui::UiBuilder::new()
+                .id_salt("music-inspector")
+                .max_rect(music_rect),
+        );
+        music_ui.set_clip_rect(music_rect.intersect(ui.clip_rect()));
+        let music_changed = if music_docked {
+            egui::Frame::new()
+                .fill(crate::theme::SURFACE)
+                .corner_radius(6)
+                .inner_margin(10.)
+                .show(&mut music_ui, |ui| {
+                    if state.cliffhanger.open {
+                        egui::ScrollArea::vertical()
+                            .id_salt("cliffhanger-setup-scroll")
+                            .show(ui, |ui| state.cliffhanger.show(ui, &self.store, &episode));
+                        false
+                    } else {
+                        state.music.show(
+                            ui,
+                            &self.store,
+                            &episode,
+                            &state.cut,
+                            state.selected,
+                            &assets,
+                        )
+                    }
+                })
+                .inner
+        } else {
+            false
+        };
+        if music_changed {
+            // Keep the rendered preview playing; rebuild its mix on the next start.
+            state.music_mix_changed = true;
+            if let Some(before) = music_before
+                && let Ok(after) = self.store.audio_cues(&episode)
+                && before != after
+            {
+                state.undo.push(TimelineEdit::Music { before, after });
+                state.redo.clear();
+            }
+        }
+        if state.music_mix_changed {
+            ui.weak("Music changes saved.");
         }
         let music = self.store.audio_cues(&episode).unwrap_or_default();
-        let music_height = if music.is_empty() { 0. } else { 22. };
+        if state.music_mix_changed
+            && state.timeline_player.is_some()
+            && let Some(player) = &mut state.player
+        {
+            match crate::timeline_preview::manifest(
+                &state.cut,
+                &music,
+                &assets,
+                self.store.video_aspect_ratio(),
+                state.playhead,
+            )
+            .and_then(|m| player.update_mix(m))
+            {
+                Ok(()) => state.music_mix_changed = false,
+                Err(error) => state.error = error.to_string(),
+            }
+        }
+        let music_height = music.len() as f32 * 24.;
         let upper_height = (upper_height - music_height).max(80.);
         if !state.error.is_empty() {
             ui.colored_label(crate::GOLD, &state.error);
@@ -241,30 +464,6 @@ impl Studio {
             });
         }
         ui.add_space(4.);
-        if let Some((id, cut, origin)) = state.preview_job.clone() {
-            if cut != state.cut {
-                state.preview_job = None;
-            } else if let Ok(job) = self.store.job(&id) {
-                if job.status == "completed" {
-                    if let Some(asset) = assets
-                        .iter()
-                        .find(|asset| Some(&asset.id) == job.output_id.as_ref())
-                    {
-                        play = Some((asset.id.clone(), "Timeline".into()));
-                        state.timeline_origin = origin;
-                        state.timeline_player = Some(cut);
-                        open_timeline = true;
-                        state.preview_job = None;
-                    }
-                } else if job.status == "failed" || job.status == "canceled" {
-                    state.error = job.error;
-                    state.preview_job = None;
-                } else {
-                    ui.ctx()
-                        .request_repaint_after(std::time::Duration::from_millis(100));
-                }
-            }
-        }
         if state.timeline_player.is_some()
             && let Some(player) = &state.player
         {
@@ -461,9 +660,7 @@ impl Studio {
                         crate::MUTED,
                     );
                 }
-                let caption = if state.preview_job.is_some() {
-                    "Preparing playback…".to_owned()
-                } else if state.scrubbing {
+                let caption = if state.scrubbing {
                     format!("Timeline · {:.2}s", state.playhead)
                 } else {
                     String::new()
@@ -471,6 +668,56 @@ impl Studio {
                 ui.put(
                     caption_rect,
                     egui::Label::new(egui::RichText::new(caption).small()).truncate(),
+                );
+            }
+            let interaction = ui.interact(
+                video_rect,
+                ui.id().with("cliffhanger-viewer"),
+                egui::Sense::click(),
+            );
+            interaction.context_menu(|ui| {
+                if ui
+                    .add_enabled(
+                        state.cut.source_at(state.playhead).is_some()
+                            && (state.timeline_player.is_some() || state.scrubbing)
+                            && !state.cliffhanger.busy(),
+                        egui::Button::new("Create cliffhanger ending"),
+                    )
+                    .clicked()
+                {
+                    if let Some(player) = &mut state.player
+                        && !player.is_paused()
+                        && !player.finished()
+                    {
+                        let _ = player.toggle_playback();
+                    }
+                    state.cliffhanger.begin(&state.cut, state.playhead);
+                    state.music.open = false;
+                    ui.close();
+                }
+            });
+            if state.cliffhanger.open {
+                if interaction.clicked()
+                    && !state.cliffhanger.busy()
+                    && let Some(pos) = interaction.interact_pointer_pos()
+                {
+                    state.cliffhanger.recipe.x =
+                        ((pos.x - video_rect.left()) / video_rect.width()).clamp(0., 1.) as f64;
+                    state.cliffhanger.recipe.y =
+                        ((pos.y - video_rect.top()) / video_rect.height()).clamp(0., 1.) as f64;
+                    play_timeline = false;
+                }
+                let r = &state.cliffhanger.recipe;
+                let size = video_rect.size() / r.zoom as f32;
+                let left = (video_rect.left() + r.x as f32 * video_rect.width() - size.x / 2.)
+                    .clamp(video_rect.left(), video_rect.right() - size.x);
+                let top = (video_rect.top() + r.y as f32 * video_rect.height() - size.y / 2.)
+                    .clamp(video_rect.top(), video_rect.bottom() - size.y);
+                ui.painter().rect_stroke(
+                    egui::Rect::from_min_size(egui::pos2(left, top), size),
+                    3,
+                    egui::Stroke::new(2., crate::GOLD),
+                    egui::StrokeKind::Inside,
                 );
             }
         }
@@ -484,10 +731,7 @@ impl Studio {
         ui.horizontal(|ui| {
             ui.strong("Timeline");
             if ui
-                .add_enabled(
-                    !state.cut.clips.is_empty() && state.preview_job.is_none(),
-                    egui::Button::new("▶ / ⏸"),
-                )
+                .add_enabled(!state.cut.clips.is_empty(), egui::Button::new("▶ / ⏸"))
                 .on_hover_text("Play / pause timeline · Space")
                 .clicked()
             {
@@ -568,19 +812,202 @@ impl Studio {
                     egui::FontId::proportional(12.),
                     crate::theme::TEXT,
                 );
-                for cue in &music {
+                for (lane, saved_cue) in music.iter().enumerate() {
+                    let y = y + lane as f32 * 24.;
+                    let cue = state
+                        .music_drag
+                        .as_ref()
+                        .filter(|(old, _, _)| old.id == saved_cue.id)
+                        .map(|(_, draft, _)| draft)
+                        .unwrap_or(saved_cue)
+                        .clone();
                     let rect = egui::Rect::from_min_size(
                         egui::pos2(origin + cue.start as f32 * scale, y),
                         egui::vec2(cue.duration as f32 * scale, 20.),
                     );
                     painter.rect_filled(rect, 3, egui::Color32::from_rgb(97, 64, 121));
-                    if ui
-                        .interact(rect, ui.id().with(&cue.id), egui::Sense::click())
-                        .on_hover_text(&cue.name)
-                        .clicked()
-                    {
-                        state.music.open = true;
+                    painter.with_clip_rect(rect.intersect(ui.clip_rect())).text(
+                        rect.left_center() + egui::vec2(10., 0.),
+                        egui::Align2::LEFT_CENTER,
+                        if cue.muted { format!("{} · Muted", cue.name) } else { cue.name.clone() },
+                        egui::FontId::proportional(11.),
+                        crate::theme::TEXT,
+                    );
+                    let handle = 6_f32.min(rect.width() / 3.);
+                    for x in [rect.left() + 2., rect.right() - 2.] {
+                        painter.line_segment(
+                            [egui::pos2(x, y + 4.), egui::pos2(x, y + 16.)],
+                            egui::Stroke::new(2., crate::theme::TEXT),
+                        );
                     }
+                    let response = ui.interact(
+                        rect,
+                        ui.id().with(("music-cue", &cue.id)),
+                        egui::Sense::click_and_drag(),
+                    );
+                    let edge = response
+                        .hover_pos()
+                        .map(|pos| {
+                            if pos.x < rect.left() + handle {
+                                -1
+                            } else if pos.x > rect.right() - handle {
+                                1
+                            } else {
+                                0
+                            }
+                        })
+                        .unwrap_or(0);
+                    if response.hovered() {
+                        ui.ctx().set_cursor_icon(if edge == 0 {
+                            egui::CursorIcon::Grab
+                        } else {
+                            egui::CursorIcon::ResizeHorizontal
+                        });
+                    }
+                    if response.drag_started() {
+                        let press = ui.input(|i| i.pointer.press_origin());
+                        state.music_drag_origin = press.map_or(rect.left(), |pos| pos.x);
+                        let mode = press
+                            .map(|pos| {
+                                if pos.x < rect.left() + handle {
+                                    -1
+                                } else if pos.x > rect.right() - handle {
+                                    1
+                                } else {
+                                    0
+                                }
+                            })
+                            .unwrap_or(0);
+                        state.music_drag = Some((saved_cue.clone(), saved_cue.clone(), mode));
+                    }
+                    if response.dragged()
+                        && let Some((old, draft, mode)) = &mut state.music_drag
+                        && old.id == cue.id
+                    {
+                        let delta = response.interact_pointer_pos().map_or(0., |pos| (pos.x - state.music_drag_origin) as f64 / scale as f64);
+                        *draft = old.clone();
+                        let threshold = 8. / f64::from(scale);
+                        let playhead = state.playhead;
+                        let mut trim_targets = vec![playhead - old.start];
+                        for (index, clip) in state.cut.clips.iter().enumerate() {
+                            let start = state.cut.clip_time(index);
+                            trim_targets.extend([start - old.start, start + clip.duration - old.start]);
+                        }
+                        match *mode {
+                            -1 => {
+                                let delta = snap_music_position(delta, &trim_targets,
+                                    -old.start.min(old.source_start),
+                                    (old.duration - 0.01).max(0.), threshold);
+
+                                draft.start += delta;
+                                draft.source_start += delta;
+                                draft.duration -= delta;
+                            }
+                            1 => {
+                                let available = assets
+                                    .iter()
+                                    .find(|a| a.id == old.asset_id)
+                                    .map(|a| a.duration - old.source_start)
+                                    .unwrap_or(old.duration);
+                                draft.duration = snap_music_position(old.duration + delta,
+                                    &trim_targets, 0.01_f64.min(available), available.min(1800.), threshold);
+                            }
+                            _ => draft.start = snap_music_position(old.start + delta,
+                                &[playhead, playhead - old.duration], 0., 1800., threshold),
+                        }
+                        draft.fade_in = draft.fade_in.min(draft.duration);
+                        draft.fade_out = draft.fade_out.min(draft.duration - draft.fade_in);
+                        ui.ctx().request_repaint();
+                    }
+                    if response.drag_stopped()
+                        && let Some((old, draft, _)) = state.music_drag.take()
+                        && draft != old
+                    {
+                        state.music_edit(&self.store, vec![old], vec![draft]);
+                    }
+                    if response.clicked() || response.drag_started() || response.secondary_clicked() {
+                        state.selected_music = Some(cue.id.clone());
+                        state.selected = None;
+                    }
+                    if state.selected_music.as_deref() == Some(&cue.id) {
+                        painter.rect_stroke(rect, 3, egui::Stroke::new(2., crate::GOLD), egui::StrokeKind::Inside);
+                    }
+                    if response.double_clicked() { state.music.open = true; }
+                    response.context_menu(|ui| {
+                        let offset = state.playhead - cue.start;
+                        let mut edited = cue.clone();
+                        let available = assets.iter().find(|a| a.id == cue.asset_id).map_or(cue.source_start + cue.duration, |a| a.duration);
+                        ui.menu_button("Position & trim", |ui| {
+                            for (label, value, max) in [
+                                ("Position", &mut edited.start, 1800.),
+                                ("Trim in", &mut edited.source_start, (available - 0.01).max(0.)),
+                                ("Length", &mut edited.duration, available),
+                            ] {
+                                ui.horizontal(|ui| { ui.label(label); ui.add(egui::DragValue::new(value).speed(0.05).range(0. ..=max).suffix("s")); });
+                            }
+                            if ui.button("Reset trim").clicked() { edited.source_start = 0.; edited.duration = available.min(1800.); }
+                            if ui.button("Move to playhead").clicked() { edited.start = state.playhead.min(1800.); }
+                        });
+                        ui.menu_button("Sound", |ui| {
+                            ui.checkbox(&mut edited.muted, "Mute");
+                            ui.horizontal(|ui| { ui.label("Volume"); ui.add(egui::DragValue::new(&mut edited.gain_db).speed(0.5).range(-60. ..=12.).suffix(" dB")); });
+                            for (label, value) in [("Fade in", &mut edited.fade_in), ("Fade out", &mut edited.fade_out)] {
+                                ui.horizontal(|ui| { ui.label(label); ui.add(egui::DragValue::new(value).speed(0.05).range(0. ..=cue.duration).suffix("s")); });
+                            }
+                        });
+                        edited.duration = edited.duration.max(0.01).min(available - edited.source_start).min(1800.);
+                        edited.fade_in = edited.fade_in.min(edited.duration);
+                        edited.fade_out = edited.fade_out.min(edited.duration - edited.fade_in);
+                        if edited != cue { state.music_edit(&self.store, vec![cue.clone()], vec![edited]); }
+
+                        if ui.add_enabled(offset > 0.01 && offset < cue.duration - 0.01, egui::Button::new("Split at playhead")).clicked() {
+                            let mut left = cue.clone();
+                            let mut right = cue.clone();
+                            left.duration = offset;
+                            left.fade_in = left.fade_in.min(offset);
+                            left.fade_out = 0.;
+                            right.id = uuid::Uuid::new_v4().to_string();
+                            right.start += offset;
+                            right.source_start += offset;
+                            right.duration -= offset;
+                            right.fade_in = 0.;
+                            right.fade_out = right.fade_out.min(right.duration);
+                            state.music_edit(&self.store, vec![cue.clone()], vec![left, right]);
+                            ui.close();
+                        }
+                        if ui.button("Duplicate").clicked() {
+                            let mut copy = cue.clone();
+                            copy.id = uuid::Uuid::new_v4().to_string();
+                            copy.start = (copy.start + copy.duration).min(1800.);
+                            state.music_edit(&self.store, vec![], vec![copy]);
+                            ui.close();
+                        }
+                        if ui.button("Ripple delete music").on_hover_text("Remove this cue and close its gap in later music cues; video stays in place.").clicked() {
+                            let mut before = vec![cue.clone()];
+                            let mut after = Vec::new();
+                            for later in music.iter().filter(|c| c.id != cue.id && c.start >= cue.start + cue.duration) {
+                                before.push(later.clone());
+                                let mut shifted = later.clone();
+                                shifted.start -= cue.duration;
+                                after.push(shifted);
+                            }
+                            state.music_edit(&self.store, before, after);
+                            state.selected_music = None;
+                            ui.close();
+                        }
+                        if ui.button("Remove").clicked() {
+                            state.music_edit(&self.store, vec![cue.clone()], vec![]);
+                            state.selected_music = None;
+                            ui.close();
+                        }
+                        if ui.button("Position, trim, volume & fades…").clicked() {
+                            state.music.open = true;
+                            ui.close();
+                        }
+                    });
+                    response.on_hover_text(
+                        "Drag to move · drag edges to trim · double-click for volume and fades · right-click for editing",
+                    );
                 }
             }
             let step = if scale < 8. {
@@ -620,7 +1047,7 @@ impl Studio {
                 && let Some(pos) = ruler_response.interact_pointer_pos()
             {
                 state.timeline_player = None;
-                state.preview_job = None;
+
                 state.player = None;
                 state.scrubbing = true;
                 state.playhead = (f64::from((pos.x - origin) / scale)).clamp(0., total);
@@ -629,6 +1056,7 @@ impl Studio {
                     let start = state.cut.clip_time(index);
                     if state.playhead >= start && state.playhead < start + clip.duration {
                         state.selected = Some(index);
+                        state.selected_music = None;
                         state.split_at = state.playhead - start;
                         break;
                     }
@@ -907,10 +1335,11 @@ impl Studio {
                 }
                 if response.clicked() {
                     state.timeline_player = None;
-                    state.preview_job = None;
+
                     state.player = None;
                     state.scrubbing = true;
                     state.selected = Some(index);
+                        state.selected_music = None;
                     state.split_at = response
                         .interact_pointer_pos()
                         .map_or(clip.duration / 2., |p| {
@@ -947,6 +1376,7 @@ impl Studio {
                     );
                     if handle.drag_started() {
                         state.selected = Some(index);
+                        state.selected_music = None;
                         state.gesture_before = Some(state.cut.clone());
                         state.trim_drag = Some((
                             index,
@@ -960,6 +1390,7 @@ impl Studio {
                 if response.drag_started() && state.trim_drag.is_none() {
                     state.dragged = Some(index);
                     state.selected = Some(index);
+                        state.selected_music = None;
                     state.drag_offset = ui
                         .input(|i| i.pointer.press_origin())
                         .map_or(0., |p| f64::from((p.x - rect.left()) / scale));
@@ -1166,7 +1597,7 @@ impl Studio {
             if let Some(original) = state.gesture_before.take()
                 && original != state.cut
             {
-                state.undo.push(original);
+                state.undo.push(TimelineEdit::Picture(original));
                 state.redo.clear();
                 history_action = true;
             }
@@ -1184,6 +1615,12 @@ impl Studio {
             && ui.input(|input| input.events.iter().any(|event| matches!(event,
                 egui::Event::Key { key: egui::Key::Delete | egui::Key::Backspace, pressed: true, repeat: false, modifiers, .. } if modifiers.is_none()
             )));
+        if delete_selected
+            && let Some(id) = state.selected_music.take()
+            && let Some(cue) = music.iter().find(|cue| cue.id == id)
+        {
+            state.music_edit(&self.store, vec![cue.clone()], vec![]);
+        }
         if let Some(index) = state.selected.filter(|i| *i < state.cut.clips.len())
             && delete_selected
         {
@@ -1217,13 +1654,12 @@ impl Studio {
             state.selected = None;
         }
         if state.cut != before {
-            state.preview_job = None;
             // A slide edits the cut without interrupting the preview already in flight.
             if slide.is_none() && state.timeline_player.take().is_some() {
                 state.player = None;
             }
             if !history_action && state.gesture_before.is_none() {
-                state.undo.push(before);
+                state.undo.push(TimelineEdit::Picture(before));
                 if state.undo.len() > 100 {
                     state.undo.remove(0);
                 }
@@ -1259,20 +1695,17 @@ impl Studio {
                 .scrubber
                 .request(ui.ctx(), &ffmpeg, &asset.path, source_time);
         }
-        if play_timeline && !open_timeline {
+        if play_timeline {
             // Timeline transport wins over any source-preview request this frame.
             play = None;
         }
-        if play_timeline
-            && !open_timeline
-            && !state.cut.clips.is_empty()
-            && state.preview_job.is_none()
-        {
+        if play_timeline && !state.cut.clips.is_empty() {
             if state.timeline_player.is_some()
                 && state.player.as_ref().is_some_and(|player| {
                     !player.finished()
                         && (!player.is_paused()
-                            || state.timeline_player.as_ref() == Some(&state.cut))
+                            || (!state.music_mix_changed
+                                && state.timeline_player.as_ref() == Some(&state.cut)))
                 })
             {
                 if let Some(player) = &mut state.player
@@ -1288,19 +1721,22 @@ impl Studio {
                 } else {
                     state.playhead
                 };
-                let playback_cut = state.cut.playback_from(origin);
-                match self
-                    .store
-                    .preview_cut_at(&episode, &playback_cut, origin)
-                    .and_then(|job| {
-                        if job.status != "completed" {
-                            crate::worker::spawn_detached(&self.store.path)?;
-                        }
-                        Ok(job)
-                    }) {
-                    Ok(job) => {
-                        state.preview_job = Some((job.id, state.cut.clone(), origin));
-                        ui.ctx().request_repaint();
+                let result = crate::timeline_preview::manifest(
+                    &state.cut,
+                    &music,
+                    &assets,
+                    self.store.video_aspect_ratio(),
+                    origin,
+                )
+                .and_then(crate::timeline_preview::Native::open);
+                match result {
+                    Ok(player) => {
+                        state.player = Some(player);
+                        state.timeline_player = Some(state.cut.clone());
+                        state.timeline_origin = 0.;
+                        state.music_mix_changed = false;
+                        state.player_title = "Timeline · direct playback".into();
+                        state.error.clear();
                     }
                     Err(error) => state.error = error.to_string(),
                 }
@@ -1345,14 +1781,10 @@ impl Studio {
             ui.ctx().set_cursor_icon(egui::CursorIcon::Grabbing);
         }
         if let Some((id, title)) = play
-            && (open_timeline || state.preview_job.is_none())
             && let Some(asset) = assets.iter().find(|a| a.id == id)
         {
             state.scrubbing = false;
-            if !open_timeline {
-                state.timeline_player = None;
-                state.preview_job = None;
-            }
+            state.timeline_player = None;
             state.player = None;
             match crate::media::Preview::open(
                 ffmpeg,
@@ -1361,11 +1793,25 @@ impl Studio {
                 true,
             ) {
                 Ok(player) => {
-                    state.player = Some(player);
+                    state.player = Some(crate::timeline_preview::Player::Source(player));
                     state.player_title = title;
                 }
                 Err(error) => state.error = error.to_string(),
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod music_snap_tests {
+    use super::snap_music_position;
+    #[test]
+    fn snaps_nearest_edge_only_within_pixels_and_source_bounds() {
+        assert_eq!(snap_music_position(9.8, &[10., 4.], 0., 1800., 0.4), 10.);
+        assert_eq!(snap_music_position(4.2, &[10., 4.], 0., 1800., 0.4), 4.);
+        assert_eq!(snap_music_position(7., &[10., 4.], 0., 1800., 0.4), 7.);
+        assert_eq!(snap_music_position(2.9, &[3.1], 0., 3., 0.4), 2.9);
+        assert_eq!(snap_music_position(-0.1, &[-0.1], 0., 3., 0.4), 0.);
+        assert_eq!(snap_music_position(9.8, &[10.], 0., 1800., 0.1), 9.8);
     }
 }

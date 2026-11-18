@@ -255,6 +255,9 @@ fn execute_export(store: &Store, id: &str) -> Result<()> {
             command.arg("-i").arg(std::fs::canonicalize(&entry.path)?);
             let cue = &entry.cue;
             graph.push_str(&format!("[{audio_input}:a]aresample=48000,aformat=sample_fmts=fltp:channel_layouts=stereo,atrim=start={}:duration={},asetpts=PTS-STARTPTS,volume={}dB",cue.source_start,cue.duration,cue.gain_db));
+            if cue.muted {
+                graph.push_str(",volume=0");
+            }
             if cue.fade_in > 0. {
                 graph.push_str(&format!(",afade=t=in:st=0:d={}", cue.fade_in));
             }

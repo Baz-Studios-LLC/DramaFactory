@@ -51,6 +51,7 @@ impl SegmentDraft {
     pub fn video_plan(&self, aspect_ratio: &str) -> Result<crate::video_plan::VideoPlan> {
         use crate::video_plan::{Inputs, VideoPlan};
         Ok(VideoPlan {
+            fal: false,
             model: self.model.clone(),
             prompt: if aspect_ratio == "16:9" {
                 format!(

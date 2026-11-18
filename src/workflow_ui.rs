@@ -113,12 +113,58 @@ impl Studio {
         }
     }
     pub(crate) fn workflow_navigation(&mut self, ui: &mut egui::Ui, compact: bool) {
-        if ui
-            .add_enabled(
+        let save = if compact {
+            ui.horizontal(|ui| {
+                let side = ui.available_width().min(36.);
+                ui.add_space(((ui.available_width() - side) * 0.5).max(0.));
+                let response = ui.add_enabled(
+                    self.selected.is_some(),
+                    crate::theme::primary("")
+                        .min_size(egui::vec2(side, 36.))
+                        .corner_radius(9),
+                );
+                response.widget_info(|| {
+                    egui::WidgetInfo::labeled(
+                        egui::WidgetType::Button,
+                        self.selected.is_some(),
+                        "Save project",
+                    )
+                });
+                // Draw in button coordinates rather than relying on an emoji's font bearings.
+                let rect =
+                    egui::Rect::from_center_size(response.rect.center(), egui::vec2(18., 18.));
+                let stroke = egui::Stroke::new(
+                    1.6,
+                    if response.enabled() {
+                        egui::Color32::from_rgb(25, 23, 19)
+                    } else {
+                        MUTED
+                    },
+                );
+                let p = |x, y| rect.min + egui::vec2(x, y);
+                ui.painter().add(egui::Shape::closed_line(
+                    vec![p(1., 1.), p(13., 1.), p(17., 5.), p(17., 17.), p(1., 17.)],
+                    stroke,
+                ));
+                for (min, max) in [(p(5., 1.), p(11., 6.)), (p(5., 11.), p(13., 17.))] {
+                    ui.painter().rect_stroke(
+                        egui::Rect::from_min_max(min, max),
+                        1.,
+                        stroke,
+                        egui::StrokeKind::Inside,
+                    );
+                }
+                response
+            })
+            .inner
+        } else {
+            ui.add_enabled(
                 self.selected.is_some(),
-                crate::theme::primary(if compact { "💾" } else { "Save project" })
+                crate::theme::primary("Save project")
                     .min_size(egui::vec2(ui.available_width(), 32.)),
             )
+        };
+        if save
             .on_hover_text("Save edits across every workspace in the current series")
             .clicked()
         {

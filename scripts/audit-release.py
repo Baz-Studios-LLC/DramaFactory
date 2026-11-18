@@ -18,8 +18,22 @@ BUNDLE_FILES = {
     'Contents/_CodeSignature/CodeResources',
 }
 
+# Match locally saved values as well as recognizable key formats. Never print
+# values; this also covers providers whose keys have no distinctive prefix.
+credential_dir = Path.home()/"Library/Application Support/DramaFactory-Credentials"
+local_secrets = []
+if credential_dir.is_dir():
+    for credential in credential_dir.glob('*.credential'):
+        if credential.is_symlink():
+            raise SystemExit('Release audit failed: credential symlink')
+        value = credential.read_bytes().strip()
+        if value:
+            local_secrets.append(value)
+
 def scan(path, personal=False):
     data = path.read_bytes()
+    if any(secret in data for secret in local_secrets):
+        raise SystemExit(f"Release audit failed: saved credential in {path.name}")
     for name, pattern in RULES.items():
         if re.search(pattern, data):
             raise SystemExit(f'Release audit failed: {name} in {path.name}')
@@ -35,7 +49,7 @@ for name in subprocess.check_output(['git', 'ls-files', '-z'], cwd=repo).decode(
         continue
     path = repo/name
     if path.is_file():
-        if path.suffix in {'.pem', '.p12', '.pfx', '.key', '.sqlite', '.db'} or path.name.startswith('.env'):
+        if path.suffix in {'.pem', '.p12', '.pfx', '.key', '.sqlite', '.db', '.credential'} or path.name.startswith('.env'):
             raise SystemExit(f'Release audit failed: private data file tracked: {name}')
         scan(path)
 if args.bundle:

@@ -71,6 +71,8 @@ pub enum Inputs {
 #[derive(Clone, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct VideoPlan {
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub fal: bool,
     pub model: String,
     pub prompt: String,
     pub duration: u32,
@@ -144,6 +146,9 @@ impl VideoPlan {
     }
 
     pub fn preview(&self, catalog: &crate::openrouter::Catalog) -> Result<Value> {
+        if self.fal {
+            return crate::fal_video::preview(self);
+        }
         if self.prompt.trim().is_empty() || self.prompt.len() > 64 * 1024 {
             bail!("Write a prompt of at most 64 KiB");
         }
@@ -218,6 +223,7 @@ mod tests {
     fn fixture() -> (VideoPlan, crate::openrouter::Catalog) {
         (
             VideoPlan {
+                fal: false,
                 model: "bytedance/seedance-2.5".into(),
                 prompt: "An adult speaks while walking.".into(),
                 duration: 10,

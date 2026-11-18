@@ -169,7 +169,7 @@ fn isolate(conn: &Connection, series: &str) -> Result<()> {
             let f = &row.fields;
             let owned = if row.table == "settings" {
                 f.get("key").is_some_and(|key| {
-                    key == "video:aspect_ratio"
+                    (key == "video:aspect_ratio" || key == "video:provider")
                         || SETTING_PREFIXES.iter().any(|prefix| {
                             key.strip_prefix(prefix).is_some_and(|id| ids.contains(id))
                         })
@@ -499,6 +499,249 @@ pub(crate) fn open(folder: &Path, local_home: &Path) -> Result<PathBuf> {
     Ok(database)
 }
 
+pub(crate) fn project_directory() -> Result<PathBuf> {
+    let user = directories::UserDirs::new().context("Could not locate your home folder")?;
+    let cloud = user
+        .home_dir()
+        .join("Library/Mobile Documents/com~apple~CloudDocs");
+    ensure!(
+        cloud.is_dir(),
+        "iCloud Drive is unavailable. Enable iCloud Drive; your local work remains safe."
+    );
+    let folder = cloud.join("DramaFactory");
+    std::fs::create_dir_all(&folder)?;
+    Ok(folder)
+}
+fn migrate_projects(store: &Store, directory: &Path) -> Result<()> {
+    std::fs::create_dir_all(directory)?;
+    let mut known = HashSet::new();
+    for entry in std::fs::read_dir(directory)?.flatten() {
+        if entry
+            .path()
+            .extension()
+            .is_some_and(|x| x == "dramafactory")
+        {
+            // Stop rather than write a duplicate when a cloud save is incomplete/conflicted.
+            let revision = head(&entry.path())?
+                .context("Wait for iCloud projects to finish syncing before migration")?;
+            known.insert(revision.series);
+        }
+    }
+    for series in store.series()? {
+        if known.contains(&series.id) || link(store, &series.id)?.is_some() {
+            continue;
+        }
+        let name: String = series
+            .name
+            .chars()
+            .map(|c| if c == '/' || c == ':' { '-' } else { c })
+            .collect();
+        let folder = directory.join(format!("{}-{}.dramafactory", name, series.id));
+        save(store, &series.id, &folder, None)?;
+    }
+    Ok(())
+}
+
+pub(crate) fn default_project_folder(store: &Store, series: &str) -> Result<PathBuf> {
+    let name = store
+        .series()?
+        .into_iter()
+        .find(|s| s.id == series)
+        .context("Project not found")?
+        .name;
+    let name: String = name
+        .chars()
+        .map(|c| if c == '/' || c == ':' { '-' } else { c })
+        .collect();
+    let directory = project_directory()?;
+    for entry in std::fs::read_dir(&directory)?.flatten() {
+        if entry
+            .path()
+            .extension()
+            .is_some_and(|x| x == "dramafactory")
+        {
+            let revision = head(&entry.path())?
+                .context("Wait for iCloud to finish syncing before saving a new project")?;
+            ensure!(
+                revision.series != series,
+                "This project already exists in iCloud. Open that project before saving, or use Save project as to preserve this separate revision."
+            );
+        }
+    }
+    Ok(directory.join(format!("{}-{}.dramafactory", name, series)))
+}
+
+fn remember_folder(folder: &Path) {
+    if std::env::var_os("DRAMAFACTORY_DATABASE").is_some() {
+        return;
+    }
+    let Some(parent) = folder.parent() else {
+        return;
+    };
+    let home = crate::store::default_path();
+    let registry = home.parent().unwrap().join("project-folders.json");
+    let mut folders: Vec<PathBuf> = std::fs::read(&registry)
+        .ok()
+        .and_then(|b| serde_json::from_slice(&b).ok())
+        .unwrap_or_default();
+    if !folders.contains(&parent.to_path_buf()) {
+        folders.push(parent.to_path_buf());
+        if let Ok(bytes) = serde_json::to_vec(&folders) {
+            let _ = std::fs::write(registry, bytes);
+        }
+    }
+}
+#[derive(Clone)]
+pub(crate) struct DiscoveredProject {
+    pub name: String,
+    pub series: Option<String>,
+    pub path: Option<PathBuf>,
+    pub issue: Option<String>,
+}
+#[derive(Default)]
+pub(crate) struct Discovery {
+    pub projects: Vec<DiscoveredProject>,
+    receiver: Option<std::sync::mpsc::Receiver<Vec<DiscoveredProject>>>,
+    started: bool,
+}
+fn discover_projects(home: &Path, folders: &[PathBuf]) -> Vec<DiscoveredProject> {
+    let mut projects = Vec::new();
+    let mut seen = HashSet::new();
+    for root in folders {
+        let Ok(entries) = std::fs::read_dir(root) else {
+            continue;
+        };
+        for entry in entries.flatten() {
+            let folder = entry.path();
+            if folder.extension().is_none_or(|s| s != "dramafactory")
+                || !seen.insert(folder.clone())
+            {
+                continue;
+            }
+            let mut name = folder
+                .file_stem()
+                .unwrap_or_default()
+                .to_string_lossy()
+                .into_owned();
+            let mut series = None;
+            let result = (|| -> Result<PathBuf> {
+                let revision = head(&folder)?.context("Waiting for a complete iCloud save")?;
+                series = Some(revision.series.clone());
+                name = revision.name;
+                // Cache each immutable cloud revision separately. Never overwrite an edited
+                // local working copy, including when another Mac publishes a newer revision.
+                let cache = home.join("cloud-projects");
+                std::fs::create_dir_all(&cache)?;
+                let key = cache.join(format!("{}.json", revision.revision));
+                if let Ok(bytes) = std::fs::read(&key)
+                    && let Ok(path) = serde_json::from_slice::<PathBuf>(&bytes)
+                    && path.starts_with(home.join("projects"))
+                    && path.is_file()
+                {
+                    return Ok(path);
+                }
+                let path = open(&folder, home)?;
+                std::fs::write(key, serde_json::to_vec(&path)?)?;
+                Ok(path)
+            })();
+            let (path, issue) = match result {
+                Ok(path) => (Some(path), None),
+                Err(error) => (None, Some(error.to_string())),
+            };
+            projects.push(DiscoveredProject {
+                name,
+                series,
+                path,
+                issue,
+            });
+        }
+    }
+    projects.sort_by(|a, b| a.name.cmp(&b.name));
+    projects
+}
+impl crate::Studio {
+    pub(crate) fn cloud_project_progress(&mut self, ctx: &eframe::egui::Context) {
+        if !self.cloud_projects.started {
+            self.cloud_projects.started = true;
+            if std::env::var_os("DRAMAFACTORY_DATABASE").is_none() {
+                let home = crate::store::default_path().parent().unwrap().to_path_buf();
+                let mut folders: Vec<PathBuf> = std::fs::read(home.join("project-folders.json"))
+                    .ok()
+                    .and_then(|b| serde_json::from_slice(&b).ok())
+                    .unwrap_or_default();
+                if let Some(user) = directories::UserDirs::new() {
+                    folders.push(
+                        user.home_dir()
+                            .join("Library/Mobile Documents/com~apple~CloudDocs/DramaFactory"),
+                    );
+                }
+                let (sender, receiver) = std::sync::mpsc::channel();
+                self.cloud_projects.receiver = Some(receiver);
+                let repaint = ctx.clone();
+                let database = self.store.path.clone();
+                std::thread::spawn(move || {
+                    let migration = (|| -> Result<()> {
+                        let directory = project_directory()?;
+                        migrate_projects(&Store::open(database.clone())?, &directory)?;
+                        let original = home.join("studio.sqlite");
+                        if original != database && original.is_file() {
+                            migrate_projects(&Store::open(original)?, &directory)?;
+                        }
+                        Ok(())
+                    })();
+                    let mut projects = discover_projects(&home, &folders);
+                    if let Err(error) = migration {
+                        projects.push(DiscoveredProject {
+                            name: "Project folder needs attention".into(),
+                            series: None,
+                            path: None,
+                            issue: Some(error.to_string()),
+                        });
+                    }
+                    let _ = sender.send(projects);
+                    repaint.request_repaint();
+                });
+            }
+        }
+        if let Some(receiver) = &self.cloud_projects.receiver {
+            match receiver.try_recv() {
+                Ok(projects) => {
+                    self.cloud_projects.projects = projects;
+                    self.cloud_projects.receiver = None;
+                }
+                Err(std::sync::mpsc::TryRecvError::Disconnected) => {
+                    self.cloud_projects.receiver = None;
+                    self.message = "Project folder scan stopped. Use Project → Refresh synced projects to retry.".into();
+                }
+                Err(std::sync::mpsc::TryRecvError::Empty) => {}
+            }
+        }
+    }
+    pub(crate) fn open_discovered_project(&mut self, path: PathBuf) {
+        if self.portable_task.is_some() || !self.save_before_open() {
+            return;
+        }
+        match Store::open(path.clone()) {
+            Ok(store) => {
+                self.stop_playback();
+                *self = crate::Studio::from_store(store);
+                let home = crate::store::default_path();
+                if let Err(error) = std::fs::write(
+                    home.parent().unwrap().join("last-project.json"),
+                    serde_json::to_vec(&path).unwrap(),
+                ) {
+                    self.portable_error(error);
+                } else {
+                    self.message =
+                        "Synced project opened. Previous local working copies are preserved."
+                            .into();
+                }
+            }
+            Err(error) => self.portable_error(error),
+        }
+    }
+}
+
 pub(crate) struct Task {
     receiver: std::sync::mpsc::Receiver<Result<Option<PathBuf>, String>>,
     opening: bool,
@@ -540,11 +783,15 @@ impl crate::Studio {
                 ui.close();
                 self.save_portable_as();
             }
+            if ui.button("Refresh synced projects").clicked() {
+                self.cloud_projects = Default::default();
+                ui.close();
+            }
             if ui.button("Open project…").clicked() {
                 ui.close();
                 self.open_portable();
             }
-            if ui.button("Local projects").clicked() {
+            if ui.button("Recover older local projects").clicked() {
                 ui.close();
                 if self.save_before_open() {
                     let path = crate::store::default_path();
@@ -638,6 +885,7 @@ impl crate::Studio {
         let Some(series) = self.selected.clone() else {
             return;
         };
+        remember_folder(&folder);
         let database = self.store.path.clone();
         let (sender, receiver) = std::sync::mpsc::channel();
         self.portable_task = Some(Task {
@@ -665,6 +913,7 @@ impl crate::Studio {
         if !self.save_before_open() {
             return;
         }
+        remember_folder(&folder);
         let local_home = crate::store::default_path().parent().unwrap().to_path_buf();
         let (sender, receiver) = std::sync::mpsc::channel();
         self.portable_task = Some(Task {
@@ -706,6 +955,7 @@ impl crate::Studio {
                         }
                     }
                     Ok(None) => {
+                        self.cloud_projects = Default::default();
                         self.message = "Project and media saved to folder. Let iCloud finish syncing before switching Macs.".into();
                         self.project_save_notice =
                             Some((true, self.message.clone(), std::time::Instant::now()));
@@ -739,6 +989,100 @@ impl crate::Studio {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn existing_projects_move_to_cloud_without_duplicate_saves_or_data_deletion() {
+        let temp = tempfile::tempdir().unwrap();
+        let store = Store::open(temp.path().join("local/studio.sqlite")).unwrap();
+        let series = store
+            .create_series("Existing project", "Keep this story")
+            .unwrap();
+        let directory = temp.path().join("cloud");
+        migrate_projects(&store, &directory).unwrap();
+        let linked = link(&store, &series.id).unwrap().unwrap();
+        assert!(linked.folder.starts_with(&directory));
+        assert_eq!(head(&linked.folder).unwrap().unwrap().series, series.id);
+        migrate_projects(&store, &directory).unwrap();
+        assert_eq!(std::fs::read_dir(directory).unwrap().count(), 1);
+        assert_eq!(store.series().unwrap()[0].premise, "Keep this story");
+        assert_eq!(
+            link(&store, &series.id).unwrap().unwrap().revision,
+            linked.revision
+        );
+    }
+
+    #[test]
+    fn discovery_reuses_local_edits_and_preserves_them_when_cloud_advances() {
+        let temp = tempfile::tempdir().unwrap();
+        let cloud = temp.path().join("cloud");
+        std::fs::create_dir_all(&cloud).unwrap();
+        let source = Store::open(temp.path().join("source/studio.sqlite")).unwrap();
+        let series = source.create_series("BlockSide", "Original").unwrap();
+        let folder = cloud.join("BlockSide.dramafactory");
+        let first = save(&source, &series.id, &folder, None).unwrap();
+        let home = temp.path().join("studio");
+        let roots = vec![cloud.clone()];
+        let discovered = discover_projects(&home, &roots);
+        assert_eq!(discovered.len(), 1);
+        let old_path = discovered[0].path.clone().unwrap();
+        let local = Store::open(old_path.clone()).unwrap();
+        local
+            .conn
+            .execute("UPDATE series SET name='Local edits'", [])
+            .unwrap();
+        assert_eq!(
+            discover_projects(&home, &roots)[0].path.as_ref(),
+            Some(&old_path)
+        );
+        source
+            .conn
+            .execute("UPDATE series SET name='From MacBook'", [])
+            .unwrap();
+        save(&source, &series.id, &folder, Some(&first.revision)).unwrap();
+        let refreshed = discover_projects(&home, &roots);
+        let new_path = refreshed[0].path.clone().unwrap();
+        assert_ne!(old_path, new_path);
+        assert_eq!(
+            Store::open(new_path).unwrap().series().unwrap()[0].name,
+            "From MacBook"
+        );
+        assert_eq!(local.series().unwrap()[0].name, "Local edits");
+        // Partial iCloud downloads are visible but cannot be opened.
+        let incomplete = cloud.join("Incomplete.dramafactory");
+        std::fs::create_dir_all(&incomplete).unwrap();
+        let results = discover_projects(&home, &roots);
+        assert!(
+            results
+                .iter()
+                .any(|p| p.name == "Incomplete" && p.path.is_none() && p.issue.is_some())
+        );
+        // Divergent cloud heads are never silently chosen.
+        let mut branch: Revision = serde_json::from_slice(
+            &std::fs::read(
+                folder
+                    .join("revisions")
+                    .join(format!("{}.json", first.revision)),
+            )
+            .unwrap(),
+        )
+        .unwrap();
+        branch.revision = uuid::Uuid::new_v4().to_string();
+        std::fs::write(
+            folder
+                .join("revisions")
+                .join(format!("{}.json", branch.revision)),
+            serde_json::to_vec(&branch).unwrap(),
+        )
+        .unwrap();
+        let results = discover_projects(&home, &roots);
+        assert!(results.iter().any(|p| {
+            p.path.is_none()
+                && p.issue
+                    .as_ref()
+                    .is_some_and(|s| s.contains("conflicting saves"))
+        }));
+        assert_eq!(local.series().unwrap()[0].name, "Local edits");
+    }
+
     #[test]
     fn portable_round_trip_keeps_series_media_chat_and_cut_and_detects_conflicts() {
         let temp = std::env::temp_dir().join(format!("df-portable-test-{}", uuid::Uuid::new_v4()));

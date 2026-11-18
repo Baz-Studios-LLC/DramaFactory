@@ -161,6 +161,7 @@ impl Cut {
         }
         None
     }
+    #[cfg(test)]
     pub fn playback_from(&self, seconds: f64) -> Self {
         let seconds = seconds.max(0.);
         let mut clips = Vec::new();
@@ -220,7 +221,10 @@ impl Store {
                 .find(|a| a.id == clip.asset_id)
                 .context("A timeline clip was deleted")?;
             let owned: bool = self.conn.query_row("SELECT EXISTS(SELECT 1 FROM segment_generations WHERE episode_id=?1 AND job_id=?2)",rusqlite::params![episode,asset.job_id],|r|r.get(0))?;
-            if !owned {
+            if !(owned
+                || asset.metadata["kind"] == "cliffhanger"
+                    && asset.metadata["episode_id"] == episode)
+            {
                 bail!("Choose clips from this episode");
             }
             if !clip.audio_fade_in.is_finite()
@@ -255,7 +259,7 @@ impl Store {
         let current = self.episode_cut(episode)?;
         if &current != expected && &current != cut {
             bail!(
-                "The edit changed in another window. Your draft is preserved; reopen the episode before editing further."
+                "The saved timeline differs from the version loaded by this editor. Your draft is preserved; reload the episode before making further edits."
             );
         }
         self.validate_cut(episode, cut)?;
@@ -332,6 +336,7 @@ impl Store {
     pub fn preview_episode_cut(&self, episode: &str, cut: &Cut) -> Result<crate::store::Job> {
         self.preview_cut_at(episode, cut, 0.)
     }
+    #[cfg(test)]
     pub fn preview_cut_at(
         &self,
         episode: &str,
@@ -390,6 +395,18 @@ mod tests {
             .execute("UPDATE jobs SET status='completed' WHERE id=?1", [&job.id])
             .unwrap();
         (root, store, episode.id, job.id)
+    }
+    #[test]
+    fn timeline_fractional_times_survive_save_reload_exactly() {
+        for tick in 1..10000 {
+            let time = f64::from(tick) / 37.;
+            let encoded = serde_json::to_string(&time).unwrap();
+            let restored: f64 = serde_json::from_str(&encoded).unwrap();
+            assert_eq!(
+                time, restored,
+                "Timeline save baseline changed at {encoded}"
+            );
+        }
     }
     #[test]
     fn menu_edits_preserve_sources_and_expected_timing() {
@@ -588,7 +605,7 @@ mod tests {
             audio_fade_in: 0.,
             audio_gain_db: 0.,
             audio_muted: false,
-            start: 2.,
+            start: 9. / 37.,
             duration: 5.,
         };
         let mut cut = Cut {
@@ -810,6 +827,7 @@ mod tests {
                     source_start: 0.,
                     duration: 1.5,
                     gain_db: -6.,
+                    muted: false,
                     fade_in: 0.25,
                     fade_out: 0.25,
                 },

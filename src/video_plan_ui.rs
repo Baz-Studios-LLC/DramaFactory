@@ -21,9 +21,31 @@ pub struct VideoPlanner {
     generation_error: Option<String>,
     selected: std::collections::HashMap<String, usize>,
 }
+impl VideoPlanner {
+    pub(crate) fn reset_provider_catalog(&mut self) {
+        self.catalog = None;
+        self.catalog_pending = None;
+        self.catalog_error = None;
+    }
+}
 impl Studio {
     fn video_credit_status(&mut self, ui: &mut eframe::egui::Ui) {
+        ui.small(format!(
+            "WAN provider: {}",
+            if self.store.wan_uses_fal() {
+                "fal.ai"
+            } else {
+                "OpenRouter"
+            }
+        ));
         let state = &mut self.video_planner;
+        if self.store.wan_uses_fal() && state.catalog.is_none() {
+            state.catalog = Some(crate::fal_video::catalog());
+        }
+        if self.store.wan_uses_fal() {
+            ui.hyperlink_to("Manage fal credits & requests", "https://fal.ai/dashboard");
+            return;
+        }
         if let Some(rx) = &state.credits_pending {
             match rx.try_recv() {
                 Ok(result) => {
@@ -296,7 +318,7 @@ impl Studio {
                 .ok_or_else(|| anyhow::anyhow!("Checking model capabilities…"))
                 .and_then(|catalog| {
                     for (number, segment) in plan.segments.iter().enumerate() {
-                        segment.video_plan(self.store.video_aspect_ratio()).and_then(|request| request.preview(catalog))
+                        segment.video_plan(self.store.video_aspect_ratio()).and_then(|request| self.store.route_video_plan(request).preview(catalog))
                             .map_err(|error| anyhow::anyhow!("Segment {}: {error}", number + 1))?;
                     }
                     Ok(())
@@ -498,7 +520,7 @@ impl Studio {
                         if let Some(error) = &cast_error {
                             anyhow::bail!("{error}");
                         }
-                        request.preview(
+                        self.store.route_video_plan(request).preview(
                             state
                                 .catalog
                                 .as_ref()

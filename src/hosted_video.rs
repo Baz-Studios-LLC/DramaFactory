@@ -50,7 +50,7 @@ impl Store {
         plan: &VideoPlan,
         binding: Option<(&str, u64, &crate::generation_plan::SegmentDraft)>,
     ) -> Result<crate::store::Job> {
-        let mut plan = plan.clone();
+        let mut plan = self.route_video_plan(plan.clone());
         if let crate::video_plan::Inputs::Portraits { portraits, .. } = &mut plan.inputs {
             for portrait in portraits.iter_mut() {
                 let (episode, _, segment) =
@@ -68,6 +68,9 @@ impl Store {
         }
         if crate::video_plan::model_choice(&plan.model).is_none() || plan.prompt.trim().is_empty() {
             bail!("Choose a video model and provide a prompt");
+        }
+        if plan.fal {
+            crate::fal_video::preview(&plan)?;
         }
         if serde_json::to_vec(&plan)?.len() > 128 * 1024 {
             bail!("Video request exceeds the 128 KiB authoring limit");
@@ -117,8 +120,7 @@ impl Store {
         )?;
         let saved = self.save_generation_plan_in_transaction(draft)?;
         let segment = saved.segments.get(index).context("Choose a segment")?;
-        segment
-            .video_plan(self.video_aspect_ratio())?
+        self.route_video_plan(segment.video_plan(self.video_aspect_ratio())?)
             .preview(catalog)?;
         let job = self.enqueue_seedance_in_transaction(
             &segment.video_plan(self.video_aspect_ratio())?,
@@ -140,11 +142,10 @@ impl Store {
         let saved = self.save_generation_plan_in_transaction(draft)?;
         let mut queued = 0;
         for segment in &saved.segments {
-            segment
-                .video_plan(self.video_aspect_ratio())?
+            self.route_video_plan(segment.video_plan(self.video_aspect_ratio())?)
                 .preview(catalog)?;
             let snapshot = serde_json::to_string(segment)?;
-            let existing: Option<String> = self.conn.query_row("SELECT g.job_id FROM segment_generations g JOIN jobs j ON j.id=g.job_id WHERE g.episode_id=?1 AND g.segment_id=?2 AND g.snapshot=?3 AND j.request=?4 LIMIT 1", params![saved.episode_id, segment.id, snapshot, serde_json::to_string(&segment.video_plan(self.video_aspect_ratio())?)?], |row| row.get(0)).optional()?;
+            let existing: Option<String> = self.conn.query_row("SELECT g.job_id FROM segment_generations g JOIN jobs j ON j.id=g.job_id WHERE g.episode_id=?1 AND g.segment_id=?2 AND g.snapshot=?3 AND j.request=?4 LIMIT 1", params![saved.episode_id, segment.id, snapshot, serde_json::to_string(&self.route_video_plan(segment.video_plan(self.video_aspect_ratio())?))?], |row| row.get(0)).optional()?;
             if existing.is_none() {
                 self.enqueue_seedance_in_transaction(
                     &segment.video_plan(self.video_aspect_ratio())?,
@@ -161,11 +162,11 @@ impl Store {
         let mut query=self.conn.prepare("SELECT j.id,j.status,j.phase,j.output_id,g.plan_revision FROM segment_generations g JOIN jobs j ON j.id=g.job_id WHERE g.episode_id=?1 AND g.segment_id=?2 ORDER BY j.rowid DESC")?;
         Ok(query.query_map(params![episode,segment],|row|Ok(json!({"job_id":row.get::<_,String>(0)?,"status":row.get::<_,String>(1)?,"stage":row.get::<_,String>(2)?,"asset_id":row.get::<_,Option<String>>(3)?,"plan_revision":row.get::<_,u64>(4)?})))?.collect::<rusqlite::Result<Vec<_>>>()?)
     }
-    fn begin_video_submission(&self, id: &str) -> Result<()> {
-        if self.conn.execute("UPDATE remote_video_jobs SET state='submitting' WHERE job_id=?1 AND state='prepared' AND remote_id IS NULL",[id])?!=1{bail!("Submission is uncertain or already attempted. Inspect OpenRouter activity; this job will not submit again automatically.");}
+    pub(crate) fn begin_video_submission(&self, id: &str) -> Result<()> {
+        if self.conn.execute("UPDATE remote_video_jobs SET state='submitting' WHERE job_id=?1 AND state='prepared' AND remote_id IS NULL",[id])?!=1{bail!("Submission is uncertain or already attempted. Inspect provider activity; this job will not submit again automatically.");}
         Ok(())
     }
-    fn bind_video_remote(&self, id: &str, remote: &str) -> Result<()> {
+    pub(crate) fn bind_video_remote(&self, id: &str, remote: &str) -> Result<()> {
         if !valid_id(remote) {
             bail!("Provider returned an invalid job identifier; submission may have been billed");
         }
@@ -211,6 +212,14 @@ pub(crate) fn execute(store: &Store, id: &str) -> Result<()> {
         );
     }
 
+    let plan: VideoPlan = serde_json::from_str(&store.conn.query_row::<String, _, _>(
+        "SELECT request FROM jobs WHERE id=?1",
+        [id],
+        |r| r.get(0),
+    )?)?;
+    if plan.fal {
+        return crate::fal_video::execute(store, id, &plan);
+    }
     let key = crate::credentials::read()?.context("Save an OpenRouter key in Settings first")?;
     execute_transport(
         store,
@@ -390,7 +399,7 @@ fn execute_transport(
     std::fs::rename(&part, &output)?;
     finish_download(store, id, &plan, &output, &result)
 }
-fn recover_download(store: &Store, id: &str) -> Result<bool> {
+pub(crate) fn recover_download(store: &Store, id: &str) -> Result<bool> {
     check_cancel(store, id)?;
     let directory = store.root().join("jobs").join(id).join("remote");
     if !directory.is_dir() {
@@ -425,7 +434,7 @@ fn recover_download(store: &Store, id: &str) -> Result<bool> {
     }
     Ok(false)
 }
-fn finish_download(
+pub(crate) fn finish_download(
     store: &Store,
     id: &str,
     plan: &VideoPlan,
@@ -447,7 +456,7 @@ fn finish_download(
     validate_output(plan, &info)?;
     let hash = crate::worker::hash_file(output)?;
     let asset = uuid::Uuid::new_v4().to_string();
-    let metadata = json!({"kind":"hosted_video","provider":"openrouter","remote_id":result["id"],"request":plan,"usage":result.get("usage"),"info":info});
+    let metadata = json!({"kind":"hosted_video","provider":if plan.fal {"fal"} else {"openrouter"},"remote_id":result["id"],"request":plan,"usage":result.get("usage"),"info":info});
     let tx = store.conn.unchecked_transaction()?;
     tx.execute(
         "INSERT INTO assets VALUES(?1,?2,?3,?4,?5,?6,?7,?8,'unreviewed')",
@@ -502,6 +511,7 @@ mod tests {
     #[test]
     fn automatic_duration_accepts_returned_length_but_checks_media() {
         let mut plan = VideoPlan {
+            fal: false,
             model: "bytedance/seedance-2.5".into(),
             prompt: "Scene".into(),
             duration: 15,
@@ -552,6 +562,7 @@ mod tests {
         let path = root.join("studio.sqlite");
         let store = Store::open(path.clone()).unwrap();
         let plan = VideoPlan {
+            fal: false,
             model: "bytedance/seedance-2.5".into(),
             prompt: "Fixture".into(),
             duration: 10,
@@ -729,6 +740,7 @@ mod tests {
         );
         let original = std::fs::read(&fixture).unwrap();
         let plan = VideoPlan {
+            fal: false,
             model: "bytedance/seedance-2.5".into(),
             prompt: "Explicit mock provider fixture".into(),
             duration: 10,

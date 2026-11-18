@@ -13,6 +13,8 @@ pub struct SynopsisEdit {
 pub struct Reply {
     pub message: String,
     #[serde(default)]
+    pub music: Option<crate::episode_music::MusicDraft>,
+    #[serde(default)]
     pub generation: Option<crate::sidekick_generation::Edit>,
     #[serde(default)]
     pub plot: Option<crate::sidekick_plot::PlotEdit>,
@@ -38,6 +40,7 @@ pub fn response_format() -> serde_json::Value {
         "type":"object","additionalProperties":false,"required":["message","synopsis","character","new_character","plot","episode","new_episodes","generation"],
         "properties":{
             "message":{"type":"string"},
+            "music":{"anyOf":[{"type":"null"},{"type":"object","additionalProperties":false,"required":["episode_id","direction","start","duration"],"properties":{"episode_id":{"type":"string"},"direction":{"type":"string"},"start":{"type":"number"},"duration":{"type":"number"}}}]},
             "generation":{"anyOf":[{"type":"null"},crate::sidekick_generation::schema()]},
             "new_episodes":{"anyOf":[{"type":"null"},crate::sidekick_episode::creation_schema()]},
             "episode":{"anyOf":[{"type":"null"},crate::sidekick_episode::response_schema()]},
@@ -60,12 +63,14 @@ pub fn response_format_for(workspace: &str) -> serde_json::Value {
             "episode",
             "new_episodes",
             "generation",
+            "music",
         ],
         "Synopsis" => &["synopsis"],
         "Characters" | "Locations" => &["character", "new_characters", "cast_queue"],
         "Overall plot" => &["plot", "new_episodes"],
         "Episode plot" => &["episode", "new_episodes"],
         "Episode generation" => &["generation"],
+        "Editing room" => &["music"],
         _ => &[],
     };
     let mut format = response_format();
@@ -107,16 +112,22 @@ pub fn retained_reply(text: &str, truncated: bool) -> Result<Reply> {
     while !text.is_char_boundary(end) {
         end -= 1;
     }
+    let ordinary_text = !truncated && !text.trim_start().starts_with(['{', '[', '`']);
     Ok(Reply {
-        message: format!(
-            "{} No document edits were applied. The returned text is retained below for review; no automatic retry was made.\n\n{}",
-            if truncated {
-                "The sidekick reply reached its output limit. Use Continue reply below to prepare a continuation."
-            } else {
-                "The sidekick did not return a valid edit response."
-            },
-            &text[..end]
-        ),
+        music: None,
+        message: if ordinary_text {
+            text[..end].to_owned()
+        } else {
+            format!(
+                "{} No document edits were applied. The returned text is retained below for review; no automatic retry was made.\n\n{}",
+                if truncated {
+                    "The sidekick reply reached its output limit. Use Continue reply below to prepare a continuation."
+                } else {
+                    "The sidekick did not return a valid edit response."
+                },
+                &text[..end]
+            )
+        },
         generation: None,
         synopsis: None,
         plot: None,
@@ -132,9 +143,13 @@ pub fn parse_reply(text: &str) -> Result<Reply> {
     let reply: Reply = serde_json::from_str(text).map_err(|_| {
         anyhow::anyhow!("Sidekick returned an invalid document response. Nothing was applied.")
     })?;
+    if let Some(music) = &reply.music {
+        music.validate()?;
+    }
     if let Some(tasks) = &reply.cast_queue {
         crate::cast_queue::validate(tasks)?;
-        if reply.new_character.is_some()
+        if reply.music.is_some()
+            || reply.new_character.is_some()
             || reply.new_characters.is_some()
             || reply.character.is_some()
             || reply.synopsis.is_some()
@@ -300,6 +315,38 @@ mod tests {
 #[cfg(test)]
 mod transport_tests {
     use super::*;
+    #[test]
+    fn conversational_text_has_no_edit_error_and_music_is_validated() {
+        let text = "ElevenLabs supports instrumental scoring in the Editing room.";
+        let reply = retained_reply(text, false).unwrap();
+        assert_eq!(reply.message, text);
+        assert!(reply.music.is_none() && reply.synopsis.is_none());
+        assert!(
+            retained_reply("{broken JSON", false)
+                .unwrap()
+                .message
+                .contains("valid edit response")
+        );
+        assert!(
+            retained_reply(text, true)
+                .unwrap()
+                .message
+                .contains("output limit")
+        );
+        let mut data = serde_json::json!({"message":"Prepared", "music":{"episode_id":"episode","direction":"Soft piano, instrumental, space for dialogue","start":0,"duration":30}});
+        assert!(parse_reply(&data.to_string()).unwrap().music.is_some());
+        data["music"]["duration"] = 601.into();
+        assert!(parse_reply(&data.to_string()).is_err());
+        data["music"]["duration"] = 30.into();
+        data["music"]["start"] = (-1).into();
+        assert!(parse_reply(&data.to_string()).is_err());
+        assert!(
+            response_format_for("All workspaces")["json_schema"]["schema"]["properties"]
+                .get("music")
+                .is_some()
+        );
+    }
+
     #[test]
     fn cross_tab_contract_exposes_guarded_actions_without_provider_grammar() {
         let schema = response_format_for("All workspaces");
