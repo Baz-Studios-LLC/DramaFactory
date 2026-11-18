@@ -5,6 +5,86 @@ use eframe::egui;
 use serde_json::json;
 use std::{path::PathBuf, process::Command, sync::mpsc, time::Duration};
 
+const MAX_MUSIC_SECONDS: f64 = 300.;
+
+#[cfg(test)]
+mod duration_tests {
+    use super::*;
+
+    #[test]
+    fn custom_track_can_outlast_short_or_empty_video() {
+        let mut panel = Panel::default();
+        let mut draft = MusicDraft {
+            episode_id: "episode".into(),
+            direction: "Warm instrumental".into(),
+            start: 30.,
+            duration: 300.,
+        };
+        panel.prepare(&draft).unwrap();
+        assert_eq!(panel.music_range(143.358, None), (30., 300.));
+        assert_eq!(panel.music_range(0., None), (30., 300.));
+        draft.duration = 300.001;
+        assert!(panel.prepare(&draft).is_err());
+        assert_eq!(panel.music_range(0., None), (30., 300.));
+        for bad in [2.999, f64::NAN, f64::INFINITY] {
+            draft.duration = bad;
+            assert!(draft.validate().is_err());
+        }
+        panel.custom = false;
+        assert_eq!(panel.music_range(143.358, None), (0., 143.358));
+        panel.selected_clip = true;
+        assert_eq!(panel.music_range(143.358, Some((10., 12.))), (10., 12.));
+    }
+
+    #[test]
+    fn minute_fields_round_trip_and_handle_rollover() {
+        assert_eq!(music_time(143.358), "2:23.358");
+        assert_eq!(music_time(300.), "5:00");
+        assert_eq!(music_time(59.9999), "1:00");
+        assert_eq!(parse_music_time("2:23.358"), Some(143.358));
+        assert_eq!(parse_music_time("5:00"), Some(300.));
+        assert_eq!(parse_music_time("143.358"), Some(143.358));
+        for bad in ["1:60", "-1:00", "NaN", "1:NaN", "1:2:3", "-1"] {
+            assert_eq!(parse_music_time(bad), None);
+        }
+    }
+}
+
+fn music_time(seconds: f64) -> String {
+    let millis = (seconds.max(0.) * 1000.).round() as u64;
+    let base = format!("{}:{:02}", millis / 60000, millis / 1000 % 60);
+    if millis.is_multiple_of(1000) {
+        base
+    } else {
+        format!("{base}.{:03}", millis % 1000)
+            .trim_end_matches('0')
+            .to_owned()
+    }
+}
+
+fn parse_music_time(value: &str) -> Option<f64> {
+    let value = value.trim();
+    let seconds = if let Some((minutes, seconds)) = value.split_once(':') {
+        let minutes = minutes.parse::<u32>().ok()?;
+        let seconds = seconds.parse::<f64>().ok()?;
+        if !(0. ..60.).contains(&seconds) {
+            return None;
+        }
+        f64::from(minutes) * 60. + seconds
+    } else {
+        value.parse::<f64>().ok()?
+    };
+    (seconds.is_finite() && seconds >= 0.).then_some(seconds)
+}
+
+fn music_time_input(value: &mut f64, range: std::ops::RangeInclusive<f64>) -> egui::DragValue<'_> {
+    egui::DragValue::new(value)
+        .range(range)
+        .speed(0.1)
+        .custom_formatter(|value, _| music_time(value))
+        .custom_parser(parse_music_time)
+}
+
 #[derive(Clone, serde::Serialize, serde::Deserialize)]
 #[serde(deny_unknown_fields)]
 pub(crate) struct MusicDraft {
@@ -24,8 +104,8 @@ impl MusicDraft {
             self.start.is_finite()
                 && self.start >= 0.
                 && self.duration.is_finite()
-                && (3. ..=600.).contains(&self.duration),
-            "Music needs a valid start and 3–600 second duration"
+                && (3. ..=MAX_MUSIC_SECONDS).contains(&self.duration),
+            "Music needs a valid start and a duration from 0:03 to 5:00"
         );
         Ok(())
     }
@@ -54,10 +134,14 @@ fn compose(
     start: f64,
     duration: f64,
 ) -> Result<()> {
+    ensure!(
+        duration.is_finite() && (3. ..=MAX_MUSIC_SECONDS).contains(&duration),
+        "Choose 0:03 to 5:00 of music."
+    );
     let length = (duration * 1000.).round() as u64;
     ensure!(
-        (3000..=600000).contains(&length),
-        "Choose 3 seconds to 10 minutes of music."
+        (3000..=300000).contains(&length),
+        "Choose 0:03 to 5:00 of music."
     );
     ensure!(
         (1..=4100).contains(&direction.trim().chars().count()),
@@ -167,6 +251,15 @@ fn import_track(
 }
 
 impl Panel {
+    fn music_range(&self, cut_duration: f64, clip: Option<(f64, f64)>) -> (f64, f64) {
+        if self.custom {
+            (self.from, (self.until - self.from).max(0.))
+        } else if self.selected_clip {
+            clip.unwrap_or_default()
+        } else {
+            (0., cut_duration)
+        }
+    }
     pub(crate) fn busy(&self) -> bool {
         self.pending.is_some()
     }
@@ -251,39 +344,29 @@ impl Panel {
                 if ui.selectable_label(self.custom, "Time range").clicked() {
                     self.custom = true;
                     if self.until <= self.from {
-                        self.until = cut.duration();
+                        self.until = self.from + cut.duration().clamp(3., MAX_MUSIC_SECONDS);
                     }
                 }
             });
             if self.custom {
                 ui.horizontal(|ui| {
                     ui.label("From");
-                    ui.add(
-                        egui::DragValue::new(&mut self.from)
-                            .range(0. ..=cut.duration())
-                            .speed(0.1)
-                            .suffix("s"),
-                    );
+                    ui.add(music_time_input(&mut self.from, 0. ..=1800.));
                     ui.label("To");
-                    ui.add(
-                        egui::DragValue::new(&mut self.until)
-                            .range(self.from..=cut.duration().max(self.from))
-                            .speed(0.1)
-                            .suffix("s"),
-                    );
+                    ui.add(music_time_input(
+                        &mut self.until,
+                        self.from..=self.from + MAX_MUSIC_SECONDS,
+                    ));
                 });
             }
-            let (start, duration) = if self.custom {
-                (
-                    self.from,
-                    (self.until.min(cut.duration()) - self.from).max(0.),
-                )
-            } else if self.selected_clip {
-                clip.unwrap_or_default()
-            } else {
-                (0., cut.duration())
-            };
-            ui.label(format!("{start:.1}s – {:.1}s", start + duration));
+            let (start, duration) = self.music_range(cut.duration(), clip);
+            ui.label(format!(
+                "{} - {} | Length {}",
+                music_time(start),
+                music_time(start + duration),
+                music_time(duration)
+            ));
+            ui.weak("Generate 0:03 to 5:00. Custom music can extend beyond the video.");
             if ui
                 .add_enabled(self.pending.is_none(), egui::Button::new("Import track…"))
                 .clicked()
@@ -321,14 +404,14 @@ impl Panel {
                         Err(e)=>self.status=e.to_string(),
                     }
                 }
-                let valid=(3. ..=600.).contains(&duration) && (1..=4100).contains(&self.direction.trim().chars().count());
+                let valid=(3. ..=MAX_MUSIC_SECONDS).contains(&duration) && (1..=4100).contains(&self.direction.trim().chars().count());
                 if ui.add_enabled(self.pending.is_none() && valid,crate::theme::primary("Generate music")).clicked(){
                     let db=store.path.clone();let episode=episode.to_owned();let direction=self.direction.clone();
                     self.run(ui.ctx(),move||{compose(db,episode,direction,start,duration)?;Ok(Output::Take)});
                 }
             });
-            if !(3. ..=600.).contains(&duration) {
-                ui.weak("Choose a range from 3 seconds to 10 minutes.");
+            if !(3. ..=MAX_MUSIC_SECONDS).contains(&duration) {
+                ui.weak("Choose a range from 0:03 to 5:00.");
             }
             if self.direction.chars().count() > 4100 {
                 ui.weak("Shorten music direction to 4,100 characters.");
@@ -360,7 +443,7 @@ impl Panel {
                     .unwrap_or_else(|| format!("Score {}", i + 1));
                 ui.separator();
                 ui.horizontal(|ui| {
-                    ui.label(format!("{name} · {:.1}s", asset.duration))
+                    ui.label(format!("{name} · {}", music_time(asset.duration)))
                         .on_hover_text(asset.metadata["direction"].as_str().unwrap_or_default());
                     if !cues.iter().any(|c| c.asset_id == asset.id) && ui.button("Use").clicked() {
                         let duration = asset.duration.min(
@@ -393,7 +476,11 @@ impl Panel {
                         ui.scroll_to_cursor(Some(egui::Align::Center));
                         self.focus_cue = None;
                     }
-                    ui.label(format!("{} · starts at {:.2}s", old.name, old.start));
+                    ui.label(format!(
+                        "{} · starts at {}",
+                        old.name,
+                        music_time(old.start)
+                    ));
                     let mut cue = old.clone();
                     ui.horizontal_wrapped(|ui| {
                         for (label, value, max) in [
@@ -404,12 +491,7 @@ impl Panel {
                             ("Fade out", &mut cue.fade_out, old.duration),
                         ] {
                             ui.label(label);
-                            ui.add(
-                                egui::DragValue::new(value)
-                                    .speed(0.05)
-                                    .range(0. ..=max)
-                                    .suffix("s"),
-                            );
+                            ui.add(music_time_input(value, 0. ..=max));
                         }
                         ui.checkbox(&mut cue.muted, "Mute");
                         ui.label("Volume");

@@ -86,10 +86,6 @@ impl Editor {
         );
         if self.episode.as_deref() != Some(&draft.episode_id) {
             let cut = store.episode_cut(&draft.episode_id)?;
-            anyhow::ensure!(
-                draft.start + draft.duration <= cut.duration() + 0.01,
-                "Assemble an episode cut covering this music range first"
-            );
             let series = store.get_episode(&draft.episode_id)?.series_id;
             self.save_for_series(store, &series)?;
             *self = Self {
@@ -99,10 +95,6 @@ impl Editor {
                 ..Default::default()
             };
         }
-        anyhow::ensure!(
-            draft.start + draft.duration <= self.cut.duration() + 0.01,
-            "Music range exceeds the current episode cut"
-        );
         self.music.prepare(draft)
     }
     pub(crate) fn save_for_series(

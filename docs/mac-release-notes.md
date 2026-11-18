@@ -3,6 +3,7 @@
 - Add Buffer queue publishing for TikTok, Instagram Reels and YouTube Shorts, with private local API-key storage and Cloudinary video hosting configuration. Requires connected Buffer channels and an upload preset. This integration has not yet been verified with a live publishing request.
 - Give episode exports readable series and episode filenames, and retain verified, versioned copies in Movies/DramaFactory/Finished Episodes.
 - Import existing music files into the editing room. Keep music controls visible, label segment/take thumbnails, and improve panel layout.
+- Generate custom music tracks up to five minutes even when the video timeline is shorter or empty. Show music positions and lengths in minutes:seconds, and use the same five-minute limit for Sidekick music drafts.
 - Recover video frames when native timeline playback advances its audio clock without delivering video after a seek.
 - Copy highlighted Sidekick conversation text through a right-click menu.
 - Offer Save As when a portable project's remembered folder is missing, and clarify revision-conflict messages.
