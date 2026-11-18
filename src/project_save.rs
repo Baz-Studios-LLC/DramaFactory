@@ -25,7 +25,13 @@ impl Studio {
         if complete {
             match crate::portable_project::link(&self.store, &series) {
                 Ok(Some(link)) => {
-                    self.begin_portable_save(link.folder, Some(link.revision));
+                    if matches!(link.folder.try_exists(), Ok(false)) {
+                        self.message =
+                            "Saved locally. Choose where to save the portable project.".into();
+                        self.save_portable_as();
+                    } else {
+                        self.begin_portable_save(link.folder, Some(link.revision));
+                    }
                     return;
                 }
                 Err(e) => {

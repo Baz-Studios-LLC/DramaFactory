@@ -3,6 +3,47 @@ use anyhow::Result;
 use eframe::egui;
 use std::path::Path;
 
+/// Snapshot the highlighted passage before a secondary press moves the label cursor.
+/// Replay the normal Copy event while rendering the transcript, including Markdown labels.
+pub(crate) fn history_copy_menu(ui: &mut egui::Ui) -> bool {
+    use egui::text_selection::LabelSelectionState;
+    let id = ui.id().with("copy-highlight");
+    let selection = ui.ctx().plugin::<LabelSelectionState>();
+    let pointer = ui.input(|i| i.pointer.interact_pos());
+    if let Some(pos) = pointer
+        && ui.rect_contains_pointer(ui.clip_rect())
+        && ui.input(|i| i.pointer.button_pressed(egui::PointerButton::Secondary))
+        && selection.lock().has_selection()
+    {
+        let saved = selection.lock().clone();
+        ui.data_mut(|d| d.insert_temp(id, (pos, saved)));
+        egui::Popup::open_id(ui.ctx(), id);
+    }
+    if !egui::Popup::is_id_open(ui.ctx(), id) {
+        ui.data_mut(|d| d.remove::<(egui::Pos2, LabelSelectionState)>(id));
+        return false;
+    }
+    let Some((pos, saved)) = ui.data(|d| d.get_temp::<(egui::Pos2, LabelSelectionState)>(id))
+    else {
+        return false;
+    };
+    let clicked = egui::Popup::new(id, ui.ctx().clone(), pos, ui.layer_id())
+        .open_memory(None)
+        .show(|ui| {
+            let clicked = ui.button("Copy").clicked();
+            if clicked {
+                ui.close();
+            }
+            clicked
+        })
+        .is_some_and(|r| r.inner);
+    if clicked {
+        *selection.lock() = saved;
+        ui.input_mut(|i| i.events.push(egui::Event::Copy));
+    }
+    clicked
+}
+
 pub(crate) fn text_menu(
     output: &mut egui::text_edit::TextEditOutput,
     value: &mut String,

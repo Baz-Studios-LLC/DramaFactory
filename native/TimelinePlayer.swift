@@ -64,6 +64,40 @@ final class TimelinePlayer {
     var timer: Timer?
     var lastVideo = Date()
 
+    var lastNativeFrame = Date()
+    var fallbackPath: String?
+    var fallbackGenerator: AVAssetImageGenerator?
+    var lastFallbackTime = -1.0
+
+    // Some compositions advance their audio clock after a seek without vending video buffers.
+    // Decode from the active source at the same clock position until native output resumes.
+    func sourceFrame(at seconds: Double) -> CIImage? {
+        guard let manifest = manifest else { return nil }
+        var cursor = 0.0
+        for clip in manifest.clips {
+            cursor += clip.gap_before
+            if seconds < cursor { return CIImage(color: .black) }
+            if seconds < cursor + clip.duration {
+                if fallbackPath != clip.path {
+                    let generator = AVAssetImageGenerator(asset: AVURLAsset(url: URL(fileURLWithPath: clip.path)))
+                    generator.appliesPreferredTrackTransform = true
+                    generator.maximumSize = CGSize(width: width, height: height)
+                    generator.requestedTimeToleranceBefore = time(1.0 / 24)
+                    generator.requestedTimeToleranceAfter = time(1.0 / 24)
+                    fallbackGenerator = generator
+                    fallbackPath = clip.path
+                }
+                guard let frame = try? fallbackGenerator?.copyCGImage(at: time(clip.start + seconds - cursor), actualTime: nil) else { return nil }
+                let image = CIImage(cgImage: frame)
+                let scale = min(CGFloat(width) / image.extent.width, CGFloat(height) / image.extent.height)
+                let scaled = image.transformed(by: CGAffineTransform(scaleX: scale, y: scale))
+                return scaled.transformed(by: CGAffineTransform(translationX: (CGFloat(width) - scaled.extent.width) / 2, y: (CGFloat(height) - scaled.extent.height) / 2)).composited(over: CIImage(color: .black))
+            }
+            cursor += clip.duration
+        }
+        return nil
+    }
+
     func mix(_ tracks: [(CMPersistentTrackID, Double, Double, Double, Bool, Double, Double)]) -> AVAudioMix {
         let mix = AVMutableAudioMix()
         mix.inputParameters = tracks.map { id, start, duration, gain, muted, fadeIn, fadeOut in
@@ -169,6 +203,9 @@ final class TimelinePlayer {
         self.manifest = m
         ended = false
         lastVideo = Date()
+        lastNativeFrame = Date()
+        lastFallbackTime = -1
+        fallbackPath = nil
         seeking = true
         player.replaceCurrentItem(with: item)
         player.seek(to: time(max(0, min(position.isFinite ? position : 0, cursor))), toleranceBefore: .zero, toleranceAfter: .zero) { [weak self] _ in
@@ -194,9 +231,18 @@ final class TimelinePlayer {
         if !seeking && seconds.isFinite && CMTimeGetSeconds(item.duration).isFinite && seconds >= CMTimeGetSeconds(item.duration) - 0.02 && !ended {
             ended = true; wantedPlaying = false; player.pause(); packet(2, 0, 0, seconds)
         }
+        let frame: CIImage?
         if output.hasNewPixelBuffer(forItemTime: current), let buffer = output.copyPixelBuffer(forItemTime: current, itemTimeForDisplay: nil) {
+            lastNativeFrame = Date()
+            frame = CIImage(cvPixelBuffer: buffer)
+        } else if wantedPlaying && !seeking && seconds.isFinite && Date().timeIntervalSince(lastNativeFrame) > 0.2 && abs(seconds - lastFallbackTime) >= 1.0 / 30 {
+            lastFallbackTime = seconds
+            frame = sourceFrame(at: seconds)
+        } else {
+            frame = nil
+        }
+        if let image = frame {
             lastVideo = Date()
-            let image = CIImage(cvPixelBuffer: buffer)
             var pixels = Data(count: width * height * 4)
             pixels.withUnsafeMutableBytes { bytes in
                 context.render(image, toBitmap: bytes.baseAddress!, rowBytes: width * 4, bounds: CGRect(x: 0, y: 0, width: width, height: height), format: .RGBA8, colorSpace: CGColorSpaceCreateDeviceRGB())

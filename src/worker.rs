@@ -142,7 +142,8 @@ fn execute_export(store: &Store, id: &str) -> Result<()> {
         )?;
     }
     std::fs::write(dir.join("timeline.json"), serde_json::to_vec_pretty(&r)?)?;
-    let output = dir.join("episode.mp4");
+    let filename = store.episode_video_filename(&r.episode_id)?;
+    let output = dir.join(&filename);
     let mut command = Command::new(std::fs::canonicalize(&c.ffmpeg)?);
     command.current_dir(&dir);
     command.args(["-hide_banner", "-v", "error", "-nostdin"]);
@@ -382,6 +383,7 @@ fn execute_export(store: &Store, id: &str) -> Result<()> {
     }
     let asset_id = uuid::Uuid::new_v4().to_string();
     let hash = hash_file(&output)?;
+    store.finished_episode_copy(&filename, &output, &hash)?;
     let subtitle_file = if r.captions.is_empty() {
         None
     } else {

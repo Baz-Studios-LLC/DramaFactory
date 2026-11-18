@@ -904,6 +904,7 @@ impl Studio {
             });
             eframe::egui::ScrollArea::vertical().id_salt(("sidekick-history",&series)).stick_to_bottom(true).horizontal_scroll_offset(0.).auto_shrink([false, false]).max_height(ui.available_height()).show_viewport(ui,|ui, viewport|{
                 ui.set_width(viewport.width());
+                let copy_selection = crate::context_menus::history_copy_menu(ui);
                 if messages.is_empty(){ui.label("Tell me the kind of show you want to make, or an idea you want to explore.");}
                 for message in &messages {
                     if let Some(action)=message_bubble(ui,message,&mut self.sidekick.markdown,&mut self.sidekick.editing_message,self.sidekick.pending.is_none(), viewport.width()) {
@@ -918,6 +919,9 @@ impl Studio {
                             }
                         }
                     }
+                }
+                if copy_selection {
+                    ui.input_mut(|input| { input.events.pop(); });
                 }
             });
         });

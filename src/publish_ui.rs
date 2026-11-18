@@ -7,7 +7,9 @@ use std::collections::HashMap;
 #[derive(Default)]
 pub struct Publisher {
     drafts: HashMap<String, Draft>,
-    platform: usize,
+    hosting: Option<[String; 2]>,
+    jobs: HashMap<String, std::sync::mpsc::Receiver<String>>,
+    results: HashMap<String, String>,
 }
 struct Draft {
     value: ReleaseDraft,
@@ -83,15 +85,14 @@ impl Studio {
                 return;
             }
         };
+        let Ok(filename) = self.store.episode_video_filename(&episode) else {
+            return;
+        };
         let draft = self.publisher.drafts.get_mut(&episode).unwrap();
         ui.add_space(8.);
-        ui.label(
-            RichText::new(
-                "Prepare your release here. Account connections and posting are coming next.",
-            )
-            .color(MUTED),
-        );
-        ui.add_space(8.);
+        if draft.value.asset_id.is_none() {
+            draft.value.asset_id = exports.first().map(|a| a.id.clone());
+        }
         card().show(ui, |ui| {
             ui.set_width(ui.available_width());
             ui.strong("Episode video");
@@ -107,13 +108,7 @@ impl Studio {
                 egui::ComboBox::from_id_salt("publish-export")
                     .selected_text(
                         selected
-                            .map(|a| {
-                                format!(
-                                    "{} · {:.1}s",
-                                    a.path.file_name().unwrap_or_default().to_string_lossy(),
-                                    a.duration
-                                )
-                            })
+                            .map(|a| format!("{} · {:.1}s", filename, a.duration))
                             .unwrap_or_else(|| "Choose an export".into()),
                     )
                     .width(ui.available_width().min(500.))
@@ -122,11 +117,7 @@ impl Studio {
                             ui.selectable_value(
                                 &mut draft.value.asset_id,
                                 Some(asset.id.clone()),
-                                format!(
-                                    "{} · {:.1}s",
-                                    asset.path.file_name().unwrap_or_default().to_string_lossy(),
-                                    asset.duration
-                                ),
+                                format!("{} · {:.1}s", filename, asset.duration),
                             );
                         }
                     });
@@ -148,10 +139,21 @@ impl Studio {
                         );
                     }
                     if ui.button("Show video in Finder").clicked() {
-                        let _ = std::process::Command::new("open")
-                            .arg("-R")
-                            .arg(&asset.path)
-                            .spawn();
+                        let result = (|| -> anyhow::Result<()> {
+                            let path = self.store.finished_episode_copy(
+                                &filename,
+                                &asset.path,
+                                &asset.hash,
+                            )?;
+                            std::process::Command::new("open")
+                                .arg("-R")
+                                .arg(&path)
+                                .spawn()?;
+                            Ok(())
+                        })();
+                        if let Err(e) = result {
+                            draft.error = format!("Could not reveal episode video: {e}");
+                        }
                     }
                 }
             }
@@ -170,34 +172,12 @@ impl Studio {
                     ui.checkbox(&mut draft.value.destinations[index], *name);
                 }
             });
-            ui.horizontal_wrapped(|ui| {
-                for (index, name) in PLATFORMS.iter().enumerate() {
-                    ui.selectable_value(&mut self.publisher.platform, index, *name);
-                }
-            });
             ui.add(
-                egui::TextEdit::multiline(&mut draft.value.captions[self.publisher.platform])
-                    .hint_text("Caption, description and hashtags…")
-                    .desired_rows(4)
+                egui::TextEdit::multiline(&mut draft.value.captions[0])
+                    .hint_text("Caption for all selected channels")
+                    .desired_rows(3)
                     .desired_width(f32::INFINITY),
             );
-            ui.horizontal(|ui| {
-                ui.small(format!(
-                    "{} characters",
-                    draft.value.captions[self.publisher.platform]
-                        .chars()
-                        .count()
-                ));
-                if ui.button("Copy caption").clicked() {
-                    ui.ctx()
-                        .copy_text(draft.value.captions[self.publisher.platform].clone());
-                }
-                if ui.button("Use for all platforms").clicked() {
-                    draft.value.captions = std::array::from_fn(|_| {
-                        draft.value.captions[self.publisher.platform].clone()
-                    });
-                }
-            });
         });
         ui.add_space(6.);
         card().show(ui, |ui| {
@@ -227,6 +207,96 @@ impl Studio {
         });
         if let Err(error) = save(&self.store, &episode, draft) {
             draft.error = error.to_string();
+        }
+        let hosting = self.publisher.hosting.get_or_insert_with(|| {
+            self.store
+                .conn
+                .query_row(
+                    "SELECT value FROM settings WHERE key='buffer-hosting'",
+                    [],
+                    |r| r.get::<_, String>(0),
+                )
+                .ok()
+                .and_then(|s| serde_json::from_str(&s).ok())
+                .unwrap_or_default()
+        });
+        egui::CollapsingHeader::new("Video hosting")
+            .default_open(hosting[0].is_empty())
+            .show(ui, |ui| {
+                ui.label("Set up Cloudinary once to upload episode videos directly from this Mac.");
+                let cloud =
+                    ui.add(egui::TextEdit::singleline(&mut hosting[0]).hint_text("Cloud name"));
+                let preset = ui.add(
+                    egui::TextEdit::singleline(&mut hosting[1]).hint_text("Unsigned upload preset"),
+                );
+                if (cloud.changed() || preset.changed())
+                    && let Err(e) = self.store.conn.execute(
+                        "INSERT OR REPLACE INTO settings(key,value) VALUES('buffer-hosting',?1)",
+                        [serde_json::to_string(hosting).unwrap()],
+                    )
+                {
+                    draft.error = e.to_string();
+                }
+            });
+        if let Some(rx) = self.publisher.jobs.get(&episode) {
+            match rx.try_recv() {
+                Ok(message) => {
+                    self.publisher.results.insert(episode.clone(), message);
+                    self.publisher.jobs.remove(&episode);
+                }
+                Err(std::sync::mpsc::TryRecvError::Empty) => {
+                    ui.spinner();
+                    ui.ctx()
+                        .request_repaint_after(std::time::Duration::from_millis(250));
+                }
+                Err(_) => {
+                    self.publisher.jobs.remove(&episode);
+                    self.publisher.results.insert(
+                        episode.clone(),
+                        "Publishing interrupted. Check Buffer.".into(),
+                    );
+                }
+            }
+        }
+        let asset = exports
+            .iter()
+            .find(|a| Some(&a.id) == draft.value.asset_id.as_ref());
+        let ready = asset.is_some_and(|a| a.path.is_file())
+            && draft.value.destinations.contains(&true)
+            && !draft.value.captions[0].trim().is_empty()
+            && hosting.iter().all(|s| !s.trim().is_empty())
+            && !self.publisher.jobs.contains_key(&episode)
+            && draft.value == draft.persisted;
+        if ui
+            .add_enabled(ready, egui::Button::new("Publish to Buffer"))
+            .on_hover_text("Add to the next queue slot for each selected channel")
+            .clicked()
+        {
+            let (tx, rx) = std::sync::mpsc::channel();
+            self.publisher.jobs.insert(episode.clone(), rx);
+            self.publisher.results.remove(&episode);
+            let (episode, db, asset, value, hosting) = (
+                episode.clone(),
+                self.store.path.clone(),
+                asset.unwrap().clone(),
+                draft.value.clone(),
+                hosting.clone(),
+            );
+            std::thread::spawn(move || {
+                let result = crate::buffer_publish::queue(
+                    &db,
+                    &episode,
+                    &asset,
+                    &value,
+                    &hosting[0],
+                    &hosting[1],
+                );
+                let _ = tx.send(result.unwrap_or_else(|e| e.to_string()));
+            });
+            ui.ctx().request_repaint();
+        }
+        if let Some(status) = self.publisher.results.get(&episode) {
+            ui.label(status);
         }
         ui.add_space(8.);
         if draft.error.is_empty() {

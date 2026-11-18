@@ -16,6 +16,86 @@ pub struct ReleaseDraft {
     pub cover_png: Vec<u8>,
 }
 impl Store {
+    pub fn finished_episode_copy(
+        &self,
+        filename: &str,
+        source: &std::path::Path,
+        hash: &str,
+    ) -> Result<std::path::PathBuf> {
+        let studio = directories::ProjectDirs::from("studio", "DramaFactory", "DramaFactory");
+        let root = if studio
+            .as_ref()
+            .is_some_and(|dirs| dirs.data_dir() == self.root())
+        {
+            directories::UserDirs::new()
+                .and_then(|dirs| dirs.video_dir().map(std::path::Path::to_owned))
+                .ok_or_else(|| anyhow::anyhow!("Movies folder unavailable"))?
+                .join("DramaFactory")
+        } else {
+            self.root().to_owned()
+        };
+        let folder = root.join("Finished Episodes");
+        std::fs::create_dir_all(&folder)?;
+        let stem = filename.strip_suffix(".mp4").unwrap_or(filename);
+        let mut temp = None;
+        for version in 1.. {
+            let path = folder.join(if version == 1 {
+                filename.to_owned()
+            } else {
+                format!("{stem}_v{version}.mp4")
+            });
+            if path.exists() {
+                if path.is_file() && crate::worker::hash_file(&path)? == hash {
+                    return Ok(path);
+                }
+                continue;
+            }
+            if temp.is_none() {
+                let copy = tempfile::NamedTempFile::new_in(&folder)?;
+                std::fs::copy(source, copy.path())?;
+                ensure!(
+                    crate::worker::hash_file(copy.path())? == hash,
+                    "Export copy failed verification"
+                );
+                temp = Some(copy);
+            }
+            match temp.take().unwrap().persist_noclobber(&path) {
+                Ok(_) => return Ok(path),
+                Err(error) if error.error.kind() == std::io::ErrorKind::AlreadyExists => {
+                    temp = Some(error.file)
+                }
+                Err(error) => return Err(error.error.into()),
+            }
+        }
+        unreachable!()
+    }
+    pub fn episode_video_filename(&self, episode: &str) -> Result<String> {
+        let record = self.get_episode(episode)?;
+        let name: String = self.conn.query_row(
+            "SELECT name FROM series WHERE id=?1",
+            [&record.series_id],
+            |row| row.get(0),
+        )?;
+        let index = self
+            .episodes(&record.series_id)?
+            .iter()
+            .position(|item| item.id == episode)
+            .ok_or_else(|| anyhow::anyhow!("Episode missing from series"))?;
+        let stem = name
+            .split(|c: char| !c.is_alphanumeric() && c != '-')
+            .filter(|s| !s.is_empty())
+            .collect::<Vec<_>>()
+            .join("_");
+        let mut stem = stem.as_str();
+        while stem.len() > 200 {
+            stem = &stem[..stem.char_indices().next_back().unwrap().0];
+        }
+        Ok(format!(
+            "{}_Episode_{}.mp4",
+            if stem.is_empty() { "Series" } else { stem },
+            index + 1
+        ))
+    }
     pub fn release_draft(&self, episode: &str) -> Result<(ReleaseDraft, Option<String>)> {
         self.get_episode(episode)?;
         let raw: Option<String> = self
@@ -69,6 +149,33 @@ impl Store {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn finished_copies_preserve_versions_and_verify_content() -> Result<()> {
+        let dir = tempfile::tempdir()?;
+        let store = Store::open(dir.path().join("studio.sqlite"))?;
+        let source = dir.path().join("export.mp4");
+        std::fs::write(&source, b"first export")?;
+        let hash = crate::worker::hash_file(&source)?;
+        let first = store.finished_episode_copy("Test_Episode_1.mp4", &source, &hash)?;
+        assert_eq!(
+            store.finished_episode_copy("Test_Episode_1.mp4", &source, &hash)?,
+            first
+        );
+        std::fs::write(&source, b"revised export")?;
+        let revised_hash = crate::worker::hash_file(&source)?;
+        let revised = store.finished_episode_copy("Test_Episode_1.mp4", &source, &revised_hash)?;
+        assert_eq!(revised.file_name().unwrap(), "Test_Episode_1_v2.mp4");
+        assert_eq!(std::fs::read(first)?, b"first export");
+        assert_eq!(std::fs::read(revised)?, b"revised export");
+        assert!(
+            store
+                .finished_episode_copy("Bad.mp4", &source, &hash)
+                .is_err()
+        );
+        assert!(!store.root().join("Finished Episodes/Bad.mp4").exists());
+        Ok(())
+    }
+
     #[test]
     fn release_survives_reopen_and_rejects_stale_saves() -> Result<()> {
         let dir = std::env::temp_dir().join(format!("df-release-test-{}", uuid::Uuid::new_v4()));

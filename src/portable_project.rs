@@ -318,7 +318,7 @@ pub(crate) fn save(
     let current = head(folder)?;
     ensure!(
         current.as_ref().map(|r| r.revision.as_str()) == expected,
-        "The iCloud project changed on another Mac. Open its latest version or Save As a separate project."
+        "The project folder contains a different revision than this working copy. Use Save As to keep your edits separately, or open the folder to use its saved version"
     );
     if let Some(current) = &current {
         ensure!(current.series == series, "This is a different series");
@@ -835,7 +835,7 @@ impl crate::Studio {
         self.message = error.to_string();
         self.project_save_notice = Some((false, self.message.clone(), std::time::Instant::now()));
     }
-    fn save_portable_as(&mut self) {
+    pub(crate) fn save_portable_as(&mut self) {
         let Some(series) = self.selected.clone() else {
             return;
         };

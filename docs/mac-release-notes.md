@@ -1,12 +1,11 @@
-## New in v018
+## New in v019
 
-- Play the editing timeline directly from source clips with native macOS playback, without rendering a full preview first. Fix fractional-trim video playback and keep the playhead on the playback clock.
-- Dock music controls beside the viewer. Move, trim, split, duplicate, mute and delete music cues with undo/redo. Snap music trims to the playhead and video boundaries. Update volume and fades during playback.
-- Create a cliffhanger ending from the viewer: choose a freeze frame and zoom target, adjust duration and movement, and optionally add a local sound hit or imported audio. Original footage is retained and the cut can be undone.
-- Choose fal.ai or OpenRouter for WAN 3.0 per project, with durable provider-specific jobs. Separate fal and ElevenLabs key inputs and visible saved-key indicators.
-- Organize Settings and store credentials in owner-only files outside projects, iCloud and the repository, avoiding repeated Keychain prompts across builds.
-- Improve iCloud project discovery and the shared project picker.
-- Fix fractional timeline save conflicts and ordinary Sidekick chat parsing. Sidekick can prepare ElevenLabs music directions and receives explicit self-contained video-continuity and prompt-budget instructions.
+- Add Buffer queue publishing for TikTok, Instagram Reels and YouTube Shorts, with private local API-key storage and Cloudinary video hosting configuration. Requires connected Buffer channels and an upload preset. This integration has not yet been verified with a live publishing request.
+- Give episode exports readable series and episode filenames, and retain verified, versioned copies in Movies/DramaFactory/Finished Episodes.
+- Import existing music files into the editing room. Keep music controls visible, label segment/take thumbnails, and improve panel layout.
+- Recover video frames when native timeline playback advances its audio clock without delivering video after a seek.
+- Copy highlighted Sidekick conversation text through a right-click menu.
+- Offer Save As when a portable project's remembered folder is missing, and clarify revision-conflict messages.
 
 Download the **macOS-arm64.zip**, unzip it, and drag DramaFactory.app to Applications. Requires an Apple Silicon Mac.
 

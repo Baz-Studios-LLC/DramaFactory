@@ -20,6 +20,7 @@ pub enum Provider {
     OpenRouter,
     OpenAi,
     ElevenLabs,
+    Buffer,
     Fal,
 }
 impl Provider {
@@ -27,6 +28,7 @@ impl Provider {
     fn service(self) -> &'static str {
         match self {
             Self::OpenRouter => "studio.bazstudios.dramafactory.openrouter",
+            Self::Buffer => "studio.bazstudios.dramafactory.buffer",
             Self::ElevenLabs => "studio.bazstudios.dramafactory.elevenlabs",
             Self::OpenAi => "studio.bazstudios.dramafactory.openai",
             Self::Fal => "studio.bazstudios.dramafactory.fal",
@@ -46,11 +48,13 @@ impl Provider {
     fn session(self) -> Result<std::sync::MutexGuard<'static, SessionKey>> {
         static ROUTER: std::sync::Mutex<SessionKey> = std::sync::Mutex::new(SessionKey(None));
         static OPENAI: std::sync::Mutex<SessionKey> = std::sync::Mutex::new(SessionKey(None));
+        static BUFFER: std::sync::Mutex<SessionKey> = std::sync::Mutex::new(SessionKey(None));
         static MUSIC: std::sync::Mutex<SessionKey> = std::sync::Mutex::new(SessionKey(None));
         static FAL: std::sync::Mutex<SessionKey> = std::sync::Mutex::new(SessionKey(None));
         let session = match self {
             Self::OpenRouter => &ROUTER,
             Self::OpenAi => &OPENAI,
+            Self::Buffer => &BUFFER,
             Self::ElevenLabs => &MUSIC,
             Self::Fal => &FAL,
         };

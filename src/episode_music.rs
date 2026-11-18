@@ -37,7 +37,7 @@ enum Output {
 }
 #[derive(Default)]
 pub struct Panel {
-    pub open: bool,
+    pub focus_cue: Option<String>,
     direction: String,
     selected_clip: bool,
     custom: bool,
@@ -106,11 +106,64 @@ fn compose(
             .success(),
         "Could not decode the generated music."
     );
+    register_track(
+        &store,
+        &wav,
+        json!({"kind":"episode_music","episode_id":episode,"direction":direction,"start":start,"duration":duration}),
+    )
+}
+
+fn register_track(store: &Store, wav: &std::path::Path, metadata: serde_json::Value) -> Result<()> {
     let tx = store.conn.unchecked_transaction()?;
-    let asset = store.import_audio(&wav)?;
-    store.conn.execute("UPDATE assets SET metadata=?1 WHERE id=?2",rusqlite::params![json!({"kind":"episode_music","episode_id":episode,"direction":direction,"start":start,"duration":duration}).to_string(),asset.id])?;
+    let asset = store.import_audio(wav)?;
+    store.conn.execute(
+        "UPDATE assets SET metadata=?1 WHERE id=?2",
+        rusqlite::params![metadata.to_string(), asset.id],
+    )?;
     tx.commit()?;
     Ok(())
+}
+
+fn import_track(
+    db: PathBuf,
+    episode: String,
+    path: PathBuf,
+    start: f64,
+    duration: f64,
+) -> Result<Output> {
+    let store = Store::open(db)?;
+    let temp = tempfile::tempdir()?;
+    let wav = temp.path().join("track.wav");
+    let status = Command::new(store.config()?.ffmpeg)
+        .args(["-v", "error", "-nostdin", "-i"])
+        .arg(&path)
+        .args([
+            "-map",
+            "0:a:0",
+            "-ac",
+            "2",
+            "-ar",
+            "44100",
+            "-c:a",
+            "pcm_s16le",
+            "-t",
+            "1801",
+        ])
+        .arg(&wav)
+        .status()
+        .context("Could not start FFmpeg for music import")?;
+    ensure!(status.success(), "Could not read audio from this file.");
+    let name = path
+        .file_stem()
+        .and_then(|s| s.to_str())
+        .unwrap_or("Imported track");
+    let mut metadata =
+        json!({"kind":"episode_music","episode_id":episode,"name":name,"start":start});
+    if duration > 0. {
+        metadata["duration"] = json!(duration);
+    }
+    register_track(&store, &wav, metadata)?;
+    Ok(Output::Take)
 }
 
 impl Panel {
@@ -131,7 +184,7 @@ impl Panel {
         self.until = draft.start + draft.duration;
         self.custom = true;
         self.selected_clip = false;
-        self.open = true;
+        self.focus_cue = None;
         self.status = "Sidekick prepared this instrumental score. Generate music sends a paid ElevenLabs request; no music has been generated yet.".into();
         Ok(())
     }
@@ -174,10 +227,6 @@ impl Panel {
                 Err(mpsc::TryRecvError::Empty) => {}
             }
         }
-        if !self.open {
-            return false;
-        }
-        let mut open = true;
         let mut changed = false;
         let mut contents = |ui: &mut egui::Ui| {
             let clip =
@@ -235,6 +284,22 @@ impl Panel {
                 (0., cut.duration())
             };
             ui.label(format!("{start:.1}s – {:.1}s", start + duration));
+            if ui
+                .add_enabled(self.pending.is_none(), egui::Button::new("Import track…"))
+                .clicked()
+                && let Some(path) = rfd::FileDialog::new()
+                    .add_filter(
+                        "Audio",
+                        &["wav", "mp3", "m4a", "aac", "aiff", "aif", "flac", "ogg"],
+                    )
+                    .pick_file()
+            {
+                let db = store.path.clone();
+                let episode = episode.to_owned();
+                self.run(ui.ctx(), move || {
+                    import_track(db, episode, path, start, duration)
+                });
+            }
             ui.add_enabled(
                 self.pending.is_none(),
                 egui::TextEdit::multiline(&mut self.direction)
@@ -289,7 +354,10 @@ impl Panel {
                 })
                 .enumerate()
             {
-                let name = format!("Score {}", i + 1);
+                let name = asset.metadata["name"]
+                    .as_str()
+                    .map(str::to_owned)
+                    .unwrap_or_else(|| format!("Score {}", i + 1));
                 ui.separator();
                 ui.horizontal(|ui| {
                     ui.label(format!("{name} · {:.1}s", asset.duration))
@@ -321,6 +389,10 @@ impl Panel {
                     }
                 });
                 for old in cues.iter().filter(|c| c.asset_id == asset.id) {
+                    if self.focus_cue.as_deref() == Some(&old.id) {
+                        ui.scroll_to_cursor(Some(egui::Align::Center));
+                        self.focus_cue = None;
+                    }
                     ui.label(format!("{} · starts at {:.2}s", old.name, old.start));
                     let mut cue = old.clone();
                     ui.horizontal_wrapped(|ui| {
@@ -367,18 +439,12 @@ impl Panel {
                 }
             }
         };
-        ui.horizontal(|ui| {
-            ui.strong("Episode music");
-            if ui.small_button("Close").clicked() {
-                open = false;
-            }
-        });
+        ui.strong("Episode music");
         ui.separator();
         egui::ScrollArea::vertical()
             .id_salt("docked-episode-music")
             .auto_shrink([false, false])
             .show(ui, &mut contents);
-        self.open = open;
         changed
     }
 }

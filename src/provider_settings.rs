@@ -7,6 +7,8 @@ pub struct ProviderSettings {
     fal_status: String,
     key_input: String,
     openai_key: String,
+    buffer_key: String,
+    buffer_status: String,
     music_key: String,
     music_status: String,
     sidekick_connection: Option<crate::sidekick_provider::Connection>,
@@ -445,6 +447,52 @@ impl crate::Studio {
                     };
                 }
                 ui.weak(&settings.music_status);
+            });
+        });
+        ui.add_space(12.);
+        Self::card(ui, |ui| {
+            provider_heading(
+                ui,
+                "Buffer",
+                "Publishing account for TikTok, Instagram Reels and YouTube Shorts.",
+                crate::credentials::Provider::Buffer,
+            );
+            let settings = &mut self.provider_settings;
+            ui.add(
+                eframe::egui::TextEdit::singleline(&mut settings.buffer_key)
+                    .password(true)
+                    .hint_text("Paste your Buffer API key")
+                    .desired_width(ui.available_width()),
+            );
+            ui.horizontal_wrapped(|ui| {
+                let provider = crate::credentials::Provider::Buffer;
+                if ui
+                    .add_enabled(
+                        !settings.buffer_key.trim().is_empty(),
+                        crate::theme::primary("Save key"),
+                    )
+                    .clicked()
+                {
+                    settings.buffer_status = match validate_key(&settings.buffer_key)
+                        .and_then(|key| provider.save(key))
+                    {
+                        Ok(()) => {
+                            settings.buffer_key.clear();
+                            "Saved privately on this Mac".into()
+                        }
+                        Err(e) => e.to_string(),
+                    };
+                }
+                if ui.button("Remove key").clicked() {
+                    settings.buffer_status = match provider.remove() {
+                        Ok(()) => {
+                            settings.buffer_key.clear();
+                            "Key removed".into()
+                        }
+                        Err(e) => e.to_string(),
+                    };
+                }
+                ui.weak(&settings.buffer_status);
             });
         });
     }

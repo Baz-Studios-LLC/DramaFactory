@@ -1,5 +1,6 @@
 mod asset_browser;
 mod asset_catalog;
+mod buffer_publish;
 mod captions;
 mod cast_queue;
 mod cast_reference;

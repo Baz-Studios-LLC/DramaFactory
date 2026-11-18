@@ -207,22 +207,12 @@ impl Studio {
         } else {
             9. / 16.
         };
-        let music_docked = self.editor.music.open || self.editor.cliffhanger.open;
-        let viewer_fraction = if music_docked { 0.36 } else { 0.58 };
         let viewer_width = (viewer_height * aspect)
             .max(156.)
-            .min((workspace.width() * viewer_fraction).max(156.));
+            .min((workspace.width() * 0.36).max(156.));
         let left_width = (workspace.width() - viewer_width - 20.).max(220.);
-        let dock_width = if music_docked {
-            (left_width * 0.48).clamp(180., 380.)
-        } else {
-            0.
-        };
-        let pool_width = if music_docked {
-            (left_width - dock_width - 12.).max(120.)
-        } else {
-            left_width
-        };
+        let dock_width = (left_width * 0.48).clamp(180., 380.);
+        let pool_width = (left_width - dock_width - 12.).max(120.);
         ui.set_max_width(pool_width);
         ui.heading("Editing room");
         self.episode_picker(ui);
@@ -355,22 +345,14 @@ impl Studio {
                 "Unsaved changes"
             });
         });
-        if ui.button("♫  Music").clicked() {
-            state.cliffhanger.open = false;
-            state.music.open = true;
-        }
         let music_before = self.store.audio_cues(&episode).ok();
+        let music_height = music_before
+            .as_ref()
+            .map_or(0., |cues| cues.len() as f32 * 24.);
+        let upper_height = (upper_height - music_height).max(80.);
         let music_rect = egui::Rect::from_min_size(
             egui::pos2(workspace.left() + pool_width + 12., workspace.top()),
-            egui::vec2(
-                dock_width.max(180.),
-                (upper_height
-                    - self
-                        .store
-                        .audio_cues(&episode)
-                        .map_or(0., |c| c.len() as f32 * 24.))
-                .max(80.),
-            ),
+            egui::vec2(dock_width, upper_height),
         );
         let mut music_ui = ui.new_child(
             egui::UiBuilder::new()
@@ -378,32 +360,31 @@ impl Studio {
                 .max_rect(music_rect),
         );
         music_ui.set_clip_rect(music_rect.intersect(ui.clip_rect()));
-        let music_changed = if music_docked {
+        let music_changed = {
             egui::Frame::new()
                 .fill(crate::theme::SURFACE)
                 .corner_radius(6)
                 .inner_margin(10.)
                 .show(&mut music_ui, |ui| {
-                    if state.cliffhanger.open {
-                        egui::ScrollArea::vertical()
-                            .id_salt("cliffhanger-setup-scroll")
-                            .show(ui, |ui| state.cliffhanger.show(ui, &self.store, &episode));
-                        false
-                    } else {
-                        state.music.show(
-                            ui,
-                            &self.store,
-                            &episode,
-                            &state.cut,
-                            state.selected,
-                            &assets,
-                        )
-                    }
+                    ui.set_min_height(ui.available_height());
+                    state.music.show(
+                        ui,
+                        &self.store,
+                        &episode,
+                        &state.cut,
+                        state.selected,
+                        &assets,
+                    )
                 })
                 .inner
-        } else {
-            false
         };
+        if state.cliffhanger.open {
+            egui::Window::new("Cliffhanger setup")
+                .vscroll(true)
+                .show(ui.ctx(), |ui| {
+                    state.cliffhanger.show(ui, &self.store, &episode)
+                });
+        }
         if music_changed {
             // Keep the rendered preview playing; rebuild its mix on the next start.
             state.music_mix_changed = true;
@@ -436,8 +417,6 @@ impl Studio {
                 Err(error) => state.error = error.to_string(),
             }
         }
-        let music_height = music.len() as f32 * 24.;
-        let upper_height = (upper_height - music_height).max(80.);
         if !state.error.is_empty() {
             ui.colored_label(crate::GOLD, &state.error);
         }
@@ -469,14 +448,29 @@ impl Studio {
         {
             state.playhead = (state.timeline_origin + player.playback_position()).min(total);
         }
-        let pool_height = (workspace.top() + upper_height - ui.cursor().top() - 28.).max(80.);
+        let pool_top = ui.cursor().top().min(workspace.top() + upper_height);
+        let pool_rect = egui::Rect::from_min_max(
+            egui::pos2(workspace.left(), pool_top),
+            egui::pos2(
+                workspace.left() + pool_width,
+                workspace.top() + upper_height,
+            ),
+        );
+        let mut pool_ui = ui.new_child(
+            egui::UiBuilder::new()
+                .id_salt("editor-pool-panel")
+                .max_rect(pool_rect),
+        );
+        pool_ui.set_clip_rect(ui.clip_rect().intersect(pool_rect));
+        egui::Frame::new().fill(crate::theme::SURFACE).corner_radius(6).inner_margin(8.).show(&mut pool_ui, |ui| {
+        ui.set_min_height(ui.available_height());
         egui::CollapsingHeader::new("Media pool")
                 .default_open(true)
                 .show(ui, |ui| {
                     egui::ScrollArea::vertical()
                         .id_salt("editor-media-pool")
                         .auto_shrink([false, false])
-                        .max_height(pool_height)
+                        .max_height(ui.available_height())
                         .show(ui, |ui| {
                             let plan = self.store.generation_plan(&episode).ok();
                             let columns = ((ui.available_width() + 8.) / 78.)
@@ -525,6 +519,12 @@ impl Studio {
                                                     if let Some(path) = thumb {
                                                         egui::Image::from_uri(format!("file://{}", path.display())).corner_radius(5).paint_at(ui, rect);
                                                     }
+                                                    let label = format!("S{}T{}", segment_number + 1, take_number + 1);
+                                                    let painter = ui.painter().with_clip_rect(ui.clip_rect().intersect(rect));
+                                                    let text = painter.layout_no_wrap(label, egui::FontId::proportional(11.), egui::Color32::WHITE);
+                                                    let origin = rect.left_top() + egui::vec2(6., 5.);
+                                                    painter.rect_filled(egui::Rect::from_min_size(origin, text.size()).expand(3.), 3, egui::Color32::from_black_alpha(200));
+                                                    painter.galley(origin, text, egui::Color32::WHITE);
                                                     let drag = drag.on_hover_text(format!("{title} · {:.1}s\nClick to preview · drag to timeline", asset.duration));
                                                     let add_rect = egui::Rect::from_min_size(rect.right_top()+egui::vec2(-25., 3.), egui::vec2(22.,22.));
                                                     let add = ui.interact(add_rect, ui.id().with(("add-take", &asset.id)), egui::Sense::click()).on_hover_text(format!("Add {title} to timeline"));
@@ -571,12 +571,16 @@ impl Studio {
                                 });
                         });
                 });
+        });
         ui.set_max_width(workspace.width());
         let viewer_rect = egui::Rect::from_min_size(
             egui::pos2(workspace.right() - viewer_width, workspace.top()),
             egui::vec2(viewer_width, upper_height),
         );
         {
+            ui.painter()
+                .rect_filled(viewer_rect, 6, crate::theme::SURFACE);
+            let viewer_rect = viewer_rect.shrink(8.);
             let mut viewer_ui = ui.new_child(
                 egui::UiBuilder::new()
                     .max_rect(viewer_rect)
@@ -692,7 +696,6 @@ impl Studio {
                         let _ = player.toggle_playback();
                     }
                     state.cliffhanger.begin(&state.cut, state.playhead);
-                    state.music.open = false;
                     ui.close();
                 }
             });
@@ -932,7 +935,7 @@ impl Studio {
                     if state.selected_music.as_deref() == Some(&cue.id) {
                         painter.rect_stroke(rect, 3, egui::Stroke::new(2., crate::GOLD), egui::StrokeKind::Inside);
                     }
-                    if response.double_clicked() { state.music.open = true; }
+                    if response.double_clicked() { state.music.focus_cue = Some(cue.id.clone()); }
                     response.context_menu(|ui| {
                         let offset = state.playhead - cue.start;
                         let mut edited = cue.clone();
@@ -1001,7 +1004,7 @@ impl Studio {
                             ui.close();
                         }
                         if ui.button("Position, trim, volume & fades…").clicked() {
-                            state.music.open = true;
+                            state.music.focus_cue = Some(cue.id.clone());
                             ui.close();
                         }
                     });
