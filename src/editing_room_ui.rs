@@ -3,6 +3,19 @@ use crate::{
     editing_room::{Clip, Cut},
 };
 use eframe::egui;
+fn timeline_time(seconds: f64) -> String {
+    let millis = if seconds.is_finite() {
+        (seconds.max(0.) * 1000.).round() as u64
+    } else {
+        0
+    };
+    format!(
+        "{:02}:{:02}.{:03}",
+        millis / 60_000,
+        (millis / 1000) % 60,
+        millis % 1000
+    )
+}
 fn snap_music_position(value: f64, targets: &[f64], min: f64, max: f64, threshold: f64) -> f64 {
     let value = value.clamp(min, max);
     targets
@@ -48,12 +61,39 @@ pub struct Editor {
     error: String,
     split_at: f64,
     zoom: f32,
-    timeline_lead: f32,
     playhead: f64,
     scrubber: crate::scrub_preview::Scrubber,
     scrubbing: bool,
 }
 impl Editor {
+    pub(crate) fn live_snapshot(&self) -> serde_json::Value {
+        serde_json::json!({"episode_id":self.episode,"cut":self.cut,"saved":self.saved,"playhead":self.playhead})
+    }
+    pub(crate) fn apply_live_cut(
+        &mut self,
+        store: &crate::Store,
+        expected: &serde_json::Value,
+        cut: Cut,
+    ) -> anyhow::Result<()> {
+        anyhow::ensure!(
+            &self.live_snapshot() == expected,
+            "Timeline changed; read the live workspace again"
+        );
+        let episode = self
+            .episode
+            .as_deref()
+            .ok_or_else(|| anyhow::anyhow!("Open the episode in Editing room first"))?;
+        store.validate_cut(episode, &cut)?;
+        self.undo.push(TimelineEdit::Picture(self.cut.clone()));
+        self.redo.clear();
+        self.cut = cut;
+        self.player = None;
+        self.timeline_player = None;
+        self.playhead = self.playhead.min(self.cut.duration());
+        self.selected = None;
+        Ok(())
+    }
+
     pub(crate) fn music_cut_duration(
         &self,
         store: &crate::store::Store,
@@ -193,7 +233,7 @@ impl Studio {
             - ui.spacing().scroll.allocated_width()
             - 3. * ui.spacing().item_spacing.y)
             .max(100.);
-        let viewer_height = upper_height - 48.;
+        let viewer_height = upper_height - 4.;
         let aspect = if self.store.video_aspect_ratio() == "16:9" {
             16. / 9.
         } else {
@@ -485,8 +525,8 @@ impl Studio {
                                                 for (take_number, job) in jobs
                                                     .iter()
                                                     .rev()
-                                                    .filter(|job| job["status"] == "completed")
                                                     .enumerate()
+                                                    .filter(|(_, job)| job["status"] == "completed")
                                                 {
                                                     let Some(asset) =
                                                         job["asset_id"].as_str().and_then(|id| {
@@ -572,7 +612,7 @@ impl Studio {
         {
             ui.painter()
                 .rect_filled(viewer_rect, 6, crate::theme::SURFACE);
-            let viewer_rect = viewer_rect.shrink(8.);
+            let viewer_rect = viewer_rect.shrink(2.);
             let mut viewer_ui = ui.new_child(
                 egui::UiBuilder::new()
                     .max_rect(viewer_rect)
@@ -580,22 +620,7 @@ impl Studio {
             );
             viewer_ui.set_clip_rect(viewer_rect.intersect(ui.clip_rect()));
             let ui = &mut viewer_ui;
-            ui.horizontal(|ui| {
-                ui.strong("Viewer");
-
-                if state.player.is_some() && ui.small_button("Close").clicked() {
-                    state.player = None;
-                }
-            });
-            let caption_height = ui.text_style_height(&egui::TextStyle::Small) + 8.;
-            let caption_rect = egui::Rect::from_min_max(
-                egui::pos2(viewer_rect.left(), viewer_rect.bottom() - caption_height),
-                viewer_rect.right_bottom(),
-            );
-            let available_video_rect = egui::Rect::from_min_max(
-                egui::pos2(viewer_rect.left(), ui.cursor().top()),
-                egui::pos2(viewer_rect.right(), caption_rect.top() - 4.),
-            );
+            let available_video_rect = viewer_rect;
             let canvas_height = available_video_rect
                 .height()
                 .min(available_video_rect.width() / aspect)
@@ -618,11 +643,6 @@ impl Studio {
                     state.playhead = 0.;
                     state.timeline_player = None;
                 }
-                ui.put(
-                    caption_rect,
-                    egui::Label::new(egui::RichText::new(&state.player_title).small()).truncate(),
-                )
-                .on_hover_text(&state.player_title);
             } else {
                 let (rect, response) = ui.allocate_exact_size(
                     egui::vec2(ui.available_width(), viewer_height),
@@ -656,42 +676,62 @@ impl Studio {
                         crate::MUTED,
                     );
                 }
-                let caption = if state.scrubbing {
-                    format!("Timeline · {:.2}s", state.playhead)
-                } else {
-                    String::new()
-                };
-                ui.put(
-                    caption_rect,
-                    egui::Label::new(egui::RichText::new(caption).small()).truncate(),
-                );
             }
             let interaction = ui.interact(
                 video_rect,
                 ui.id().with("cliffhanger-viewer"),
-                egui::Sense::click(),
+                if state.cliffhanger.open && !state.cliffhanger.busy() {
+                    egui::Sense::click_and_drag()
+                } else {
+                    egui::Sense::click()
+                },
             );
-            interaction.context_menu(|ui| {
-                if ui
-                    .add_enabled(
-                        state.cut.source_at(state.playhead).is_some()
-                            && (state.timeline_player.is_some() || state.scrubbing)
-                            && !state.cliffhanger.busy(),
-                        egui::Button::new("Create cliffhanger ending"),
-                    )
-                    .clicked()
-                {
-                    if let Some(player) = &mut state.player
-                        && !player.is_paused()
-                        && !player.finished()
-                    {
-                        let _ = player.toggle_playback();
+            interaction
+                .clone()
+                .on_hover_text(&state.player_title)
+                .context_menu(|ui| {
+                    if state.player.is_some() && ui.button("Close viewer").clicked() {
+                        state.player = None;
+                        ui.close();
                     }
-                    state.cliffhanger.begin(&state.cut, state.playhead);
-                    ui.close();
-                }
-            });
+                    if ui
+                        .add_enabled(
+                            state.cut.source_at(state.playhead).is_some()
+                                && (state.timeline_player.is_some() || state.scrubbing)
+                                && !state.cliffhanger.busy(),
+                            egui::Button::new("Create cliffhanger ending"),
+                        )
+                        .clicked()
+                    {
+                        if let Some(player) = &mut state.player
+                            && !player.is_paused()
+                            && !player.finished()
+                        {
+                            let _ = player.toggle_playback();
+                        }
+                        state.cliffhanger.begin(&state.cut, state.playhead);
+                        ui.close();
+                    }
+                });
             if state.cliffhanger.open {
+                if !state.cliffhanger.busy() {
+                    interaction.clone().on_hover_cursor(egui::CursorIcon::Grab);
+                    if interaction.dragged_by(egui::PointerButton::Primary) {
+                        ui.ctx().set_cursor_icon(egui::CursorIcon::Grabbing);
+                        let delta = interaction.drag_delta();
+                        let r = &mut state.cliffhanger.recipe;
+                        let half = 0.5 / r.zoom;
+                        // Start from the visible crop center, including when a
+                        // previous click placed the target against an edge.
+                        r.x = (r.x.clamp(half, 1. - half)
+                            + f64::from(delta.x / video_rect.width()))
+                        .clamp(half, 1. - half);
+                        r.y = (r.y.clamp(half, 1. - half)
+                            + f64::from(delta.y / video_rect.height()))
+                        .clamp(half, 1. - half);
+                        play_timeline = false;
+                    }
+                }
                 if interaction.clicked()
                     && !state.cliffhanger.busy()
                     && let Some(pos) = interaction.interact_pointer_pos()
@@ -725,6 +765,12 @@ impl Studio {
         let mut scroll_to = None;
         ui.horizontal(|ui| {
             ui.strong("Timeline");
+            ui.monospace(format!(
+                "{} / {}",
+                timeline_time(state.playhead),
+                timeline_time(total)
+            ))
+            .on_hover_text("Playhead position / episode duration");
             if ui
                 .add_enabled(!state.cut.clips.is_empty(), egui::Button::new("▶ / ⏸"))
                 .on_hover_text("Play / pause timeline · Space")
@@ -745,12 +791,11 @@ impl Studio {
                 .changed()
             {
                 let time_x = state.playhead as f32 * state.zoom;
-                state.timeline_lead = (timeline_width * 0.5 - time_x - 58.).max(0.);
-                scroll_to =
-                    Some((58. + state.timeline_lead + time_x - timeline_width * 0.5).max(0.));
+                // Center the playhead only once there is enough timeline before it.
+                // Never pad the start to force it into the middle of the viewport.
+                scroll_to = Some((58. + time_x - timeline_width * 0.5).max(0.));
             }
             if ui.small_button("Fit").clicked() {
-                state.timeline_lead = 0.;
                 scroll_to = Some(0.);
                 state.zoom = ((timeline_width - 70.) / total.max(1.) as f32).clamp(4., 40.);
             }
@@ -767,7 +812,7 @@ impl Studio {
         }
         timeline_scroll.show(ui, |ui| {
             let scale = state.zoom;
-            let lead = 58. + state.timeline_lead;
+            let lead = 58.;
             let width = (lead + total as f32 * scale + (timeline_width * 0.5).max(182.))
                 .max(ui.available_width());
             let (canvas, _) = ui.allocate_exact_size(
@@ -1537,6 +1582,13 @@ impl Studio {
                 4.,
                 egui::Color32::from_rgb(232, 101, 95),
             );
+            let label = timeline_time(state.playhead);
+            let galley = painter.layout_no_wrap(label, egui::FontId::monospace(11.), egui::Color32::WHITE);
+            let size = galley.size() + egui::vec2(10.,4.);
+            let left = (x - size.x / 2.).clamp(ui.clip_rect().left(), (ui.clip_rect().right() - size.x).max(ui.clip_rect().left()));
+            let badge = egui::Rect::from_min_size(egui::pos2(left,canvas.top()),size);
+            painter.rect_filled(badge,3.,egui::Color32::from_rgb(115,44,40));
+            painter.galley(badge.min + egui::vec2(5.,2.),galley,egui::Color32::WHITE);
         });
         if let Some((index, left, original, x)) = &state.trim_drag
             && let Some(pointer) = ui.input(|i| i.pointer.interact_pos())

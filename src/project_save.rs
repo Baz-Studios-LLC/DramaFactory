@@ -15,12 +15,12 @@ impl Studio {
         let result = self.save_project_inner(&series);
         let complete = matches!(&result, Ok(issues) if issues.is_empty());
         self.message = match result {
-            Ok(issues) if issues.is_empty() => "Project saved across all workspaces".into(),
+            Ok(issues) if issues.is_empty() => "Project saved".into(),
             Ok(issues) => format!(
-                "Project saved with items needing attention: {}. Unsaved drafts were preserved.",
+                "Project not saved: {}. Unsaved drafts were preserved.",
                 issues.join(" · ")
             ),
-            Err(error) => format!("Project save stopped: {error}. Your drafts remain in place."),
+            Err(error) => format!("Project not saved: {error}. Your drafts remain in place."),
         };
         if complete {
             match crate::portable_project::link(&self.store, &series) {
@@ -123,12 +123,14 @@ impl Studio {
                                         .color(crate::GOLD),
                                 );
                             });
-                            ui.add(egui::Label::new(&message).wrap());
+                            if message != "Project saved" {
+                                ui.add(egui::Label::new(&message).wrap());
+                            }
                         });
                 });
         } else {
             let mut open = true;
-            egui::Window::new("Project save needs attention")
+            egui::Window::new("Project not saved")
                 .id(egui::Id::new("project-save-issues-compact"))
                 .anchor(egui::Align2::CENTER_CENTER, egui::Vec2::ZERO)
                 .collapsible(false)

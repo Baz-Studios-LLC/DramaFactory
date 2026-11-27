@@ -24,14 +24,61 @@ pub struct Segment {
     pub input_mode: Option<String>,
     #[serde(default)]
     pub character_ids: Option<Vec<String>>,
+    #[serde(default)]
+    pub last_frame_from: Option<String>,
 }
 pub fn same(a: &Snapshot, b: &Snapshot) -> bool {
     serde_json::to_value(a).ok() == serde_json::to_value(b).ok()
 }
 pub fn apply(current: &Snapshot, expected: &Snapshot, edit: &Edit) -> Result<SavedPlan> {
-    if !same(current, expected) || edit.episode_id != current.plan.episode_id {
+    if edit.episode_id != current.plan.episode_id
+        || current.plan.episode_id != expected.plan.episode_id
+    {
+        bail!("Generation proposal not applied: the selected episode changed.");
+    }
+    if current.plan != expected.plan {
         bail!(
-            "Episode, source material or generation plan changed during the reply. Your newer work was preserved."
+            "Generation proposal not applied: the segment plan changed while Sidekick was replying. Your newer work was preserved."
+        );
+    }
+    let mut current_context = current.context.clone();
+    let mut expected_context = expected.context.clone();
+    // Take selection is production state, not an authored prompt dependency.
+    // It matters only when this proposal requests a selected-take frame handoff.
+    let uses_selected_take = edit.segments.iter().any(|s| {
+        s.last_frame_from
+            .as_ref()
+            .is_some_and(|source| !source.is_empty())
+    });
+    if !uses_selected_take {
+        for context in [&mut current_context, &mut expected_context] {
+            if let Some(object) = context.as_object_mut() {
+                object.remove("selected_segment_takes");
+            }
+        }
+    }
+    if current_context != expected_context {
+        let changed = current_context
+            .as_object()
+            .into_iter()
+            .flat_map(|o| o.keys())
+            .chain(
+                expected_context
+                    .as_object()
+                    .into_iter()
+                    .flat_map(|o| o.keys()),
+            )
+            .find(|key| current_context.get(*key) != expected_context.get(*key));
+        let label = match changed.map(String::as_str) {
+            Some("saved_generation_revision") => "the saved generation plan",
+            Some("screenplay_draft" | "saved_episode") => "the episode screenplay",
+            Some("selected_segment_takes") => "the source take selection",
+            Some("available_portraits" | "characters") => "the character references or profiles",
+            Some("saved_plot" | "plot_draft") => "the story plan",
+            _ => "the source material",
+        };
+        bail!(
+            "Generation proposal not applied: {label} changed while Sidekick was replying. Your newer work was preserved."
         );
     }
     if edit.segments.is_empty() || edit.segments.len() > 120 {
@@ -90,13 +137,37 @@ pub fn apply(current: &Snapshot, expected: &Snapshot, edit: &Edit) -> Result<Sav
                 }).collect::<Result<Vec<_>>>()?;
                 if !ids.is_empty() { segment.mode = 1; }
             }
+            if let Some(source) = &proposal.last_frame_from {
+                if source.is_empty() {
+                    if segment.last_frame_from.is_some() { crate::frame_handoff::set_source(&mut segment, None); }
+                } else if segment.last_frame_from.as_deref() != Some(source) {
+                    crate::frame_handoff::set_source(&mut segment, Some(source.clone()));
+                }
+            }
             Ok(segment)
         })
         .collect::<Result<Vec<_>>>()?;
+    for (index, segment) in next.segments.iter().enumerate() {
+        if let Some(source) = &segment.last_frame_from {
+            if !next.segments[..index].iter().any(|s| &s.id == source) {
+                bail!("Last-frame source must be an earlier segment in this episode");
+            }
+            if segment.mode != 2 {
+                bail!("Clear the last-frame source before switching input modes");
+            }
+        }
+    }
     Ok(next)
 }
 pub fn schema() -> serde_json::Value {
-    serde_json::json!({"type":"object","additionalProperties":false,"required":["episode_id","segments"],"properties":{"episode_id":{"type":"string"},"segments":{"type":"array","items":{"type":"object","additionalProperties":false,"required":["id","prompt","duration","resolution","input_mode","character_ids"],"properties":{"id":{"type":"string"},"prompt":{"type":"string"},"duration":{"type":"integer"},"resolution":{"type":"string","enum":["480p","720p","1080p"]},"input_mode":{"type":["string","null"],"enum":["prompt","references",null]},"character_ids":{"type":["array","null"],"items":{"type":"string"}}}}}}})
+    let mut schema = serde_json::json!({"type":"object","additionalProperties":false,"required":["episode_id","segments"],"properties":{"episode_id":{"type":"string"},"segments":{"type":"array","items":{"type":"object","additionalProperties":false,"required":["id","prompt","duration","resolution","input_mode","character_ids"],"properties":{"id":{"type":"string"},"prompt":{"type":"string"},"duration":{"type":"integer"},"resolution":{"type":"string","enum":["480p","720p","1080p"]},"input_mode":{"type":["string","null"],"enum":["prompt","references",null]},"character_ids":{"type":["array","null"],"items":{"type":"string"}}}}}}});
+    let item = &mut schema["properties"]["segments"]["items"];
+    item["required"]
+        .as_array_mut()
+        .unwrap()
+        .push(serde_json::json!("last_frame_from"));
+    item["properties"]["last_frame_from"] = serde_json::json!({"type":["string","null"],"description":"Source segment ID to use its selected take's last frame. Empty string clears; null preserves. Must precede destination."});
+    schema
 }
 impl Studio {
     pub(crate) fn generation_snapshot(&mut self) -> Result<Snapshot> {
@@ -121,8 +192,9 @@ impl Studio {
             .collect();
         let context = serde_json::json!({
             "available_portraits":available_portraits,
+            "selected_segment_takes": plan.segments.iter().map(|segment| serde_json::json!({"segment_id":segment.id,"asset_id":self.store.selected_segment_take(&episode,&segment.id).ok().flatten()})).collect::<Vec<_>>(),
             "video_aspect_ratio": self.store.video_aspect_ratio(),
-            "video_models":crate::video_plan::MODEL_CHOICES.iter().map(|m| serde_json::json!({"id":m.id,"clip_seconds":m.duration,"max_character_references":m.references,"assembled_prompt_character_limit":if m.id == "alibaba/wan-3.0" {Some(20000)} else {None::<usize>}})).collect::<Vec<_>>(),
+            "video_models":crate::video_plan::MODEL_CHOICES.iter().map(|m| serde_json::json!({"id":m.id,"clip_seconds":m.duration,"max_character_references":m.references,"assembled_prompt_character_limit":if m.id == "alibaba/wan-3.0" || crate::sogni_video::is_model(m.id) {Some(20000)} else {None::<usize>}})).collect::<Vec<_>>(),
             "series_id":series,
             "saved_episode":saved_episode,
             "screenplay_draft":self.script,
@@ -142,6 +214,61 @@ impl Studio {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn sidekick_links_only_earlier_segments_and_can_clear_the_link() {
+        let first = crate::generation_plan::SegmentDraft {
+            prompt: "First".into(),
+            ..Default::default()
+        };
+        let second = crate::generation_plan::SegmentDraft {
+            prompt: "Second".into(),
+            ..Default::default()
+        };
+        let current = Snapshot {
+            plan: SavedPlan {
+                episode_id: "episode".into(),
+                revision: 1,
+                segments: vec![first.clone(), second.clone()],
+            },
+            context: serde_json::json!({}),
+        };
+        let mut edit = Edit {
+            episode_id: "episode".into(),
+            segments: current
+                .plan
+                .segments
+                .iter()
+                .map(|s| Segment {
+                    id: s.id.clone(),
+                    prompt: s.prompt.clone(),
+                    duration: s.duration,
+                    resolution: s.resolution.clone(),
+                    input_mode: None,
+                    character_ids: None,
+                    last_frame_from: None,
+                })
+                .collect(),
+        };
+        edit.segments[1].last_frame_from = Some(first.id.clone());
+        let linked = apply(&current, &current, &edit).unwrap();
+        assert_eq!(
+            linked.segments[1].last_frame_from.as_deref(),
+            Some(first.id.as_str())
+        );
+        assert!(linked.segments[0] == first);
+        assert!(linked.segments[1].video_plan("9:16").is_err());
+        edit.segments[0].last_frame_from = Some(second.id.clone());
+        assert!(apply(&current, &current, &edit).is_err());
+        edit.segments[0].last_frame_from = None;
+        edit.segments[1].last_frame_from = Some(String::new());
+        let linked = Snapshot {
+            plan: linked,
+            context: current.context.clone(),
+        };
+        let cleared = apply(&linked, &linked, &edit).unwrap();
+        assert!(cleared.segments[1].last_frame_from.is_none());
+        assert!(apply(&current, &linked, &edit).is_err());
+    }
     #[test]
     fn preparation_preserves_inputs_and_guards_context_ids_and_newer_edits() {
         let mut segment = crate::generation_plan::SegmentDraft {
@@ -167,6 +294,7 @@ mod tests {
                 resolution: "480p".into(),
                 input_mode: None,
                 character_ids: None,
+                last_frame_from: None,
             }],
         };
         let mut with_portraits = current.clone();
@@ -190,6 +318,25 @@ mod tests {
         assert_eq!(next.segments[0].first, segment.first);
         assert_eq!(next.segments[0].mode, 2);
         let mut changed = current.clone();
+        changed.context["selected_segment_takes"] = serde_json::json!([
+            {"segment_id":segment.id,"asset_id":"new-completed-take"}
+        ]);
+        let after_take_completion = apply(&changed, &current, &edit).unwrap();
+        assert_eq!(
+            after_take_completion.segments[0].prompt,
+            edit.segments[0].prompt
+        );
+        assert_eq!(after_take_completion.segments[0].first, segment.first);
+        edit.segments[0].last_frame_from = Some("source-segment".into());
+        assert!(
+            apply(&changed, &current, &edit)
+                .err()
+                .unwrap()
+                .to_string()
+                .contains("source take selection")
+        );
+        edit.segments[0].last_frame_from = None;
+        changed = current.clone();
         changed.context["screenplay"] = "New dialogue".into();
         assert!(apply(&changed, &current, &edit).is_err());
         changed = current.clone();

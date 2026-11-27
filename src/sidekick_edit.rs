@@ -17,6 +17,8 @@ pub struct Reply {
     #[serde(default)]
     pub generation: Option<crate::sidekick_generation::Edit>,
     #[serde(default)]
+    pub publishing: Option<crate::sidekick_publish::Edit>,
+    #[serde(default)]
     pub plot: Option<crate::sidekick_plot::PlotEdit>,
     #[serde(default)]
     pub episode: Option<crate::sidekick_episode::EpisodeEdit>,
@@ -41,6 +43,7 @@ pub fn response_format() -> serde_json::Value {
         "properties":{
             "message":{"type":"string"},
             "music":{"anyOf":[{"type":"null"},{"type":"object","additionalProperties":false,"required":["episode_id","direction","start","duration"],"properties":{"episode_id":{"type":"string"},"direction":{"type":"string"},"start":{"type":"number"},"duration":{"type":"number"}}}]},
+            "publishing":{"anyOf":[{"type":"null"},crate::sidekick_publish::schema()]},
             "generation":{"anyOf":[{"type":"null"},crate::sidekick_generation::schema()]},
             "new_episodes":{"anyOf":[{"type":"null"},crate::sidekick_episode::creation_schema()]},
             "episode":{"anyOf":[{"type":"null"},crate::sidekick_episode::response_schema()]},
@@ -64,6 +67,7 @@ pub fn response_format_for(workspace: &str) -> serde_json::Value {
             "new_episodes",
             "generation",
             "music",
+            "publishing",
         ],
         "Synopsis" => &["synopsis"],
         "Characters" | "Locations" => &["character", "new_characters", "cast_queue"],
@@ -71,6 +75,7 @@ pub fn response_format_for(workspace: &str) -> serde_json::Value {
         "Episode plot" => &["episode", "new_episodes"],
         "Episode generation" => &["generation"],
         "Editing room" => &["music"],
+        "Publish" => &["publishing"],
         _ => &[],
     };
     let mut format = response_format();
@@ -129,6 +134,7 @@ pub fn retained_reply(text: &str, truncated: bool) -> Result<Reply> {
             )
         },
         generation: None,
+        publishing: None,
         synopsis: None,
         plot: None,
         episode: None,
@@ -143,12 +149,16 @@ pub fn parse_reply(text: &str) -> Result<Reply> {
     let reply: Reply = serde_json::from_str(text).map_err(|_| {
         anyhow::anyhow!("Sidekick returned an invalid document response. Nothing was applied.")
     })?;
+    if let Some(edit) = &reply.publishing {
+        edit.validate()?;
+    }
     if let Some(music) = &reply.music {
         music.validate()?;
     }
     if let Some(tasks) = &reply.cast_queue {
         crate::cast_queue::validate(tasks)?;
         if reply.music.is_some()
+            || reply.publishing.is_some()
             || reply.new_character.is_some()
             || reply.new_characters.is_some()
             || reply.character.is_some()
@@ -272,6 +282,19 @@ pub fn undo(
 }
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn publishing_contract_is_available_and_truncation_cannot_apply_it() {
+        for workspace in ["All workspaces", "Publish"] {
+            assert!(
+                response_format_for(workspace)["json_schema"]["schema"]["properties"]
+                    .get("publishing")
+                    .is_some()
+            );
+        }
+        let text=serde_json::json!({"message":"Prepared draft","publishing":{"episode_id":"episode","title":"Title","tiktok":"TikTok","youtube":"YouTube","instagram":null}}).to_string();
+        assert!(parse_reply(&text).unwrap().publishing.is_some());
+        assert!(retained_reply(&text, true).unwrap().publishing.is_none());
+    }
     #[test]
     fn segment_and_screenplay_edits_can_target_the_same_episode() {
         let mut response = serde_json::json!({"message":"Updated drafts","episode":{"episode_id":"a","screenplay":"Updated scene"},"generation":{"episode_id":"a","segments":[{"id":"s","prompt":"Closing shot","duration":22,"resolution":"480p"}]}});

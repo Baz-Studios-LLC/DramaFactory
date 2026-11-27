@@ -12,6 +12,20 @@ pub struct ModelChoice {
 }
 pub const MODEL_CHOICES: &[ModelChoice] = &[
     ModelChoice {
+        id: "sogni/wan3.0-video",
+        name: "Sogni - Wan 3",
+        duration: 30,
+        references: 10,
+        minimum_resolution: "480p",
+    },
+    ModelChoice {
+        id: "sogni/wan3.0-spicy-video",
+        name: "Sogni - Wan 3 Uncensored",
+        duration: 30,
+        references: 10,
+        minimum_resolution: "480p",
+    },
+    ModelChoice {
         id: "bytedance/seedance-2.5",
         name: "Seedance 2.5",
         duration: 30,
@@ -112,7 +126,8 @@ fn supported(model: &Value, field: &str, value: Value) -> Result<()> {
 impl VideoPlan {
     pub fn prompt_limit(&self) -> Option<usize> {
         // Observed provider rejection: Wan 3.0 permits 20,000 characters.
-        (self.model == "alibaba/wan-3.0").then_some(20_000)
+        (self.model == "alibaba/wan-3.0" || crate::sogni_video::is_model(&self.model))
+            .then_some(20_000)
     }
     pub fn assembled_prompt(&self) -> String {
         let mut prompt = self.prompt.clone();
@@ -146,6 +161,9 @@ impl VideoPlan {
     }
 
     pub fn preview(&self, catalog: &crate::openrouter::Catalog) -> Result<Value> {
+        if crate::sogni_video::is_model(&self.model) {
+            return crate::sogni_video::preview(self);
+        }
         if self.fal {
             return crate::fal_video::preview(self);
         }

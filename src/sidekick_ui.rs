@@ -235,6 +235,13 @@ type PendingReply = (
 );
 #[derive(Default)]
 pub struct Sidekick {
+    live_instance: String,
+    live_tick: Option<std::time::Instant>,
+    external: bool,
+    manual_external: bool,
+    automatic_running: bool,
+    external_request: Option<String>,
+    external_sender: Option<std::sync::mpsc::Sender<Result<crate::sidekick_edit::Reply, String>>>,
     markdown: egui_commonmark::CommonMarkCache,
     image_drafts: std::collections::HashMap<
         String,
@@ -256,6 +263,7 @@ pub struct Sidekick {
     plot_request: Option<(String, crate::story::SeriesPlan)>,
     episode_request: Option<crate::sidekick_episode::EpisodeDraft>,
     generation_request: Option<crate::sidekick_generation::Snapshot>,
+    publishing_request: Option<crate::sidekick_publish::Snapshot>,
     pub(crate) generation_undo: std::collections::HashMap<
         String,
         (
@@ -299,7 +307,17 @@ impl Sidekick {
     }
 }
 impl Sidekick {
+    fn switch_mode(&mut self, external: bool) {
+        if self.external != external {
+            self.stop();
+            self.external = external;
+            self.error.clear();
+        }
+    }
     fn stop(&mut self) {
+        self.automatic_running = false;
+        self.external_sender = None;
+        self.external_request = None;
         self.canceled
             .store(true, std::sync::atomic::Ordering::Relaxed);
         self.cast_queue = None;
@@ -309,11 +327,44 @@ impl Sidekick {
         self.plot_request = None;
         self.episode_request = None;
         self.generation_request = None;
+        self.publishing_request = None;
         self.episode_creation_request = None;
         self.error = "Stopped. Your message is retained; no reply changes will be applied. The provider may still charge for a request already sent.".into();
     }
 }
 impl Studio {
+    fn live_context(&mut self) -> serde_json::Value {
+        let series = self.selected.clone().unwrap_or_default();
+        let context = format!("{:?}", self.page);
+        let character_snapshots = self.character_drafts(&series).unwrap_or_default();
+        let generation_snapshot = self.generation_snapshot().ok();
+        let publishing_snapshot = self
+            .episode_id
+            .as_deref()
+            .and_then(|id| self.publisher.snapshot(&self.store, id).ok());
+        let episode_snapshot = self.episode_snapshot().ok();
+        serde_json::json!({
+            "workspace":"All workspaces", "database":self.store.path, "visible_workspace":context,
+                "timeline":self.editor.live_snapshot(),
+                "other_drafts":{"library":self.library_drafts,"dialogue":self.dialogue_drafts,"sound":self.cue_drafts,"fades":self.fade_drafts,"trims":self.shot_trim_drafts,"directions":self.shot_directions,"cameras":self.camera_drafts,"reviews":self.review_drafts},
+            "local_character_portraits":self.store.library(&series,"character").unwrap_or_default().iter().filter_map(|entry|entry.reference.as_ref().map(|path|serde_json::json!({"id":entry.id,"name":entry.name,"path":path}))).collect::<Vec<_>>(),
+            "publishing_draft":publishing_snapshot.as_ref().map(|snapshot|snapshot.context()),
+            "generation_draft":generation_snapshot.as_ref().map(|snapshot|serde_json::json!({"plan":snapshot.plan,"saved_episode":snapshot.context["saved_episode"],"image_style":snapshot.context["image_style"],"available_portraits":snapshot.context["available_portraits"].as_array().map(|items|items.iter().map(|item|serde_json::json!({"character_id":item["character_id"],"name":item["name"]})).collect::<Vec<_>>())})),
+            "character_drafts":character_snapshots.iter().map(crate::character_edit::CharacterDraft::model_context).collect::<Vec<_>>(),
+            "series":self.store.series().ok().and_then(|items|items.into_iter().find(|item|item.id==series)),
+                            "series_plot_draft":self.story_drafts.get(&series).cloned().or_else(||self.store.series_plan(&series).ok()),
+            "available_episodes":self.store.episodes(&series).unwrap_or_default().iter().map(|episode|serde_json::json!({"id":episode.id,"title":episode.title})).collect::<Vec<_>>(),
+            "locations":self.store.library(&series,"location").unwrap_or_default().iter().map(|entry|serde_json::json!({"id":entry.id,"name":entry.name,"description":entry.description})).collect::<Vec<_>>(),
+            "episode_id":self.episode_id,
+            "music_editor":self.editor.music_context(),
+            "music_cut_duration":self.editor.music_cut_duration(&self.store, self.episode_id.as_deref()),
+            "music_capabilities":{"provider":"ElevenLabs","instrumental":true,"sidekick":"prepare direction and time range; user clicks Generate music to authorize payment","voices":false},
+            "episode_draft":episode_snapshot.as_ref().map(|d|serde_json::json!({"episode_id":d.episode_id,"screenplay":d.screenplay,"outline":d.plan.episodes.iter().find(|o|o.episode_id==d.episode_id)})),
+            "current_screenplay_draft":self.script,
+            "synopsis_draft":self.synopsis_drafts.get(&series),
+        })
+    }
+
     pub(crate) fn save_project_chat(&mut self, series: &str) -> anyhow::Result<()> {
         if let Some(draft) = self.sidekick.drafts.get(series) {
             let expected = self
@@ -503,6 +554,28 @@ impl Studio {
                                 })();
                                 match result {Ok(ids)=>text.push_str(&format!("\n\nCreated and saved {} episode(s), including story beats and screenplays. Open Episode plot to review them. No video was generated.",ids.len())),Err(error)=>text.push_str(&format!("\n\n{error}\nEpisode creation proposals retained:\n{}",serde_json::to_string_pretty(&proposals).unwrap_or_default()))}
                             }
+                            if let Some(edit) = reply.publishing {
+                                let result = (|| -> anyhow::Result<()> {
+                                    let expected =
+                                        self.sidekick.publishing_request.as_ref().ok_or_else(
+                                            || anyhow::anyhow!("No publishing draft was supplied"),
+                                        )?;
+                                    anyhow::ensure!(
+                                        self.episode_id.as_deref()
+                                            == Some(expected.episode_id.as_str())
+                                            && self.selected.as_deref()
+                                                == Some(
+                                                    self.store
+                                                        .get_episode(&expected.episode_id)?
+                                                        .series_id
+                                                        .as_str()
+                                                ),
+                                        "Episode changed while Sidekick was replying"
+                                    );
+                                    self.publisher.apply_sidekick(&self.store, expected, &edit)
+                                })();
+                                match result { Ok(())=>text.push_str("\n\nPublishing draft filled in. Review it in Publish, then click Publish to upload and schedule through Buffer. Undo is available. Nothing was uploaded or scheduled."),Err(error)=>text.push_str(&format!("\n\n{error}\nPublishing proposal retained:\n{}",serde_json::to_string_pretty(&edit).unwrap_or_default())) }
+                            }
                             if let Some(edit) = reply.generation {
                                 let result = (|| -> anyhow::Result<()> {
                                     let expected = self
@@ -519,6 +592,16 @@ impl Studio {
                                         &current, &expected, &edit,
                                     )?;
                                     let id = plan.episode_id.clone();
+                                    for segment in &plan.segments {
+                                        if segment.last_frame_from.is_some()
+                                            && segment.frame_source_asset.is_none()
+                                        {
+                                            self.video_planner
+                                                .handoff
+                                                .queue
+                                                .push_back((id.clone(), segment.id.clone()));
+                                        }
+                                    }
                                     self.video_planner.drafts.insert(id.clone(), plan);
                                     let after = self.generation_snapshot()?;
                                     self.sidekick.generation_undo.insert(id, (current, after));
@@ -526,8 +609,8 @@ impl Studio {
                                     Ok(())
                                 })();
                                 match result {
-                                    Ok(()) => text.push_str("\n\nVideo plan ready. Review the segments, then choose Generate video. Undo is available."),
-                                    Err(error) => text.push_str(&format!("\n\n{error}\nGeneration proposal retained:\n{}", serde_json::to_string_pretty(&edit).unwrap_or_default())),
+                                    Ok(()) => text.push_str("\n\nVideo plan updated. Any requested starting frames are being prepared; check their status before generating. Undo is available."),
+                                    Err(error) => { text = format!("Generation proposal not applied.\n\n{error}\n\nProposed change:\n{text}\n\nGeneration proposal retained:\n{}", serde_json::to_string_pretty(&edit).unwrap_or_default()); },
                                 }
                             }
                             if let Some(edit) = reply.episode {
@@ -553,7 +636,7 @@ impl Studio {
                                     self.put_episode_draft(after);
                                     Ok(())
                                 })();
-                                match result {Ok(())=>text.push_str("\n\nEpisode draft updated. Review the story beats and screenplay, then Save episode. Undo is available."),Err(error)=>text.push_str(&format!("\n\n{error}\nEpisode proposal retained:\n{}",serde_json::to_string_pretty(&edit).unwrap_or_default()))}
+                                match result {Ok(())=>text.push_str("\n\nEpisode draft updated. Review the story beats and screenplay, then Save episode. Undo is available."),Err(error)=>{text = format!("Episode proposal not applied.\n\n{error}\n\nProposed change:\n{text}\n\nEpisode proposal retained:\n{}",serde_json::to_string_pretty(&edit).unwrap_or_default());}}
                             }
                             if let Some(edit) = reply.plot {
                                 let result = (|| -> anyhow::Result<()> {
@@ -688,16 +771,22 @@ impl Studio {
                             }
                         }
                         Err(error) => {
-                            self.sidekick.cast_queue = None;
-                            self.sidekick.error = format!(
-                                "{error} Any remaining cast queue was stopped; completed characters are retained."
-                            );
+                            self.sidekick.error = if self.sidekick.cast_queue.take().is_some() {
+                                format!(
+                                    "{error} Any remaining cast queue was stopped; completed characters are retained."
+                                )
+                            } else {
+                                error
+                            };
                         }
                     };
                     self.sidekick.pending = None;
+                    self.sidekick.automatic_running = false;
+                    self.sidekick.external_request = None;
                     self.sidekick.plot_request = None;
                     self.sidekick.episode_request = None;
                     self.sidekick.generation_request = None;
+                    self.sidekick.publishing_request = None;
                     self.sidekick.episode_creation_request = None;
                 }
                 Err(std::sync::mpsc::TryRecvError::Disconnected) => {
@@ -705,9 +794,12 @@ impl Studio {
                     self.sidekick.error =
                         "Reply task stopped. Message retained; no automatic retry.".into();
                     self.sidekick.pending = None;
+                    self.sidekick.automatic_running = false;
+                    self.sidekick.external_request = None;
                     self.sidekick.plot_request = None;
                     self.sidekick.episode_request = None;
                     self.sidekick.generation_request = None;
+                    self.sidekick.publishing_request = None;
                     self.sidekick.episode_creation_request = None;
                 }
                 Err(std::sync::mpsc::TryRecvError::Empty) => {}
@@ -731,15 +823,49 @@ impl Studio {
         eframe::egui::SidePanel::right("series-sidekick").resizable(true).default_width(350.).width_range(290. ..=520.)
         .frame(eframe::egui::Frame::new().fill(eframe::egui::Color32::from_rgb(21,23,27)).inner_margin(18.)).show(ctx,|ui|{
             ui.add_space(2.);ui.heading("Creative sidekick");ui.label(eframe::egui::RichText::new("Your story, in good company.").small().color(MUTED));
+            let mut external=self.sidekick.external;
+            ui.horizontal(|ui| {
+                ui.selectable_value(&mut external,false,"Sidekick chat");
+                ui.selectable_value(&mut external,true,"MCP chat");
+            });
+            if external!=self.sidekick.external {self.sidekick.switch_mode(external);}
+            if self.sidekick.external {
+                let mut automatic = !self.sidekick.manual_external;
+                if ui.checkbox(&mut automatic,"Automatic Codex answers").changed() {
+                    self.sidekick.stop(); self.sidekick.error.clear();
+                    self.sidekick.manual_external = !automatic;
+                }
+                ui.small(if automatic {"Uses your Codex ChatGPT login and this series chat."} else {"Waiting for a connected MCP client to answer."});
+            }
             let Some(series)=self.selected.clone() else{ui.label("Choose a series to begin brainstorming.");return;};
             let context=match self.page{Page::Publish=>"Publish",Page::Synopsis=>"Synopsis",Page::Cast=>"Characters",Page::Locations=>"Locations",Page::Story=>"Overall plot",Page::Series=>"Episode plot",Page::Queue|Page::Scenes=>"Episode generation",_=>"Studio workspace"}.to_owned();
             ui.label(eframe::egui::RichText::new(format!("Working on: {context}")).color(GOLD));
-            let connection = crate::sidekick_provider::Connection::load();
-            match connection {
-                Ok(connection) if connection.provider == crate::sidekick_provider::Provider::OpenAi => { ui.small(format!("{} · OpenAI direct", connection.openai_model)); }
-                Ok(_) => { ui.small("Gemini 4 Argon · via OpenRouter"); }
+            if !self.sidekick.external { match crate::sidekick_provider::Connection::load() {
+                Ok(mut connection) => {
+                    let previous = connection.provider.clone();
+                    ui.add_enabled_ui(!self.sidekick.external && self.sidekick.pending.is_none() && self.sidekick.cast_queue.is_none(), |ui| {
+                        eframe::egui::ComboBox::from_id_salt("sidekick-picker")
+                            .selected_text(match connection.provider {
+                                crate::sidekick_provider::Provider::OpenAi => format!("{} · OpenAI", connection.openai_model),
+                                crate::sidekick_provider::Provider::OpenRouter => "Gemini 4 Argon · OpenRouter".into(),
+                            })
+                            .show_ui(ui, |ui| {
+                                ui.selectable_value(&mut connection.provider, crate::sidekick_provider::Provider::OpenAi, format!("{} · OpenAI", connection.openai_model));
+                                ui.selectable_value(&mut connection.provider, crate::sidekick_provider::Provider::OpenRouter, "Gemini 4 Argon · OpenRouter");
+                            });
+                    });
+                    if connection.provider != previous {
+                        match connection.save() {
+                            Ok(()) => {
+                                self.provider_settings.sidekick_connection = None;
+                                self.sidekick.error.clear();
+                            }
+                            Err(error) => self.sidekick.error = error.to_string(),
+                        }
+                    }
+                }
                 Err(_) => { ui.small("Check Sidekick connection in Settings"); }
-            }
+            }}
             if let Some(queue) = &self.sidekick.cast_queue && let Some(task) = queue.remaining.front() { ui.label(format!("Cast queue · {} of {} · {}", queue.completed + 1, queue.total, task.name)); }
             ui.separator();
             let messages=match self.store.sidekick_messages(&series){Ok(messages)=>messages,Err(error)=>{ui.label(error.to_string());return;}};
@@ -755,24 +881,9 @@ impl Studio {
             }
             let character_snapshots=self.character_drafts(&series).unwrap_or_default();
             let generation_snapshot=self.generation_snapshot().ok();
+            let publishing_snapshot=self.episode_id.as_deref().and_then(|episode|self.publisher.snapshot(&self.store,episode).ok());
             let episode_snapshot=self.episode_snapshot().ok();
-            let project_context = serde_json::json!({
-                "workspace":"All workspaces", "visible_workspace":context,
-                "local_character_portraits":self.store.library(&series,"character").unwrap_or_default().iter().filter_map(|entry|entry.reference.as_ref().map(|path|serde_json::json!({"id":entry.id,"name":entry.name,"path":path}))).collect::<Vec<_>>(),
-                "generation_draft":generation_snapshot.as_ref().map(|snapshot|serde_json::json!({"plan":snapshot.plan,"saved_episode":snapshot.context["saved_episode"],"image_style":snapshot.context["image_style"],"available_portraits":snapshot.context["available_portraits"].as_array().map(|items|items.iter().map(|item|serde_json::json!({"character_id":item["character_id"],"name":item["name"]})).collect::<Vec<_>>())})),
-                "character_drafts":character_snapshots.iter().map(crate::character_edit::CharacterDraft::model_context).collect::<Vec<_>>(),
-                "series":self.store.series().ok().and_then(|items|items.into_iter().find(|item|item.id==series)),
-                                "series_plot_draft":self.story_drafts.get(&series).cloned().or_else(||self.store.series_plan(&series).ok()),
-                "available_episodes":self.store.episodes(&series).unwrap_or_default().iter().map(|episode|serde_json::json!({"id":episode.id,"title":episode.title})).collect::<Vec<_>>(),
-                "locations":self.store.library(&series,"location").unwrap_or_default().iter().map(|entry|serde_json::json!({"id":entry.id,"name":entry.name,"description":entry.description})).collect::<Vec<_>>(),
-                "episode_id":self.episode_id,
-                "music_editor":self.editor.music_context(),
-                "music_cut_duration":self.editor.music_cut_duration(&self.store, self.episode_id.as_deref()),
-                "music_capabilities":{"provider":"ElevenLabs","instrumental":true,"sidekick":"prepare direction and time range; user clicks Generate music to authorize payment","voices":false},
-                "episode_draft":episode_snapshot.as_ref().map(|d|serde_json::json!({"episode_id":d.episode_id,"screenplay":d.screenplay,"outline":d.plan.episodes.iter().find(|o|o.episode_id==d.episode_id)})),
-                "current_screenplay_draft":self.script,
-                "synopsis_draft":self.synopsis_drafts.get(&series),
-            }).to_string();
+            let project_context = self.live_context().to_string();
             if !self.sidekick.drafts.contains_key(&series) {
                 match self.store.sidekick_draft(&series) {
                     Ok(text) => {
@@ -862,11 +973,11 @@ impl Studio {
                         send_clicked = ui.add_enabled(can_send, crate::theme::primary("Send")).on_hover_text("Enter to send").clicked();
                     }
                     if self.sidekick.pending.as_ref().is_some_and(|(id,_,_,_,_)| id == &series) {
-                        let stage = match self.sidekick.progress.load(std::sync::atomic::Ordering::Relaxed) {
+                        let stage = if self.sidekick.automatic_running {"Codex is responding"} else if self.sidekick.external {"Waiting for MCP Sidekick"} else {match self.sidekick.progress.load(std::sync::atomic::Ordering::Relaxed) {
                             1 => "Authorizing", 2 => "Waiting for reply", 3 => "Awaiting full reply", _ => "Preparing",
-                        };
+                        }};
                         let elapsed = self.sidekick.request_started.map(|started| started.elapsed().as_secs()).unwrap_or(0);
-                        ui.label(eframe::egui::RichText::new(format!("{stage} · {elapsed}s")).small().color(MUTED));
+                        ui.label(eframe::egui::RichText::new(format!("{stage} · {}:{:02}{}", elapsed / 60, elapsed % 60, if self.sidekick.external {""} else {" / 10:00"})).small().color(MUTED));
                         ui.add(eframe::egui::Spinner::new().size(14.));
                         ui.ctx().request_repaint_after(std::time::Duration::from_secs(1));
                     } else {
@@ -891,6 +1002,7 @@ impl Studio {
                     match self.store.sidekick_messages(&series){Ok(messages)=>{let (sender,receiver)=std::sync::mpsc::channel();
                         self.sidekick.episode_creation_request=self.story_drafts.get(&series).cloned().or_else(||self.store.series_plan(&series).ok()).map(|plan|(message.id.clone(),series.clone(),plan));
                         self.sidekick.generation_request=generation_snapshot;
+                        self.sidekick.publishing_request=publishing_snapshot;
                         self.sidekick.episode_request=episode_snapshot;
                         self.sidekick.plot_request = self.story_drafts.get(&series).cloned().or_else(||self.store.series_plan(&series).ok()).map(|plan|(series.clone(),plan));
                         self.sidekick.request_context=Some(project_context.clone());
@@ -899,7 +1011,15 @@ impl Studio {
                         self.sidekick.canceled=Default::default();
                         let canceled=self.sidekick.canceled.clone();
                         let progress=self.sidekick.progress.clone();
-                        self.sidekick.pending=Some((series.clone(),context.clone(),receiver,self.synopsis_drafts.get(&series).cloned(),character_snapshots));std::thread::spawn(move||{let _=sender.send(crate::sidekick::reply(&messages,&project_context,"google/gemini-4-argon",&progress,&canceled).map_err(|error|error.to_string()));});},Err(error)=>self.sidekick.error=error.to_string()}},Err(error)=>self.sidekick.error=error.to_string()}
+                        self.sidekick.pending=Some((series.clone(),context.clone(),receiver,self.synopsis_drafts.get(&series).cloned(),character_snapshots));
+                        if self.sidekick.external && !self.sidekick.manual_external {
+                            self.sidekick.automatic_running=true;
+                            self.sidekick.external_request=Some(message.id.clone());
+                            std::thread::spawn(move||{let _=sender.send(crate::codex_sidekick::reply(&messages,&project_context,&canceled).map_err(|error|error.to_string()));});
+                        } else if self.sidekick.external {
+                            self.sidekick.external_request=Some(message.id.clone());
+                            self.sidekick.external_sender=Some(sender);
+                        } else { std::thread::spawn(move||{let _=sender.send(crate::sidekick::reply(&messages,&project_context,"google/gemini-4-argon",&progress,&canceled).map_err(|error|error.to_string()));}); }},Err(error)=>self.sidekick.error=error.to_string()}},Err(error)=>self.sidekick.error=error.to_string()}
             }
             });
             eframe::egui::ScrollArea::vertical().id_salt(("sidekick-history",&series)).stick_to_bottom(true).horizontal_scroll_offset(0.).auto_shrink([false, false]).max_height(ui.available_height()).show_viewport(ui,|ui, viewport|{
@@ -909,6 +1029,7 @@ impl Studio {
                 for message in &messages {
                     if let Some(action)=message_bubble(ui,message,&mut self.sidekick.markdown,&mut self.sidekick.editing_message,self.sidekick.pending.is_none(), viewport.width()) {
                         match action {
+
                             MessageAction::Edit(message)=>self.sidekick.editing_message=Some((message.clone(),message.text.clone())),
                             MessageAction::Cancel=>self.sidekick.editing_message=None,
                             MessageAction::Save(original,text)=>match self.store.change_user_message(&series,&original,Some(&text)) {
@@ -920,9 +1041,7 @@ impl Studio {
                         }
                     }
                 }
-                if copy_selection {
-                    ui.input_mut(|input| { input.events.pop(); });
-                }
+                copy_selection.finish(ui);
             });
         });
         if stop_requested {
@@ -1072,5 +1191,453 @@ mod resize_tests {
                 });
             });
         }
+    }
+}
+
+impl Studio {
+    pub(crate) fn poll_live_control(&mut self, ctx: &eframe::egui::Context) {
+        ctx.request_repaint_after(std::time::Duration::from_millis(500));
+        if self
+            .sidekick
+            .live_tick
+            .is_some_and(|t| t.elapsed() < std::time::Duration::from_millis(500))
+        {
+            return;
+        }
+        self.sidekick.live_tick = Some(std::time::Instant::now());
+        if self.sidekick.live_instance.is_empty() {
+            self.sidekick.live_instance = uuid::Uuid::new_v4().to_string();
+        }
+        let result = (|| -> anyhow::Result<()> {
+            let c = crate::live_control::open(&self.store.path)?;
+            let commands:Vec<(String,String,String)>=c.prepare("SELECT id,action,payload FROM commands WHERE instance=?1 AND result IS NULL AND created>=unixepoch()-30 ORDER BY rowid LIMIT 8")?.query_map([&self.sidekick.live_instance],|r|Ok((r.get(0)?,r.get(1)?,r.get(2)?)))?.collect::<rusqlite::Result<_>>()?;
+            for (id, action, raw) in commands {
+                // Mark before execution: a crashed GUI must never replay a command.
+                c.execute(
+                    "UPDATE commands SET result=?2 WHERE id=?1 AND result IS NULL",
+                    rusqlite::params![
+                        id,
+                        serde_json::json!({"status":"interrupted_or_running","request_id":id})
+                            .to_string()
+                    ],
+                )?;
+                let result = self.execute_live_action(&action, &serde_json::from_str(&raw)?);
+                let receipt = match result {
+                    Ok(value) => {
+                        serde_json::json!({"request_id":id,"status":"completed","result":value})
+                    }
+                    Err(error) => {
+                        serde_json::json!({"request_id":id,"status":"failed","error":error.to_string()})
+                    }
+                };
+                c.execute(
+                    "UPDATE commands SET result=?2 WHERE id=?1",
+                    rusqlite::params![id, receipt.to_string()],
+                )?;
+            }
+            let data = serde_json::json!({"instance":self.sidekick.live_instance,"database":self.store.path,"series_id":self.selected,"episode_id":self.episode_id,"page":self.page,"external_sidekick":self.sidekick.external,"automatic_answers":!self.sidekick.manual_external,"automatic_running":self.sidekick.automatic_running,"busy":self.sidekick.busy(),"request_id":self.sidekick.external_request,"request_context":self.sidekick.request_context.as_deref().and_then(|s|serde_json::from_str::<serde_json::Value>(s).ok()),"workspace":self.live_context(),"messages":self.selected.as_deref().map(|id|self.store.sidekick_messages(id)).transpose()?,"last_error":self.sidekick.error});
+            c.execute("INSERT INTO live_state VALUES(1,?1,unixepoch(),?2) ON CONFLICT(id) DO UPDATE SET instance=excluded.instance,touched=excluded.touched,data=excluded.data",rusqlite::params![self.sidekick.live_instance,data.to_string()])?;
+            Ok(())
+        })();
+        if let Err(error) = result {
+            self.message = format!("MCP connection: {error}");
+        }
+    }
+    fn execute_live_action(
+        &mut self,
+        action: &str,
+        payload: &serde_json::Value,
+    ) -> anyhow::Result<serde_json::Value> {
+        use anyhow::{Context, ensure};
+        use serde_json::json;
+        if let Some(request) = payload["_automatic_request"].as_str() {
+            ensure!(
+                self.sidekick.automatic_running
+                    && self.sidekick.external_request.as_deref() == Some(request)
+                    && !self
+                        .sidekick
+                        .canceled
+                        .load(std::sync::atomic::Ordering::Relaxed),
+                "Automatic request was stopped or replaced; action not applied"
+            );
+        }
+        match action {
+            "read_episode_batch" => self.episode_batch_snapshot(
+                payload["series_id"]
+                    .as_str()
+                    .context("series_id required")?,
+            ),
+            "apply_episode_batch" => self.apply_episode_batch(payload),
+            "take_over" => {
+                ensure!(
+                    !self.sidekick.busy(),
+                    "Sidekick is replying. Wait for it or click Stop before taking over."
+                );
+                self.sidekick.switch_mode(true);
+                self.sidekick_visible = true;
+                self.sidekick.manual_external = true;
+                Ok(json!({"external_sidekick":true}))
+            }
+            "release" => {
+                self.sidekick.stop();
+                self.sidekick.switch_mode(false);
+                self.sidekick.error.clear();
+                Ok(json!({"external_sidekick":false}))
+            }
+            "save_drafts" => {
+                ensure!(
+                    payload["expected_workspace"] == self.live_context(),
+                    "Workspace changed; read it again before saving"
+                );
+                let series = self.selected.clone().context("Select a series first")?;
+                let issues = self.save_project_inner(&series)?;
+                Ok(
+                    json!({"saved":issues.is_empty(),"issues":issues,"scope":"local working copy; portable folder is not published"}),
+                )
+            }
+            "undo" => {
+                let series = self.selected.clone().context("Select a series first")?;
+                let target = payload["target"].as_str().context(
+                    "Specify synopsis, plot, episode, generation, character or publishing",
+                )?;
+                match target {
+                    "synopsis" => {
+                        let (before, after) = self
+                            .sidekick
+                            .synopsis_undo
+                            .get(&series)
+                            .context("No synopsis edit to undo")?
+                            .clone();
+                        crate::sidekick_edit::undo(
+                            self.synopsis_drafts
+                                .get_mut(&series)
+                                .context("No synopsis draft")?,
+                            &before,
+                            &after,
+                        )?;
+                        self.sidekick.synopsis_undo.remove(&series);
+                    }
+                    "plot" => {
+                        let (before, after) = self
+                            .sidekick
+                            .plot_undo
+                            .get(&series)
+                            .context("No plot edit to undo")?
+                            .clone();
+                        let current = self.story_drafts.get(&series).context("No plot draft")?;
+                        let restored = crate::sidekick_plot::undo(current, &before, &after)?;
+                        self.story_drafts.insert(series.clone(), restored);
+                        self.sidekick.plot_undo.remove(&series);
+                    }
+                    "episode" => {
+                        let current = self.episode_snapshot()?;
+                        let (before, after) = self
+                            .sidekick
+                            .episode_undo
+                            .get(&current.episode_id)
+                            .context("No episode edit to undo")?
+                            .clone();
+                        let restored = crate::sidekick_episode::undo(&current, &before, &after)?;
+                        self.sidekick.episode_undo.remove(&current.episode_id);
+                        self.put_episode_draft(restored);
+                    }
+                    "generation" => {
+                        let current = self.generation_snapshot()?;
+                        let id = current.plan.episode_id.clone();
+                        let (before, after) = self
+                            .sidekick
+                            .generation_undo
+                            .get(&id)
+                            .context("No generation edit to undo")?
+                            .clone();
+                        ensure!(
+                            crate::sidekick_generation::same(&current, &after),
+                            "Generation draft changed; cannot undo over newer work"
+                        );
+                        self.video_planner.drafts.insert(id.clone(), before.plan);
+                        self.sidekick.generation_undo.remove(&id);
+                    }
+                    "character" => self.undo_character_sidekick(
+                        &series,
+                        payload["character_id"]
+                            .as_str()
+                            .context("character_id required")?,
+                    )?,
+                    "publishing" => self.publisher.undo_sidekick(
+                        &self.store,
+                        self.episode_id.as_deref().context("Select an episode")?,
+                    )?,
+                    _ => anyhow::bail!("Unknown undo target"),
+                }
+                Ok(json!({"undone":true,"saved":false}))
+            }
+            "edit_timeline" => {
+                self.editor.apply_live_cut(
+                    &self.store,
+                    &payload["expected"],
+                    serde_json::from_value(payload["cut"].clone())?,
+                )?;
+                Ok(json!({"updated":true,"saved":false,"undo":true}))
+            }
+            "navigate" => {
+                if let Some(series) = payload["series_id"].as_str()
+                    && self.selected.as_deref() != Some(series)
+                {
+                    ensure!(
+                        self.preserve_series_work(),
+                        "Could not preserve current work: {}",
+                        self.message
+                    );
+                    ensure!(
+                        self.activate_series(series),
+                        "Could not select series: {}",
+                        self.message
+                    );
+                }
+                let page: crate::Page = serde_json::from_value(payload["page"].clone())?;
+                if let Some(id) = payload["episode_id"].as_str() {
+                    ensure!(
+                        self.select_episode(id),
+                        "Could not change episode: {}",
+                        self.message
+                    );
+                }
+                self.page = page;
+                self.sidekick_visible = true;
+                Ok(json!({"page":page,"episode_id":self.episode_id}))
+            }
+            "capture" => {
+                ensure!(self.sidekick.external, "Take over Sidekick first");
+                ensure!(
+                    !self.sidekick.busy(),
+                    "A reply is already pending; answer its request_id first"
+                );
+                let series = self.selected.clone().context("Select a series first")?;
+                let id = uuid::Uuid::new_v4().to_string();
+                if !self.synopsis_drafts.contains_key(&series) {
+                    let saved = self
+                        .store
+                        .series()?
+                        .into_iter()
+                        .find(|s| s.id == series)
+                        .context("Series not found")?;
+                    self.synopsis_drafts.insert(
+                        series.clone(),
+                        crate::synopsis::SynopsisDraft {
+                            id: series.clone(),
+                            title: saved.name.clone(),
+                            premise: saved.premise.clone(),
+                            expected_title: saved.name,
+                            expected_premise: saved.premise,
+                        },
+                    );
+                }
+                let context = self.live_context().to_string();
+                let characters = self.character_drafts(&series)?;
+                self.sidekick.generation_request = self.generation_snapshot().ok();
+                self.sidekick.publishing_request = self
+                    .episode_id
+                    .as_deref()
+                    .and_then(|e| self.publisher.snapshot(&self.store, e).ok());
+                self.sidekick.episode_request = self.episode_snapshot().ok();
+                let plan = self
+                    .story_drafts
+                    .get(&series)
+                    .cloned()
+                    .unwrap_or(self.store.series_plan(&series)?);
+                self.sidekick.plot_request = Some((series.clone(), plan.clone()));
+                self.sidekick.episode_creation_request = Some((id.clone(), series.clone(), plan));
+                let (sender, receiver) = std::sync::mpsc::channel();
+                self.sidekick.pending = Some((
+                    series.clone(),
+                    format!("{:?}", self.page),
+                    receiver,
+                    self.synopsis_drafts.get(&series).cloned(),
+                    characters,
+                ));
+                self.sidekick.request_context = Some(context.clone());
+                self.sidekick.external_sender = Some(sender);
+                self.sidekick.external_request = Some(id.clone());
+                self.sidekick.request_started = Some(std::time::Instant::now());
+                self.sidekick.error.clear();
+                Ok(
+                    json!({"request_id":id,"context":serde_json::from_str::<serde_json::Value>(&context)?}),
+                )
+            }
+            "reply" => {
+                ensure!(self.sidekick.external, "MCP Sidekick is no longer active");
+                ensure!(
+                    payload["request_id"].as_str() == self.sidekick.external_request.as_deref()
+                        && self.sidekick.external_request.is_some(),
+                    "Reply belongs to an old or stopped request"
+                );
+                let reply = crate::sidekick_edit::parse_reply(&payload["reply"].to_string())?;
+                ensure!(
+                    reply.cast_queue.is_none(),
+                    "MCP authors each character directly; cast queue would call another model"
+                );
+                ensure!(
+                    !reply
+                        .new_character
+                        .as_ref()
+                        .is_some_and(|c| c.generate_portrait)
+                        && !reply
+                            .new_characters
+                            .as_ref()
+                            .is_some_and(|cs| cs.iter().any(|c| c.generate_portrait)),
+                    "Use explicit generation tools after spending approval; replies only edit drafts"
+                );
+                self.sidekick
+                    .external_sender
+                    .take()
+                    .context("Request already answered")?
+                    .send(Ok(reply))
+                    .map_err(|_| anyhow::anyhow!("Reply was stopped"))?;
+                self.sidekick.external_request = None;
+                Ok(
+                    json!({"delivery":"accepted","note":"Read live messages for per-edit application or conflict results. Draft changes are not automatically saved."}),
+                )
+            }
+            _ => anyhow::bail!("Unknown live action"),
+        }
+    }
+}
+
+#[cfg(test)]
+mod live_tests {
+    use super::*;
+    use serde_json::json;
+    fn fixture() -> (tempfile::TempDir, Studio, String) {
+        let dir = tempfile::tempdir().unwrap();
+        let store = crate::store::Store::open(dir.path().join("studio.sqlite")).unwrap();
+        let series = store.create_series("Original", "Original premise").unwrap();
+        store.remember_gui_series(&series.id).unwrap();
+        (dir, Studio::from_store(store), series.id)
+    }
+    fn render(app: &mut Studio) {
+        let ctx = eframe::egui::Context::default();
+        let _ = ctx.run(eframe::egui::RawInput::default(), |ctx| {
+            app.sidekick_panel(ctx)
+        });
+    }
+    #[test]
+    fn external_reply_edits_shared_draft_and_undo_restores_it() {
+        let (_dir, mut app, series) = fixture();
+        app.execute_live_action("take_over", &json!({})).unwrap();
+        let captured = app.execute_live_action("capture", &json!({})).unwrap();
+        app.execute_live_action("reply",&json!({"request_id":captured["request_id"],"reply":{"message":"Updated the premise.","synopsis":{"title":"Revised","premise":"New premise"}}})).unwrap();
+        render(&mut app);
+        assert_eq!(app.synopsis_drafts[&series].title, "Revised");
+        assert_eq!(app.store.series().unwrap()[0].name, "Original");
+        assert!(
+            app.store
+                .sidekick_messages(&series)
+                .unwrap()
+                .last()
+                .unwrap()
+                .text
+                .contains("Synopsis draft updated")
+        );
+        app.execute_live_action("undo", &json!({"target":"synopsis"}))
+            .unwrap();
+        assert_eq!(app.synopsis_drafts[&series].title, "Original");
+    }
+    #[test]
+    fn external_reply_never_overwrites_newer_draft_or_survives_release() {
+        let (_dir, mut app, series) = fixture();
+        app.execute_live_action("take_over", &json!({})).unwrap();
+        let captured = app.execute_live_action("capture", &json!({})).unwrap();
+        app.synopsis_drafts.get_mut(&series).unwrap().premise = "User typing".into();
+        let reply = json!({"request_id":captured["request_id"],"reply":{"message":"Proposed change","synopsis":{"title":"Revised","premise":"Model typing"}}});
+        app.execute_live_action("reply", &reply).unwrap();
+        assert!(app.execute_live_action("reply", &reply).is_err());
+        render(&mut app);
+        assert_eq!(app.synopsis_drafts[&series].premise, "User typing");
+        assert!(
+            app.store
+                .sidekick_messages(&series)
+                .unwrap()
+                .last()
+                .unwrap()
+                .text
+                .contains("retained")
+        );
+        app.execute_live_action("capture", &json!({})).unwrap();
+        app.execute_live_action("release", &json!({})).unwrap();
+        assert!(app.execute_live_action("reply", &reply).is_err());
+        assert!(!app.sidekick.busy());
+    }
+    #[test]
+    fn live_mailbox_reaches_gui_and_restart_invalidates_instance() {
+        let (_dir, mut app, _series) = fixture();
+        let ctx = eframe::egui::Context::default();
+        app.poll_live_control(&ctx);
+        let state = crate::live_control::state(&app.store.path).unwrap();
+        crate::live_control::submit(
+            &app.store.path,
+            "one",
+            state["instance"].as_str().unwrap(),
+            "take_over",
+            &json!({}),
+        )
+        .unwrap();
+        app.sidekick.live_tick = None;
+        app.poll_live_control(&ctx);
+        assert!(app.sidekick.external);
+        assert_eq!(
+            crate::live_control::status(&app.store.path, "one").unwrap()["status"],
+            "completed"
+        );
+        let mut restarted =
+            Studio::from_store(crate::store::Store::open(app.store.path.clone()).unwrap());
+        restarted.poll_live_control(&ctx);
+        assert!(
+            crate::live_control::submit(
+                &app.store.path,
+                "two",
+                state["instance"].as_str().unwrap(),
+                "take_over",
+                &json!({})
+            )
+            .is_err()
+        );
+    }
+}
+
+impl Drop for Sidekick {
+    fn drop(&mut self) {
+        self.canceled
+            .store(true, std::sync::atomic::Ordering::Relaxed);
+    }
+}
+
+#[cfg(test)]
+mod automatic_batch_stop_tests {
+    use super::*;
+    #[test]
+    fn stopped_automatic_request_cannot_apply_queued_commands() {
+        let directory = tempfile::tempdir().unwrap();
+        let store = crate::Store::open(directory.path().join("studio.sqlite")).unwrap();
+        let series = store.create_series("Test", "Premise").unwrap();
+        let mut app = Studio::from_store(store);
+        app.sidekick.automatic_running = true;
+        app.sidekick.external_request = Some("request-one".into());
+        let payload = serde_json::json!({"series_id":series.id,"_automatic_request":"request-one"});
+        assert!(
+            app.execute_live_action("read_episode_batch", &payload)
+                .is_ok()
+        );
+        app.sidekick.stop();
+        assert!(
+            app.execute_live_action("read_episode_batch", &payload)
+                .is_err()
+        );
+        app.sidekick.automatic_running = true;
+        app.sidekick.external_request = Some("request-two".into());
+        app.sidekick.canceled = Default::default();
+        assert!(
+            app.execute_live_action("read_episode_batch", &payload)
+                .is_err()
+        );
     }
 }

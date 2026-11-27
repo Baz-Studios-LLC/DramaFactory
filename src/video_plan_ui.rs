@@ -1,6 +1,7 @@
 use crate::Studio;
 #[derive(Default)]
 pub struct VideoPlanner {
+    pub(crate) handoff: crate::frame_handoff::State,
     pub(crate) drafts: std::collections::HashMap<String, crate::generation_plan::SavedPlan>,
     pub(crate) section: u8,
     pub(crate) show_old_attempts: bool,
@@ -30,20 +31,15 @@ impl VideoPlanner {
 }
 impl Studio {
     fn video_credit_status(&mut self, ui: &mut eframe::egui::Ui) {
-        ui.small(format!(
-            "WAN provider: {}",
-            if self.store.wan_uses_fal() {
-                "fal.ai"
-            } else {
-                "OpenRouter"
-            }
-        ));
         let state = &mut self.video_planner;
         if self.store.wan_uses_fal() && state.catalog.is_none() {
             state.catalog = Some(crate::fal_video::catalog());
         }
         if self.store.wan_uses_fal() {
-            ui.hyperlink_to("Manage fal credits & requests", "https://fal.ai/dashboard");
+            ui.horizontal_wrapped(|ui| {
+                ui.weak("WAN · fal.ai");
+                ui.hyperlink_to("Credits & requests", "https://fal.ai/dashboard");
+            });
             return;
         }
         if let Some(rx) = &state.credits_pending {
@@ -144,7 +140,10 @@ impl Studio {
             ui.selectable_value(&mut self.video_planner.section, 1, "Takes");
         });
         ui.add_space(12.);
-        self.episode_picker(ui);
+        Self::card(ui, |ui| {
+            ui.strong("Episode");
+            self.episode_picker(ui);
+        });
         let state = &mut self.video_planner;
         if state.catalog.is_none()
             && state.catalog_pending.is_none()
@@ -174,6 +173,14 @@ impl Studio {
                         .request_repaint_after(std::time::Duration::from_millis(200));
                 }
             }
+        }
+        if let Some(catalog) = &mut state.catalog {
+            crate::sogni_video::append_catalog(catalog);
+        } else if state.catalog_error.is_some() {
+            let mut catalog = crate::fal_video::catalog();
+            catalog.videos.clear();
+            crate::sogni_video::append_catalog(&mut catalog);
+            state.catalog = Some(catalog);
         }
         if let Some(error) = state.catalog_error.clone() {
             ui.horizontal_wrapped(|ui| {
@@ -239,67 +246,71 @@ impl Studio {
         let plan = state.drafts.get_mut(&episode).expect("loaded plan");
         let index = state.selected.entry(episode.clone()).or_default();
         *index = (*index).min(plan.segments.len().saturating_sub(1));
-        ui.horizontal_wrapped(|ui| {
-            for number in 0..plan.segments.len() {
-                ui.selectable_value(index, number, format!("Segment {}", number + 1));
-            }
-            if ui
-                .add_enabled(
-                    state.section == 0 && plan.segments.len() < 120,
-                    eframe::egui::Button::new("+ Add segment"),
-                )
-                .clicked()
-            {
-                plan.segments.push(Default::default());
-                *index = plan.segments.len() - 1;
-            }
-        });
-        let total_seconds: u32 = plan.segments.iter().map(|segment| segment.duration).sum();
-        let saved = self.store.generation_plan(&episode).ok();
-        let dirty = saved.as_ref().is_none_or(|saved| {
-            saved.revision == 0
-                || saved.revision != plan.revision
-                || saved.segments != plan.segments
-        });
-        ui.horizontal_wrapped(|ui| {
-            if ui.button("Save plan").clicked() {
-                match self.store.save_generation_plan(plan) {
-                    Ok(saved) => {
-                        *plan = saved;
-                        self.message = "Generation plan saved; no generation started".into();
-                    }
-                    Err(error) => self.message = error.to_string(),
+        Self::card(ui, |ui| {
+            ui.strong("Segments");
+            ui.horizontal_wrapped(|ui| {
+                for number in 0..plan.segments.len() {
+                    ui.selectable_value(index, number, format!("Segment {}", number + 1));
                 }
-            }
-            ui.small(format!(
-                "{} segments · ~{}m {:02}s planned · {}",
-                plan.segments.len(),
-                total_seconds / 60,
-                total_seconds % 60,
-                if dirty { "Unsaved changes" } else { "Saved" }
-            ));
-            if ui.small_button("Reload").clicked() {
-                let reload = (|| -> anyhow::Result<_> {
-                    let directory = self.store.root().join("drafts");
-                    std::fs::create_dir_all(&directory)?;
-                    std::fs::write(
-                        directory.join(format!(
-                            "generation-before-reload-{}.json",
-                            uuid::Uuid::new_v4()
-                        )),
-                        serde_json::to_vec_pretty(plan)?,
-                    )?;
-                    self.store.generation_plan(&episode)
-                })();
-                match reload {
-                    Ok(saved) => {
-                        *plan = saved;
-                        *index = 0;
-                    }
-                    Err(error) => self.message = error.to_string(),
+                if ui
+                    .add_enabled(
+                        state.section == 0 && plan.segments.len() < 120,
+                        eframe::egui::Button::new("+ Add segment"),
+                    )
+                    .clicked()
+                {
+                    plan.segments.push(Default::default());
+                    *index = plan.segments.len() - 1;
                 }
-            }
+            });
+            let total_seconds: u32 = plan.segments.iter().map(|segment| segment.duration).sum();
+            let saved = self.store.generation_plan(&episode).ok();
+            let dirty = saved.as_ref().is_none_or(|saved| {
+                saved.revision == 0
+                    || saved.revision != plan.revision
+                    || saved.segments != plan.segments
+            });
+            ui.horizontal_wrapped(|ui| {
+                if ui.button("Save plan").clicked() {
+                    match self.store.save_generation_plan(plan) {
+                        Ok(saved) => {
+                            *plan = saved;
+                            self.message = "Generation plan saved; no generation started".into();
+                        }
+                        Err(error) => self.message = error.to_string(),
+                    }
+                }
+                ui.small(format!(
+                    "{} segments · ~{}m {:02}s planned · {}",
+                    plan.segments.len(),
+                    total_seconds / 60,
+                    total_seconds % 60,
+                    if dirty { "Unsaved changes" } else { "Saved" }
+                ));
+                if ui.small_button("Reload").clicked() {
+                    let reload = (|| -> anyhow::Result<_> {
+                        let directory = self.store.root().join("drafts");
+                        std::fs::create_dir_all(&directory)?;
+                        std::fs::write(
+                            directory.join(format!(
+                                "generation-before-reload-{}.json",
+                                uuid::Uuid::new_v4()
+                            )),
+                            serde_json::to_vec_pretty(plan)?,
+                        )?;
+                        self.store.generation_plan(&episode)
+                    })();
+                    match reload {
+                        Ok(saved) => {
+                            *plan = saved;
+                            *index = 0;
+                        }
+                        Err(error) => self.message = error.to_string(),
+                    }
+                }
+            });
         });
+        ui.add_space(8.);
         let cast_error = match self.store.current_plan_cast(plan) {
             Ok(current) => {
                 *plan = current;
@@ -310,6 +321,8 @@ impl Studio {
         if let Some(error) = &cast_error {
             ui.colored_label(crate::GOLD, error);
         }
+        if state.section == 0 {
+            ui.collapsing("Episode tools", |ui| {
         if state.section == 0 {
             ui.collapsing("Generate all segments", |ui| {
             let validation = state
@@ -369,13 +382,133 @@ impl Studio {
                 });
             });
         }
+            });
+            ui.add_space(8.);
+        }
         let mut generate_segment = false;
+        if state.section == 0 {
+            Self::card(ui, |ui| {
+                ui.heading(format!("Segment {:02} - Directions", *index + 1));
+                ui.label("What happens in this segment");
+                // Let the document grow; the workspace owns vertical scrolling.
+                let mut editor =
+                    eframe::egui::TextEdit::multiline(&mut plan.segments[*index].prompt)
+                        .id_salt(("segment-directions", &episode, *index))
+                        .font(eframe::egui::FontId::proportional(16.))
+                        .desired_rows(18)
+                        .desired_width(ui.available_width())
+                        .margin(eframe::egui::vec2(12., 12.))
+                        .show(ui);
+                crate::context_menus::text_menu(
+                    &mut editor,
+                    &mut plan.segments[*index].prompt,
+                    false,
+                );
+            });
+            ui.add_space(8.);
+            Self::card(ui, |ui| {
+                let segment = &plan.segments[*index];
+                let summary = if segment.last_frame_from.is_some() {
+                    if segment.first.is_empty() {
+                        "Starting frame - needs preparation"
+                    } else {
+                        "Starting frame ready"
+                    }
+                } else if segment.mode == 1 {
+                    "Character references"
+                } else if segment.mode == 2 {
+                    "First / last frame"
+                } else {
+                    "Prompt only"
+                };
+                eframe::egui::CollapsingHeader::new(format!("Visual inputs · {summary}"))
+                    .id_salt(("segment-visual-inputs", &episode, &segment.id))
+                    .default_open(false)
+                    .show(ui, |ui| {
+                        crate::frame_handoff::selector(
+                            ui,
+                            &self.store,
+                            plan,
+                            *index,
+                            &mut state.handoff,
+                        );
+                        ui.add_space(8.);
+                        let draft = &mut plan.segments[*index];
+                        if crate::sogni_video::is_model(&draft.model) {
+                            ui.small("Sogni: choose character references OR first/last-frame anchors. These modes cannot be combined; your saved character pictures stay unchanged.");
+                        }
+                        ui.add_enabled_ui(draft.last_frame_from.is_none(), |ui| {
+                            ui.horizontal_wrapped(|ui| {
+                                ui.selectable_value(&mut draft.mode, 0, "Prompt only");
+                                ui.selectable_value(&mut draft.mode, 1, "Reference images");
+                                ui.selectable_value(&mut draft.mode, 2, "First / last frame");
+                            });
+                        });
+                        match draft.mode {
+                            1 => {
+                                ui.label("Characters in this segment");
+                                if crate::sogni_video::is_model(&draft.model) {
+                                    ui.small(format!("{} / 10 character pictures selected. Images guide identity; they do not lock the opening shot. Local pictures upload through Cloudinary when you generate.", draft.cast.len()));
+                                }
+                                let columns =
+                                    ((ui.available_width() / 124.).floor() as usize).clamp(1, 8);
+                                let width = ((ui.available_width() - 10. * (columns - 1) as f32)
+                                    / columns as f32)
+                                    .min(120.);
+                                eframe::egui::Grid::new(("segment-cast", &draft.id))
+                                    .num_columns(columns)
+                                    .spacing([10., 10.])
+                                    .show(ui, |ui| {
+                                        for (number, entry) in cast.iter().enumerate() {
+                                            let selected = draft.cast.iter().any(|reference| {
+                                                reference.character_id == entry.id
+                                            });
+                                            if crate::character_grid::cast_choice(
+                                                ui, entry, selected, width,
+                                            ) {
+                                                if selected {
+                                                    draft.cast.retain(|reference| {
+                                                        reference.character_id != entry.id
+                                                    });
+                                                } else {
+                                                    match self
+                                                        .store
+                                                        .prepare_cast_reference(&episode, &entry.id)
+                                                    {
+                                                        Ok(reference) => draft.cast.push(reference),
+                                                        Err(error) => {
+                                                            self.message = error.to_string()
+                                                        }
+                                                    }
+                                                }
+                                            }
+                                            if (number + 1) % columns == 0 {
+                                                ui.end_row();
+                                            }
+                                        }
+                                    });
+                            }
+                            2 => {
+                                if crate::sogni_video::is_model(&draft.model) {
+                                    ui.small("The first image anchors the opening. The optional last image anchors the ending. Character reference pictures are not sent in this mode.");
+                                }
+                                if draft.last_frame_from.is_none() {
+                                    ui.label("First frame HTTPS URL");
+                                    ui.text_edit_singleline(&mut draft.first);
+                                }
+                                ui.label("Last frame HTTPS URL (optional)");
+                                ui.text_edit_singleline(&mut draft.last);
+                            }
+                            _ => {}
+                        }
+                    });
+            });
+            ui.add_space(8.);
+        }
         let draft = &mut plan.segments[*index];
         Self::card(ui, |ui| {
             if state.section == 0 {
-                ui.heading(format!("Segment {}", *index + 1));
-
-                Self::field(ui, "SEGMENT PROMPT", &mut draft.prompt, 4);
+                ui.heading("Generation settings");
                 let model = state.catalog.as_ref().and_then(|catalog| {
                     catalog
                         .videos
@@ -406,62 +539,6 @@ impl Studio {
                     ui.small("Checking available model settings…");
                 }
                 ui.small(format!("{} · Sound on", self.store.video_aspect_ratio()));
-                ui.horizontal_wrapped(|ui| {
-                    ui.selectable_value(&mut draft.mode, 0, "Prompt only");
-                    ui.selectable_value(&mut draft.mode, 1, "Reference images");
-                    ui.selectable_value(&mut draft.mode, 2, "First / last frame");
-                });
-                match draft.mode {
-                    1 => {
-                        ui.label("Characters in this segment");
-                        let columns = ((ui.available_width() / 124.).floor() as usize).clamp(1, 8);
-                        let width = ((ui.available_width() - 10. * (columns - 1) as f32)
-                            / columns as f32)
-                            .min(120.);
-                        eframe::egui::Grid::new(("segment-cast", &draft.id))
-                            .num_columns(columns)
-                            .spacing([10., 10.])
-                            .show(ui, |ui| {
-                                for (number, entry) in cast.iter().enumerate() {
-                                    let selected = draft
-                                        .cast
-                                        .iter()
-                                        .any(|reference| reference.character_id == entry.id);
-                                    if crate::character_grid::cast_choice(
-                                        ui, entry, selected, width,
-                                    ) {
-                                        if selected {
-                                            draft.cast.retain(|reference| {
-                                                reference.character_id != entry.id
-                                            });
-                                        } else {
-                                            match self
-                                                .store
-                                                .prepare_cast_reference(&episode, &entry.id)
-                                            {
-                                                Ok(reference) => draft.cast.push(reference),
-                                                Err(error) => self.message = error.to_string(),
-                                            }
-                                        }
-                                    }
-                                    if (number + 1) % columns == 0 {
-                                        ui.end_row();
-                                    }
-                                }
-                            });
-                    }
-                    2 => {
-                        ui.small(
-                            "Add frame image URLs. Previous takes are not linked automatically.",
-                        );
-                        ui.label("First frame HTTPS URL");
-                        ui.text_edit_singleline(&mut draft.first);
-                        ui.label("Last frame HTTPS URL (optional)");
-                        ui.text_edit_singleline(&mut draft.last);
-                    }
-                    _ => {}
-                }
-
                 ui.horizontal_wrapped(|ui| {
                     ui.label("Model");
                     let choice = crate::video_plan::model_choice(&draft.model);
@@ -495,11 +572,15 @@ impl Studio {
                         ui.small(format!("{} seconds", choice.duration));
                     }
                 });
+                if crate::sogni_video::is_model(&draft.model) {
+                    ui.hyperlink_to("Sogni credits & workflows", "https://dashboard.sogni.ai");
+                    ui.small("Sogni: 30 seconds. Local character portraits upload to Cloudinary before generation.");
+                }
                 if draft.model == "google/veo-3.1" {
                     ui.small("8 seconds · 720p minimum · up to 3 character references");
                 }
                 if draft.model == "bytedance/seedance-2.0" {
-                    ui.small("15-second maximum — use a shorter scene for natural dialogue.");
+                    ui.small("15-second maximum - use a shorter scene for natural dialogue.");
                 }
 
                 if let Ok(request) = draft.video_plan(self.store.video_aspect_ratio()) {
@@ -573,7 +654,6 @@ impl Studio {
                         let take_numbers: std::collections::HashMap<String, usize> = jobs
                             .iter()
                             .rev()
-                            .filter(|job| job["status"] == "completed")
                             .enumerate()
                             .filter_map(|(number, job)| {
                                 job["asset_id"]

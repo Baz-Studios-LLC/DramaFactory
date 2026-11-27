@@ -1,4 +1,6 @@
-"""Exercise actual queue/worker reference-integrity failures without model inference.
+"""Verify legacy reference snapshots and safe rejection of removed local jobs.
+Hosted reference validation is covered by the Rust provider tests. This test
+does not claim to exercise a removed adapter's input-copy or inference path.
 All input bytes and checkpoint filenames are explicit disposable fixtures.
 """
 import hashlib
@@ -37,7 +39,7 @@ with tempfile.TemporaryDirectory(prefix='df-reference-integrity-') as temporary:
     with sqlite3.connect(database) as db:
         requests={j['id']:json.loads(db.execute('SELECT request FROM jobs WHERE id=?',(j['id'],)).fetchone()[0]) for j in [image,video]}
         assert requests[image['id']]['reference_hash']==requests[video['id']]['image_hash']==original_hash
-        # Ensure setup checks pass, but any accidental inference launch only
+        # Supply legacy setup, but any accidental inference launch only
         # invokes a disposable sentinel script, never a real model runtime.
         sentinel=root/'inference-sentinel';marker=root/'inference-was-launched'
         sentinel.write_text('#!/bin/sh\ntouch "'+str(marker)+'"\nexit 90\n');sentinel.chmod(0o755)
@@ -48,12 +50,12 @@ with tempfile.TemporaryDirectory(prefix='df-reference-integrity-') as temporary:
         db.execute("UPDATE jobs SET status='queued' WHERE id IN (?,?)",(image['id'],video['id']))
     reference.write_bytes(b'explicit changed fixture bytes')
     subprocess.run([str(binary),'--worker'],env=env,check=True,timeout=30,capture_output=True)
-    assert not marker.exists(),'Inference started despite changed reference'
+    assert not marker.exists(),'Removed local-generation job launched inference'
     with sqlite3.connect(database) as db:
         for job in [image,video]:
             state=db.execute('SELECT status,error,attempts,output_id FROM jobs WHERE id=?',(job['id'],)).fetchone()
-            assert state[0]=='failed' and 'changed after queueing' in state[1] and state[3] is None,state
+            assert state[0]=='failed' and 'local-generation job type was removed' in state[1] and state[3] is None,state
             copied=root/'jobs'/job['id']/f'attempt-{state[2]}'/'reference-input.png'
-            assert copied.read_bytes()==reference.read_bytes()
+            assert not copied.exists(),'Removed adapter unexpectedly prepared inference inputs'
             assert json.loads(db.execute('SELECT request FROM jobs WHERE id=?',(job['id'],)).fetchone()[0])==requests[job['id']]
-    print('Reference integrity passed: real MCP snapshots, both actual worker paths reject changed bytes before inference, copied diagnostics retained, queue requests unchanged.')
+    print('Legacy reference jobs passed: MCP snapshots retain original hashes, removed local jobs fail explicitly without inference or output, queue requests unchanged. Hosted reference validation is covered by Rust provider tests.')

@@ -4,17 +4,14 @@ use anyhow::Result;
 impl Store {
     pub(crate) fn segment_job_context(&self, job: &str) -> Result<Option<(String, String)>> {
         use rusqlite::OptionalExtension;
-        if let Some(saved) = self
+        let saved: Option<(String, String)> = self
             .conn
             .query_row(
                 "SELECT heading,episode_title FROM job_display_context WHERE job_id=?1",
                 [job],
                 |r| Ok((r.get(0)?, r.get(1)?)),
             )
-            .optional()?
-        {
-            return Ok(Some(saved));
-        }
+            .optional()?;
         let binding: Option<(String, String)> = self
             .conn
             .query_row(
@@ -23,9 +20,24 @@ impl Store {
                 |r| Ok((r.get(0)?, r.get(1)?)),
             )
             .optional()?;
-        binding
-            .map(|(episode, segment)| self.segment_display_context(&episode, &segment))
-            .transpose()
+        let Some((episode, segment)) = binding else {
+            return Ok(saved);
+        };
+        let (heading, title) = match saved {
+            Some(context) => context,
+            None => self.segment_display_context(&episode, &segment)?,
+        };
+        // Number generation requests in queue order, not completion order or worker
+        // retry count. Failed/canceled requests keep their number permanently.
+        let take: usize = self.conn.query_row(
+            "SELECT count(*) FROM segment_generations g JOIN jobs j ON j.id=g.job_id WHERE g.episode_id=?1 AND g.segment_id=?2 AND j.rowid <= (SELECT rowid FROM jobs WHERE id=?3)",
+            rusqlite::params![episode, segment, job],
+            |r| r.get(0),
+        )?;
+        Ok(Some((
+            format!("{} - Take {take:02}", heading.replace(" · ", " - ")),
+            title,
+        )))
     }
     pub(crate) fn segment_display_context(
         &self,
@@ -73,5 +85,57 @@ impl Store {
                 })
             })?
             .collect::<rusqlite::Result<_>>()?)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn take_labels_keep_queue_order_across_completion_and_retries() {
+        let temp = std::env::temp_dir().join(format!("df-take-labels-{}", uuid::Uuid::new_v4()));
+        let store = Store::open(temp.join("studio.sqlite")).unwrap();
+        let series = store.create_series("Series", "").unwrap();
+        let episode = store
+            .create_episode(&series.id, "Episode 2: Storage Fees")
+            .unwrap();
+        for (id, segment, status) in [
+            ("first", "one", "failed"),
+            ("other", "two", "completed"),
+            ("second", "one", "running"),
+            ("third", "one", "queued"),
+        ] {
+            store
+                .conn
+                .execute(
+                    "INSERT INTO jobs(id,prompt,status) VALUES(?1,'',?2)",
+                    rusqlite::params![id, status],
+                )
+                .unwrap();
+            store
+                .conn
+                .execute(
+                    "INSERT INTO segment_generations VALUES(?1,?2,?3,1,'{}')",
+                    rusqlite::params![id, episode.id, segment],
+                )
+                .unwrap();
+            store.conn.execute("INSERT INTO job_display_context VALUES(?1,'Episode 02 · Segment 01','Episode 2: Storage Fees')", [id]).unwrap();
+        }
+        let heading = |id| store.segment_job_context(id).unwrap().unwrap().0;
+        assert_eq!(heading("first"), "Episode 02 - Segment 01 - Take 01");
+        assert_eq!(heading("second"), "Episode 02 - Segment 01 - Take 02");
+        assert_eq!(heading("third"), "Episode 02 - Segment 01 - Take 03");
+        store
+            .conn
+            .execute(
+                "UPDATE jobs SET status='completed',attempts=3 WHERE id='second'",
+                [],
+            )
+            .unwrap();
+        assert_eq!(heading("second"), "Episode 02 - Segment 01 - Take 02");
+        assert_eq!(heading("other"), "Episode 02 - Segment 01 - Take 01");
+        drop(store);
+        std::fs::remove_dir_all(temp).unwrap();
     }
 }

@@ -18,6 +18,72 @@ fn definitions() -> Vec<Tool> {
         ));
     };
     let string = || json!({"type":"string"});
+    add(
+        "get_live_workspace",
+        "Read the open GUI, unsaved authoring drafts, current episode, shared chat, and reply schema. Requires the GUI using this database. No credentials.",
+        json!({}),
+        vec![],
+    );
+    add(
+        "control_app",
+        "Queue an idempotent live GUI action. First read get_live_workspace for instance. take_over routes Sidekick Send to MCP, capture snapshots current drafts for an assistant-authored reply, reply delivers the structured reply through the normal guarded draft/Undo pipeline, release returns to built-in, navigate selects a page and optional episode. Poll get_control_result; accepted delivery is not proof edits applied. Read chat for conflicts. Does not generate paid media or publish.",
+        json!({"request_id":string(),"instance":string(),"action":{"type":"string","enum":["take_over","capture","reply","release","navigate","save_drafts","edit_timeline","undo","read_episode_batch","apply_episode_batch"]},"payload":{"type":"object"}}),
+        vec!["request_id", "instance", "action", "payload"],
+    );
+    add(
+        "get_control_result",
+        "Read the receipt for a queued live command. Reuse command IDs after uncertain responses; never assume pending means completed.",
+        json!({"request_id":string()}),
+        vec!["request_id"],
+    );
+    add(
+        "get_episode_cut",
+        "Read the current non-destructive timeline cut",
+        json!({"episode_id":string()}),
+        vec!["episode_id"],
+    );
+    add(
+        "save_episode_cut",
+        "Save a timeline cut with expected full cut guard; original media preserved",
+        json!({"episode_id":string(),"expected":{"type":"object"},"cut":{"type":"object"}}),
+        vec!["episode_id", "expected", "cut"],
+    );
+    add(
+        "export_episode_cut",
+        "Export the specified episode cut through the existing validated local export queue",
+        json!({"episode_id":string(),"cut":{"type":"object"}}),
+        vec!["episode_id", "cut"],
+    );
+    add(
+        "get_release_draft",
+        "Read release draft and expected saved value, available exports. Does not publish.",
+        json!({"episode_id":string()}),
+        vec!["episode_id"],
+    );
+    add(
+        "save_release_draft",
+        "Save publishing fields using expected value returned by get_release_draft. Does not upload or publish.",
+        json!({"episode_id":string(),"draft":{"type":"object"},"expected":{"type":["string","null"]}}),
+        vec!["episode_id", "draft", "expected"],
+    );
+    add(
+        "get_project_link",
+        "Read remembered portable project folder and revision",
+        json!({"series_id":string()}),
+        vec!["series_id"],
+    );
+    add(
+        "save_portable_project",
+        "Save current saved series/media to a portable folder. Use live save_drafts first for GUI drafts. expected_revision must match get_project_link; null only for a new folder.",
+        json!({"series_id":string(),"folder":string(),"expected_revision":{"type":["string","null"]}}),
+        vec!["series_id", "folder", "expected_revision"],
+    );
+    add(
+        "publish_episode",
+        "Upload saved export through Cloudinary and request immediate Buffer publishing for selected destinations. Requires explicit user publishing authorization, confirmation=true and exact expected release value from get_release_draft. Existing submission reservations prevent duplicates. Result is Buffer acceptance, not proof of public delivery.",
+        json!({"episode_id":string(),"expected":string(),"confirmation":{"type":"boolean"}}),
+        vec!["episode_id", "expected", "confirmation"],
+    );
     add("list_series", "List local series", json!({}), vec![]);
     add(
         "create_series",
@@ -602,6 +668,22 @@ fn definitions() -> Vec<Tool> {
     );
     list
 }
+/// Tools available to the embedded authoring responder. Media generation and external publishing
+/// remain explicit user actions; normal document editing/read tools work across all tabs.
+pub(crate) fn authoring_tool_names() -> Vec<String> {
+    definitions()
+        .iter()
+        .filter_map(|tool| {
+            let name = tool.name.as_ref();
+            let short = name.trim_start_matches("dramafactory_");
+            let paid = ["generate_", "queue_", "render_", "produce_", "synchronize_"]
+                .iter()
+                .any(|prefix| short.starts_with(prefix));
+            (!paid && !matches!(short, "publish_episode" | "check_model_runtime"))
+                .then(|| name.to_string())
+        })
+        .collect()
+}
 fn required<'a>(a: &'a Value, key: &str) -> Result<&'a str> {
     a[key]
         .as_str()
@@ -615,13 +697,83 @@ fn optional<'a>(a: &'a Value, key: &str) -> Result<&'a str> {
             .with_context(|| format!("'{key}' must be a string")),
     }
 }
-fn dispatch(path: PathBuf, name: String, a: Value) -> Result<Value> {
+fn dispatch(path: PathBuf, name: String, mut a: Value) -> Result<Value> {
+    if name == "dramafactory_control_app"
+        && let Ok(request) = std::env::var("DRAMAFACTORY_MCP_REQUEST")
+    {
+        a["payload"]["_automatic_request"] = json!(request);
+    }
     let s = Store::open(path)?;
     let req = |key| need(&a, key);
     fn need<'a>(a: &'a Value, k: &str) -> Result<&'a str> {
         required(a, k)
     }
     Ok(match name.as_str() {
+        "dramafactory_get_project_link" => {
+            json!(crate::portable_project::link(&s, req("series_id")?)?)
+        }
+        "dramafactory_save_portable_project" => json!(crate::portable_project::save(
+            &s,
+            req("series_id")?,
+            std::path::Path::new(req("folder")?),
+            a["expected_revision"].as_str()
+        )?),
+        "dramafactory_publish_episode" => {
+            anyhow::ensure!(
+                a["confirmation"] == true,
+                "Explicit publishing confirmation required"
+            );
+            let episode = req("episode_id")?;
+            let (draft, saved) = s.release_draft(episode)?;
+            anyhow::ensure!(
+                saved.as_deref() == Some(req("expected")?),
+                "Release draft changed; review it again"
+            );
+            let asset = s
+                .episode_release_exports(episode)?
+                .into_iter()
+                .find(|a| Some(&a.id) == draft.asset_id.as_ref())
+                .context("Choose a finished episode export first")?;
+            let (tx, _rx) = std::sync::mpsc::channel();
+            json!({"result":crate::buffer_publish::publish(&s.path,episode,&asset,&draft,&tx)?})
+        }
+
+        "dramafactory_get_live_workspace" => crate::live_control::state(&s.path)?,
+        "dramafactory_control_app" => crate::live_control::submit(
+            &s.path,
+            req("request_id")?,
+            req("instance")?,
+            req("action")?,
+            &a["payload"],
+        )?,
+        "dramafactory_get_control_result" => {
+            crate::live_control::status(&s.path, req("request_id")?)?
+        }
+        "dramafactory_get_episode_cut" => json!(s.episode_cut(req("episode_id")?)?),
+        "dramafactory_save_episode_cut" => {
+            s.save_episode_cut(
+                req("episode_id")?,
+                &serde_json::from_value(a["expected"].clone())?,
+                &serde_json::from_value(a["cut"].clone())?,
+            )?;
+            json!({"saved":true})
+        }
+        "dramafactory_export_episode_cut" => {
+            let job = s.export_episode_cut(
+                req("episode_id")?,
+                &serde_json::from_value(a["cut"].clone())?,
+            )?;
+            crate::worker::spawn_detached(&s.path)?;
+            json!(job)
+        }
+        "dramafactory_get_release_draft" => {
+            let (draft, expected) = s.release_draft(req("episode_id")?)?;
+            json!({"draft":draft,"expected":expected,"exports":s.episode_release_exports(req("episode_id")?)?})
+        }
+        "dramafactory_save_release_draft" => {
+            json!({"expected":s.save_release_draft(req("episode_id")?,&serde_json::from_value(a["draft"].clone())?,a["expected"].as_str())?})
+        }
+
         "dramafactory_get_shot_direction" => {
             s.shot(req("shot_id")?)?;
             json!(s.shot_direction(req("shot_id")?)?)

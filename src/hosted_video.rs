@@ -69,6 +69,9 @@ impl Store {
         if crate::video_plan::model_choice(&plan.model).is_none() || plan.prompt.trim().is_empty() {
             bail!("Choose a video model and provide a prompt");
         }
+        if crate::sogni_video::is_model(&plan.model) {
+            crate::sogni_video::preview(&plan)?;
+        }
         if plan.fal {
             crate::fal_video::preview(&plan)?;
         }
@@ -78,6 +81,7 @@ impl Store {
         let id = uuid::Uuid::new_v4().to_string();
         let tx = &self.conn;
         if let Some((episode, revision, segment)) = binding {
+            self.validate_frame_handoff(episode, segment)?;
             let current: u64 = tx
                 .query_row(
                     "SELECT revision FROM generation_plans WHERE episode_id=?1",
@@ -217,6 +221,9 @@ pub(crate) fn execute(store: &Store, id: &str) -> Result<()> {
         [id],
         |r| r.get(0),
     )?)?;
+    if crate::sogni_video::is_model(&plan.model) {
+        return crate::sogni_video::execute(store, id, &plan);
+    }
     if plan.fal {
         return crate::fal_video::execute(store, id, &plan);
     }
@@ -456,7 +463,7 @@ pub(crate) fn finish_download(
     validate_output(plan, &info)?;
     let hash = crate::worker::hash_file(output)?;
     let asset = uuid::Uuid::new_v4().to_string();
-    let metadata = json!({"kind":"hosted_video","provider":if plan.fal {"fal"} else {"openrouter"},"remote_id":result["id"],"request":plan,"usage":result.get("usage"),"info":info});
+    let metadata = json!({"kind":"hosted_video","provider":if crate::sogni_video::is_model(&plan.model) {"sogni"} else if plan.fal {"fal"} else {"openrouter"},"remote_id":result["id"],"request":plan,"usage":result.get("usage"),"info":info});
     let tx = store.conn.unchecked_transaction()?;
     tx.execute(
         "INSERT INTO assets VALUES(?1,?2,?3,?4,?5,?6,?7,?8,'unreviewed')",

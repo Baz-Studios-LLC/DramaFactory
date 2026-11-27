@@ -5,13 +5,17 @@ pub struct ProviderSettings {
     pub(crate) tab: usize,
     fal_key: String,
     fal_status: String,
+    sogni_key: String,
+    sogni_status: String,
     key_input: String,
     openai_key: String,
     buffer_key: String,
     buffer_status: String,
+    cloudinary: crate::credentials::CloudinaryCredentials,
+    cloudinary_status: String,
     music_key: String,
     music_status: String,
-    sidekick_connection: Option<crate::sidekick_provider::Connection>,
+    pub(crate) sidekick_connection: Option<crate::sidekick_provider::Connection>,
     sidekick_status: String,
     openai_pending: Option<std::sync::mpsc::Receiver<Result<String, String>>>,
     status: String,
@@ -407,6 +411,54 @@ impl crate::Studio {
         Self::card(ui, |ui| {
             provider_heading(
                 ui,
+                "Sogni",
+                "Video generation with Sogni. Choose a Sogni model in Episode generation.",
+                crate::credentials::Provider::Sogni,
+            );
+            let settings = &mut self.provider_settings;
+            ui.add(
+                eframe::egui::TextEdit::singleline(&mut settings.sogni_key)
+                    .password(true)
+                    .hint_text("Paste your Sogni developer API key")
+                    .desired_width(ui.available_width()),
+            );
+            ui.horizontal_wrapped(|ui| {
+                if ui
+                    .add_enabled(
+                        !settings.sogni_key.trim().is_empty(),
+                        crate::theme::primary("Save key"),
+                    )
+                    .clicked()
+                {
+                    settings.sogni_status = match validate_key(&settings.sogni_key)
+                        .and_then(|key| crate::credentials::Provider::Sogni.save(key))
+                    {
+                        Ok(()) => {
+                            settings.sogni_key.clear();
+                            "Key saved on this Mac. No request was sent to Sogni.".into()
+                        }
+                        Err(error) => error.to_string(),
+                    };
+                }
+                ui.hyperlink_to("Get API key", "https://dashboard.sogni.ai/api-keys");
+                if ui.button("Remove key").clicked() {
+                    settings.sogni_status = match crate::credentials::Provider::Sogni.remove() {
+                        Ok(()) => {
+                            settings.sogni_key.clear();
+                            "Key removed from this Mac.".into()
+                        }
+                        Err(error) => error.to_string(),
+                    };
+                }
+            });
+            if !settings.sogni_status.is_empty() {
+                ui.label(&settings.sogni_status);
+            }
+        });
+        ui.add_space(12.);
+        Self::card(ui, |ui| {
+            provider_heading(
+                ui,
                 "ElevenLabs",
                 "Instrumental background music for your episodes.",
                 crate::credentials::Provider::ElevenLabs,
@@ -494,6 +546,70 @@ impl crate::Studio {
                 }
                 ui.weak(&settings.buffer_status);
             });
+        });
+        ui.add_space(12.);
+        Self::card(ui, |ui| {
+            provider_heading(
+                ui,
+                "Cloudinary",
+                "Media hosting for starting frames. Select a source segment in Episode generation to upload its final frame.",
+                crate::credentials::Provider::Cloudinary,
+            );
+            let settings = &mut self.provider_settings;
+            ui.label("Cloud name");
+            ui.add(
+                eframe::egui::TextEdit::singleline(&mut settings.cloudinary.cloud_name)
+                    .hint_text("Your Cloudinary cloud name")
+                    .desired_width(ui.available_width()),
+            );
+            ui.label("API key");
+            ui.add(
+                eframe::egui::TextEdit::singleline(&mut settings.cloudinary.api_key)
+                    .password(true)
+                    .hint_text("Paste your API key")
+                    .desired_width(ui.available_width()),
+            );
+            ui.label("API secret");
+            ui.add(
+                eframe::egui::TextEdit::singleline(&mut settings.cloudinary.api_secret)
+                    .password(true)
+                    .hint_text("Paste your API secret")
+                    .desired_width(ui.available_width()),
+            );
+            ui.hyperlink_to(
+                "Find credentials in Cloudinary",
+                "https://console.cloudinary.com/settings/api-keys",
+            );
+            ui.weak("Saved privately on this Mac, outside projects and iCloud. Enter all three values to replace saved credentials.");
+            ui.horizontal_wrapped(|ui| {
+                let complete = !settings.cloudinary.cloud_name.trim().is_empty()
+                    && !settings.cloudinary.api_key.trim().is_empty()
+                    && !settings.cloudinary.api_secret.trim().is_empty();
+                if ui
+                    .add_enabled(complete, crate::theme::primary("Save credentials"))
+                    .clicked()
+                {
+                    settings.cloudinary_status = match settings.cloudinary.save() {
+                        Ok(()) => {
+                            settings.cloudinary = Default::default();
+                            "Credentials saved on this Mac. Authentication has not been checked."
+                                .into()
+                        }
+                        Err(error) => error.to_string(),
+                    };
+                }
+                if ui.button("Remove credentials").clicked() {
+                    settings.cloudinary_status =
+                        match crate::credentials::Provider::Cloudinary.remove() {
+                            Ok(()) => {
+                                settings.cloudinary = Default::default();
+                                "Credentials removed from this Mac.".into()
+                            }
+                            Err(error) => error.to_string(),
+                        };
+                }
+            });
+            ui.weak(&settings.cloudinary_status);
         });
     }
 }

@@ -160,6 +160,7 @@ pub struct LibraryEntry {
 }
 impl Store {
     pub(crate) fn migrate_production(&self) -> Result<()> {
+        self.conn.execute_batch("CREATE TABLE IF NOT EXISTS buffer_uploads(hash TEXT PRIMARY KEY,url TEXT NOT NULL); CREATE TABLE IF NOT EXISTS buffer_submissions(episode TEXT,hash TEXT,channel TEXT,receipt TEXT,PRIMARY KEY(episode,hash,channel));")?;
         self.conn.execute_batch("CREATE TABLE IF NOT EXISTS deleted_characters(library_id TEXT PRIMARY KEY REFERENCES library(id),deleted_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP);")?;
         self.conn.execute_batch("CREATE TABLE IF NOT EXISTS character_profiles(library_id TEXT PRIMARY KEY REFERENCES library(id),document TEXT NOT NULL);")?;
         self.conn.execute_batch("CREATE TABLE IF NOT EXISTS segment_takes(episode_id TEXT NOT NULL REFERENCES episodes(id),segment_id TEXT NOT NULL,asset_id TEXT NOT NULL REFERENCES assets(id),PRIMARY KEY(episode_id,segment_id));")?;

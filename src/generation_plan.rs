@@ -17,6 +17,14 @@ pub struct SegmentDraft {
     pub resolution: String,
     pub mode: u8,
     pub first: String,
+    #[serde(default)]
+    pub last_frame_from: Option<String>,
+    #[serde(default)]
+    pub frame_take: Option<String>,
+    #[serde(default)]
+    pub frame_source_asset: Option<String>,
+    #[serde(default)]
+    pub frame_preview: String,
     pub last: String,
     pub references: String,
     #[serde(default)]
@@ -41,6 +49,10 @@ impl Default for SegmentDraft {
             resolution: "480p".into(),
             mode: 0,
             first: String::new(),
+            last_frame_from: None,
+            frame_take: None,
+            frame_source_asset: None,
+            frame_preview: String::new(),
             last: String::new(),
             references: String::new(),
             cast: Vec::new(),
@@ -50,6 +62,11 @@ impl Default for SegmentDraft {
 impl SegmentDraft {
     pub fn video_plan(&self, aspect_ratio: &str) -> Result<crate::video_plan::VideoPlan> {
         use crate::video_plan::{Inputs, VideoPlan};
+        if self.last_frame_from.is_some()
+            && (self.frame_source_asset.is_none() || self.first.is_empty() || self.mode != 2)
+        {
+            bail!("Prepare the previous segment's last frame before generating");
+        }
         Ok(VideoPlan {
             fal: false,
             model: self.model.clone(),
@@ -95,7 +112,7 @@ impl SegmentDraft {
         })
     }
 }
-#[derive(Clone, Serialize, Deserialize)]
+#[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub struct SavedPlan {
     pub episode_id: String,
     pub revision: u64,

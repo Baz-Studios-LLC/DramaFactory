@@ -3,31 +3,75 @@ use anyhow::Result;
 use eframe::egui;
 use std::path::Path;
 
-/// Snapshot the highlighted passage before a secondary press moves the label cursor.
-/// Replay the normal Copy event while rendering the transcript, including Markdown labels.
-pub(crate) fn history_copy_menu(ui: &mut egui::Ui) -> bool {
-    use egui::text_selection::LabelSelectionState;
-    let id = ui.id().with("copy-highlight");
-    let selection = ui.ctx().plugin::<LabelSelectionState>();
-    let pointer = ui.input(|i| i.pointer.interact_pos());
-    if let Some(pos) = pointer
-        && ui.rect_contains_pointer(ui.clip_rect())
-        && ui.input(|i| i.pointer.button_pressed(egui::PointerButton::Secondary))
-        && selection.lock().has_selection()
-    {
+/// Protect the transcript's selection while a popup takes pointer focus.
+pub(crate) struct HistoryCopyMenu {
+    pointer: Option<egui::PointerState>,
+    copy_event: Option<usize>,
+    cache_id: egui::Id,
+}
+impl HistoryCopyMenu {
+    pub(crate) fn finish(self, ui: &mut egui::Ui) {
+        let selection = ui
+            .ctx()
+            .plugin::<egui::text_selection::LabelSelectionState>();
         let saved = selection.lock().clone();
-        ui.data_mut(|d| d.insert_temp(id, (pos, saved)));
-        egui::Popup::open_id(ui.ctx(), id);
+        ui.data_mut(|data| data.insert_temp(self.cache_id, saved));
+        if let Some(pointer) = self.pointer {
+            ui.input_mut(|input| input.pointer = pointer);
+        }
+        if let Some(index) = self.copy_event {
+            ui.input_mut(|input| {
+                input.events.remove(index);
+            });
+        }
+    }
+}
+pub(crate) fn history_copy_menu(ui: &mut egui::Ui) -> HistoryCopyMenu {
+    use egui::{Plugin, text_selection::LabelSelectionState};
+    let id = ui.id().with("copy-highlight");
+    let cache_id = ui.id().with("transcript-selection");
+    let selection = ui.ctx().plugin::<LabelSelectionState>();
+    let mut guard = HistoryCopyMenu {
+        pointer: None,
+        copy_event: None,
+        cache_id,
+    };
+    // Earlier labels can clear the shared selection on a secondary press, before
+    // the transcript is rendered. Keep its own previous-frame snapshot.
+    if let Some(pos) = ui.input(|i| i.pointer.interact_pos())
+        && ui.clip_rect().contains(pos)
+        && ui.input(|i| i.pointer.button_pressed(egui::PointerButton::Secondary))
+    {
+        let saved = ui
+            .data(|d| d.get_temp::<LabelSelectionState>(cache_id))
+            .filter(|saved| saved.has_selection())
+            .or_else(|| {
+                let saved = selection.lock().clone();
+                saved.has_selection().then_some(saved)
+            });
+        if let Some(saved) = saved {
+            ui.data_mut(|d| d.insert_temp(id, (pos, saved)));
+            egui::Popup::open_id(ui.ctx(), id);
+        }
     }
     if !egui::Popup::is_id_open(ui.ctx(), id) {
         ui.data_mut(|d| d.remove::<(egui::Pos2, LabelSelectionState)>(id));
-        return false;
+        return guard;
     }
-    let Some((pos, saved)) = ui.data(|d| d.get_temp::<(egui::Pos2, LabelSelectionState)>(id))
+    let Some((pos, mut saved)) = ui.data(|d| d.get_temp::<(egui::Pos2, LabelSelectionState)>(id))
     else {
-        return false;
+        return guard;
+    };
+    let close_behavior = if ui.input(|i| {
+        i.pointer.button_down(egui::PointerButton::Secondary)
+            || i.pointer.button_released(egui::PointerButton::Secondary)
+    }) {
+        egui::PopupCloseBehavior::IgnoreClicks
+    } else {
+        egui::PopupCloseBehavior::CloseOnClickOutside
     };
     let clicked = egui::Popup::new(id, ui.ctx().clone(), pos, ui.layer_id())
+        .close_behavior(close_behavior)
         .open_memory(None)
         .show(|ui| {
             let clicked = ui.button("Copy").clicked();
@@ -36,12 +80,19 @@ pub(crate) fn history_copy_menu(ui: &mut egui::Ui) -> bool {
             }
             clicked
         })
-        .is_some_and(|r| r.inner);
+        .is_some_and(|response| response.inner);
+    // Reset per-pass paint/copy bookkeeping, retaining only the highlighted range.
+    saved.on_begin_pass(ui.ctx());
+    *selection.lock() = saved;
+    guard.pointer = Some(ui.input_mut(|input| std::mem::take(&mut input.pointer)));
     if clicked {
-        *selection.lock() = saved;
-        ui.input_mut(|i| i.events.push(egui::Event::Copy));
+        guard.copy_event = Some(ui.input_mut(|input| {
+            let index = input.events.len();
+            input.events.push(egui::Event::Copy);
+            index
+        }));
     }
-    clicked
+    guard
 }
 
 pub(crate) fn text_menu(
@@ -218,6 +269,80 @@ impl Studio {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn transcript_popup_keeps_highlight_and_copies_selected_text() {
+        let ctx = egui::Context::default();
+        let mut rect = egui::Rect::NOTHING;
+        let mut popup_id = egui::Id::NULL;
+        let mut frame = |events: Vec<egui::Event>| {
+            let output = ctx.run(
+                egui::RawInput {
+                    events,
+                    ..Default::default()
+                },
+                |ctx| {
+                    egui::CentralPanel::default().show(ctx, |ui| {
+                        ui.label("Earlier unrelated label");
+                        popup_id = ui.id().with("copy-highlight");
+                        let menu = history_copy_menu(ui);
+                        rect = ui
+                            .add(egui::Label::new("Hello café world").selectable(true))
+                            .rect;
+                        menu.finish(ui);
+                    });
+                },
+            );
+            (rect, popup_id, output)
+        };
+        let (rect, _, _) = frame(vec![]);
+        let start = rect.left_center() + egui::vec2(1., 0.);
+        let end = rect.right_center() - egui::vec2(1., 0.);
+        let button = |pos, button, pressed| egui::Event::PointerButton {
+            pos,
+            button,
+            pressed,
+            modifiers: egui::Modifiers::NONE,
+        };
+        frame(vec![
+            egui::Event::PointerMoved(start),
+            button(start, egui::PointerButton::Primary, true),
+        ]);
+        frame(vec![egui::Event::PointerMoved(end)]);
+        frame(vec![button(end, egui::PointerButton::Primary, false)]);
+        assert!(
+            ctx.plugin::<egui::text_selection::LabelSelectionState>()
+                .lock()
+                .has_selection()
+        );
+        let pos = rect.center();
+        let (_, id, _) = frame(vec![
+            egui::Event::PointerMoved(pos),
+            button(pos, egui::PointerButton::Secondary, true),
+        ]);
+        assert!(egui::Popup::is_id_open(&ctx, id));
+        frame(vec![button(pos, egui::PointerButton::Secondary, false)]);
+        assert!(egui::Popup::is_id_open(&ctx, id));
+        assert!(
+            ctx.plugin::<egui::text_selection::LabelSelectionState>()
+                .lock()
+                .has_selection()
+        );
+        let menu_pos = pos + egui::vec2(20., 15.);
+        frame(vec![
+            egui::Event::PointerMoved(menu_pos),
+            button(menu_pos, egui::PointerButton::Primary, true),
+        ]);
+        let (_, _, output) = frame(vec![button(menu_pos, egui::PointerButton::Primary, false)]);
+        assert!(
+            output
+                .platform_output
+                .commands
+                .iter()
+                .any(|c| matches!(c,egui::OutputCommand::CopyText(text) if text.contains("café"))),
+            "Expected selected text in clipboard output"
+        );
+    }
 
     #[test]
     fn right_click_preserves_text_selection_for_copy() {

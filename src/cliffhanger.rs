@@ -86,7 +86,7 @@ impl Panel {
         });
         ui.separator();
         ui.label(format!("Freeze at {:.2}s", self.recipe.at));
-        ui.label("Click the face or object in the viewer to set the zoom target.");
+        ui.label("Click to set the zoom target, or drag in the viewer to reposition the frame.");
         let busy = self.busy();
         ui.add_enabled_ui(!busy,|ui| {
  ui.add(egui::Slider::new(&mut self.recipe.duration,0.5..=6.).text("Ending seconds"));

@@ -29,15 +29,36 @@ pub fn apply(
     expected: &EpisodeDraft,
     edit: &EpisodeEdit,
 ) -> Result<EpisodeDraft> {
-    if !same(current, expected) || edit.episode_id != expected.episode_id {
+    if current.series_id != expected.series_id
+        || current.episode_id != expected.episode_id
+        || edit.episode_id != expected.episode_id
+    {
         bail!(
-            "Episode changed while the sidekick was replying. Your newer work was preserved; proposal retained in chat."
+            "Episode selection changed; proposal not applied. Return to the original episode and ask Sidekick to retry."
+        );
+    }
+    if edit.screenplay.is_some()
+        && (current.screenplay != expected.screenplay
+            || current.expected_screenplay != expected.expected_screenplay)
+    {
+        bail!(
+            "Screenplay changed while Sidekick was replying. Proposal not applied; your newer work was preserved."
+        );
+    }
+    if edit.outline.is_some()
+        && (outline_value(&current.plan, &current.episode_id)
+            != outline_value(&expected.plan, &expected.episode_id)
+            || current.plan.revision != expected.plan.revision)
+    {
+        bail!(
+            "Episode outline changed while Sidekick was replying. Proposal not applied; your newer work was preserved."
         );
     }
     let saved = store.get_episode(&expected.episode_id)?;
     if saved.series_id != expected.series_id
-        || saved.screenplay != expected.expected_screenplay
-        || store.series_plan(&expected.series_id)?.revision != expected.plan.revision
+        || (edit.screenplay.is_some() && saved.screenplay != expected.expected_screenplay)
+        || (edit.outline.is_some()
+            && store.series_plan(&expected.series_id)?.revision != expected.plan.revision)
     {
         bail!("Saved episode or overall plot changed; reload before applying this proposal");
     }
@@ -57,6 +78,10 @@ pub fn apply(
         replace_outline(&mut next.plan, &next.episode_id, Some(outline.clone()));
     }
     Ok(next)
+}
+fn outline_value(plan: &SeriesPlan, id: &str) -> serde_json::Value {
+    serde_json::to_value(plan.episodes.iter().find(|o| o.episode_id == id))
+        .expect("episode outline is serializable")
 }
 pub fn replace_outline(plan: &mut SeriesPlan, id: &str, outline: Option<EpisodeOutline>) {
     if let Some(index) = plan.episodes.iter().position(|o| o.episode_id == id) {
@@ -89,7 +114,9 @@ impl Store {
         let mut plan = self.series_plan(&draft.series_id)?;
         if saved.series_id != draft.series_id
             || saved.screenplay != draft.expected_screenplay
-            || plan.revision != draft.plan.revision
+            || (plan.revision != draft.plan.revision
+                && outline_value(&plan, &draft.episode_id)
+                    != outline_value(&draft.plan, &draft.episode_id))
         {
             bail!(
                 "Episode or overall plot changed elsewhere. Your draft is preserved; nothing was saved."
@@ -145,6 +172,60 @@ pub fn response_schema() -> serde_json::Value {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn screenplay_proposals_preserve_unrelated_plot_changes() {
+        let root = std::env::temp_dir().join(format!("df-episode-scope-{}", uuid::Uuid::new_v4()));
+        let store = Store::open(root.join("test.sqlite")).unwrap();
+        let series = store.create_series("Series", "Premise").unwrap();
+        let episode = store.create_episode(&series.id, "Flashback").unwrap();
+        let before = EpisodeDraft {
+            series_id: series.id.clone(),
+            episode_id: episode.id.clone(),
+            screenplay: String::new(),
+            expected_screenplay: String::new(),
+            plan: store.series_plan(&series.id).unwrap(),
+        };
+        let edit = EpisodeEdit {
+            episode_id: episode.id.clone(),
+            screenplay: Some("SUPER: LAST WEEK".into()),
+            outline: None,
+        };
+        let mut current = before.clone();
+        current.plan.theme = "New unsaved theme".into();
+        let after = apply(&store, &current, &before, &edit).unwrap();
+        assert_eq!(after.plan.theme, current.plan.theme);
+        assert_eq!(after.screenplay, "SUPER: LAST WEEK");
+        assert!(same(&undo(&after, &current, &after).unwrap(), &current));
+        let mut changed = current.clone();
+        changed.screenplay = "New manual dialogue".into();
+        assert!(apply(&store, &changed, &before, &edit).is_err());
+        let mut external = store.series_plan(&series.id).unwrap();
+        external.theme = "External theme".into();
+        store.save_series_plan_in_transaction(&external).unwrap();
+        let after = apply(&store, &current, &before, &edit).unwrap();
+        store.save_episode_draft(&after).unwrap();
+        assert_eq!(
+            store.series_plan(&series.id).unwrap().theme,
+            "External theme"
+        );
+        assert_eq!(
+            store.get_episode(&episode.id).unwrap().screenplay,
+            "SUPER: LAST WEEK"
+        );
+        assert!(apply(&store, &current, &before, &edit).is_err());
+        let mut fresh = after.clone();
+        fresh.expected_screenplay = fresh.screenplay.clone();
+        let mut external = store.series_plan(&series.id).unwrap();
+        external.episodes.push(EpisodeOutline {
+            episode_id: episode.id.clone(),
+            goal: "New saved outline".into(),
+            ..Default::default()
+        });
+        store.save_series_plan_in_transaction(&external).unwrap();
+        assert!(store.save_episode_draft(&fresh).is_err());
+        drop(store);
+        std::fs::remove_dir_all(root).unwrap();
+    }
     #[test]
     fn episode_edit_save_undo_and_conflicts_preserve_other_story_work() {
         let root = std::env::temp_dir().join(format!("df-episode-{}", uuid::Uuid::new_v4()));
@@ -260,7 +341,7 @@ pub struct NewEpisode {
     pub changes: Vec<crate::story::Change>,
 }
 impl NewEpisode {
-    fn outline(&self, id: &str) -> EpisodeOutline {
+    pub(crate) fn outline(&self, id: &str) -> EpisodeOutline {
         EpisodeOutline {
             episode_id: id.into(),
             goal: self.goal.clone(),

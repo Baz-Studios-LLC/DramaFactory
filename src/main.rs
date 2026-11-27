@@ -11,6 +11,7 @@ mod character_profile;
 mod chat_images;
 mod chat_markdown;
 mod cliffhanger;
+mod codex_sidekick;
 mod completion;
 mod context_menus;
 mod credentials;
@@ -25,15 +26,18 @@ mod directing_ui;
 mod editing;
 mod editing_room;
 mod editing_room_ui;
+mod episode_batch;
 mod episode_music;
 mod episode_ui;
 mod fal_video;
+mod frame_handoff;
 mod generation_plan;
 mod hosted_image;
 mod hosted_video;
 mod image_inspector;
 mod job_timing;
 mod library_editing;
+mod live_control;
 mod mcp;
 mod media;
 mod models;
@@ -69,7 +73,9 @@ mod sidekick_episode;
 mod sidekick_generation;
 mod sidekick_plot;
 mod sidekick_provider;
+mod sidekick_publish;
 mod sidekick_ui;
+mod sogni_video;
 mod sound;
 mod store;
 mod story;
@@ -94,7 +100,7 @@ use store::Store;
 const GOLD: Color32 = Color32::from_rgb(214, 182, 126);
 const MUTED: Color32 = Color32::from_rgb(157, 160, 169);
 const BG: Color32 = Color32::from_rgb(18, 20, 24);
-#[derive(Clone, Copy, PartialEq)]
+#[derive(Clone, Copy, PartialEq, Debug, serde::Serialize, serde::Deserialize)]
 enum Page {
     Studio,
     Synopsis,
@@ -729,7 +735,14 @@ impl Studio {
                                 if matches!(job.status.as_str(), "queued" | "running") {
                                     ui.spinner();
                                 }
-                                ui.small(RichText::new(job.status.to_uppercase()).color(GOLD));
+                                let status_label = if job.status == "failed"
+                                    && job.error.starts_with("Sogni paused:")
+                                {
+                                    "NEEDS ATTENTION".to_owned()
+                                } else {
+                                    job.status.to_uppercase()
+                                };
+                                ui.small(RichText::new(status_label).color(GOLD));
                                 ui.small(
                                     RichText::new(
                                         self.store
@@ -741,6 +754,17 @@ impl Studio {
                                     .color(MUTED),
                                 );
                             });
+                            if !job.error.trim().is_empty() {
+                                ui.add_space(6.);
+                                ui.add(
+                                    egui::Label::new(
+                                        RichText::new(&job.error)
+                                            .color(Color32::from_rgb(233, 151, 129)),
+                                    )
+                                    .wrap(),
+                                );
+                                ui.add_space(6.);
+                            }
                             ui.small(RichText::new("Open details  ›").color(MUTED));
                         });
                     let response = ui.interact(
@@ -1527,7 +1551,7 @@ impl Studio {
                 ui.code(exe.display().to_string());
                 ui.label("Arguments: --mcp");
                 if ui.button("Copy MCP launch configuration").clicked() {
-                    let config = serde_json::json!({"command":exe,"args":["--mcp"]});
+                    let config = serde_json::json!({"command":exe,"args":["--mcp"],"env":{"DRAMAFACTORY_DATABASE":self.store.path}});
                     ui.ctx()
                         .copy_text(serde_json::to_string_pretty(&config).unwrap_or_default());
                     self.message = "MCP launch configuration copied".into();
@@ -1545,6 +1569,7 @@ impl Studio {
 }
 impl eframe::App for Studio {
     fn update(&mut self, ctx: &egui::Context, _: &mut eframe::Frame) {
+        self.poll_live_control(ctx);
         if self.last_sync.elapsed() > std::time::Duration::from_secs(2) {
             if self.script == self.script_baseline
                 && let Some(id) = &self.episode_id
@@ -1740,6 +1765,7 @@ impl eframe::App for Studio {
         self.image_inspector_window(ctx);
         self.project_save_confirmation(ctx);
         self.portable_progress(ctx);
+        self.frame_handoff_progress(ctx);
         self.cloud_project_progress(ctx);
         ctx.request_repaint_after(std::time::Duration::from_millis(500));
     }
@@ -1772,6 +1798,7 @@ impl eframe::App for Studio {
             }
         }
         let _ = self.snapshot_generation_plans();
+        let _ = self.publisher.snapshot_drafts(&self.store);
         let _ = self.snapshot_shot_form();
         let _ = self.snapshot_new_dialogue();
         let draft_directory = self.store.root().join("drafts");
@@ -1986,11 +2013,13 @@ fn run() -> anyhow::Result<()> {
         println!("{}", store::default_path().display());
         return Ok(());
     }
-    let store = Store::open(if args.len() == 1 {
-        portable_project::startup_path()
-    } else {
-        store::default_path()
-    })?;
+    let store = Store::open(
+        if args.len() == 1 || args.get(1).is_some_and(|a| a == "--mcp") {
+            portable_project::startup_path()
+        } else {
+            store::default_path()
+        },
+    )?;
     if args.get(1).is_some_and(|x| x == "--configure-worker") {
         if args.len() != 6 {
             anyhow::bail!("Usage: --configure-worker PYTHON WAN_MODEL FFMPEG KOKORO_DIRECTORY");

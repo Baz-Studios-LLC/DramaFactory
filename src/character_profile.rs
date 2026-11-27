@@ -16,6 +16,11 @@ pub const SECTIONS: &[Section] = &[
             ("age", "Age", "25, or the age this role calls for"),
             ("pronouns", "Pronouns", "She/her, he/him, they/them…"),
             ("role", "Story role", "Lead, rival, mentor, sibling…"),
+            (
+                "faction",
+                "Faction",
+                "Crew or affiliation; leave blank if unknown or unaffiliated",
+            ),
             ("species", "Species / ancestry", "Human, half-elf…"),
             ("occupation", "Occupation", "Work, specialty, social role"),
             (
@@ -232,6 +237,10 @@ impl CharacterProfile {
             bail!("Sidekick profile is missing its summary");
         }
         for (key, label, _) in SECTIONS.iter().flat_map(|section| section.fields.iter()) {
+            // Affiliations are optional, including for existing complete profiles.
+            if *key == "faction" {
+                continue;
+            }
             if self
                 .fields
                 .get(*key)
@@ -397,7 +406,11 @@ pub fn response_schema() -> serde_json::Value {
         .map(|key| {
             (
                 (*key).into(),
-                serde_json::json!({"type":"string","minLength":1,"pattern":r"\S"}),
+                if *key == "faction" {
+                    serde_json::json!({"type":"string","description":"Crew or affiliation. Use an empty string if unknown or unaffiliated; do not infer membership from friendship."})
+                } else {
+                    serde_json::json!({"type":"string","minLength":1,"pattern":r"\S"})
+                },
             )
         })
         .collect();
@@ -583,6 +596,10 @@ mod tests {
         draft
             .profile
             .fields
+            .insert("faction".into(), "Dre's crew".into());
+        draft
+            .profile
+            .fields
             .insert("eye_color".into(), "Green".into());
         draft
             .profile
@@ -607,6 +624,7 @@ mod tests {
         assert!(current.description.starts_with(&entry.description));
         assert!(current.description.contains("Height: 170 cm"));
         assert!(current.description.contains("Weight: 64 kg"));
+        assert!(current.description.contains("Faction: Dre's crew"));
         assert!(
             current
                 .description
@@ -693,6 +711,26 @@ mod tests {
 #[cfg(test)]
 mod null_field_tests {
     use super::*;
+    #[test]
+    fn faction_is_optional_for_existing_complete_profiles() {
+        let mut profile = CharacterProfile {
+            summary: "Existing character".into(),
+            fields: SECTIONS
+                .iter()
+                .flat_map(|section| section.fields.iter())
+                .filter(|(key, _, _)| *key != "faction")
+                .map(|(key, _, _)| ((*key).into(), "Known trait".into()))
+                .collect(),
+        };
+        profile.validate_complete().unwrap();
+        profile.fields.insert("faction".into(), String::new());
+        profile.validate_complete().unwrap();
+        assert!(!profile.brief().contains("Faction:"));
+        assert_eq!(
+            response_schema()["properties"]["fields"]["properties"]["faction"]["type"],
+            "string"
+        );
+    }
     #[test]
     fn null_placeholders_are_absent_but_invalid_values_still_fail() {
         let profile: CharacterProfile = serde_json::from_str(

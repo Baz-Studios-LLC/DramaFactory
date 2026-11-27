@@ -51,10 +51,13 @@ const TABLES: &[&str] = &[
     "asset_review_notes",
     "asset_review_history",
     "settings",
+    "buffer_uploads",
+    "buffer_submissions",
 ];
 const SETTING_PREFIXES: &[&str] = &[
     "episode-cut:",
     "episode-publish:",
+    "episode-publish-result:",
     "captions:",
     "speaker_visible:",
     "picture_fades:",
@@ -174,6 +177,16 @@ fn isolate(conn: &Connection, series: &str) -> Result<()> {
                             key.strip_prefix(prefix).is_some_and(|id| ids.contains(id))
                         })
                 })
+            } else if row.table == "buffer_submissions" {
+                f.get("episode").is_some_and(|id| ids.contains(id))
+            } else if row.table == "buffer_uploads" {
+                f.get("hash").is_some_and(|hash| {
+                    data.iter().any(|asset| {
+                        asset.table == "assets"
+                            && asset.fields.get("hash") == Some(hash)
+                            && asset.fields.get("id").is_some_and(|id| ids.contains(id))
+                    })
+                })
             } else if row.table == "series" {
                 f.get("id").is_some_and(|id| id == series)
             } else if let Some(owner) = f.get("series_id") {
@@ -225,15 +238,6 @@ fn isolate(conn: &Connection, series: &str) -> Result<()> {
     ensure!(
         broken == 0,
         "Project has unresolved links; it was not saved to the folder"
-    );
-    let active: i64 = conn.query_row(
-        "SELECT count(*) FROM jobs WHERE status IN ('queued','running','blocked')",
-        [],
-        |r| r.get(0),
-    )?;
-    ensure!(
-        active == 0,
-        "Wait for this series’ generation jobs to finish before saving a portable copy"
     );
     Ok(())
 }
@@ -454,15 +458,13 @@ pub(crate) fn open(folder: &Path, local_home: &Path) -> Result<PathBuf> {
         series.len() == 1 && series[0].id == manifest.series,
         "Project series does not match its saved revision"
     );
-    let active: i64 = store.conn.query_row(
-        "SELECT count(*) FROM jobs WHERE status IN ('queued','running','blocked')",
+    // This is a new working copy, not ownership transfer of the source queue.
+    // Keep requests and provider IDs, but never automatically execute copied jobs.
+    // The original Mac and remote provider continue independently.
+    store.conn.execute(
+        "UPDATE jobs SET error='Imported snapshot of a ' || status || ' job. Automatic execution is stopped in this copy. The original job may still be running; no remote cancellation was requested.', status='failed', phase='Imported snapshot', updated_at=datetime('now') WHERE status IN ('queued','running','blocked')",
         [],
-        |r| r.get(0),
     )?;
-    ensure!(
-        active == 0,
-        "This project contains unfinished jobs. Finish them on the originating Mac and save again."
-    );
     rewrite(&store.conn, |s| {
         if let Some(relative) = s.strip_prefix(ROOT) {
             ensure!(
@@ -878,10 +880,6 @@ impl crate::Studio {
         if self.portable_task.is_some() {
             return;
         }
-        if self.sidekick.busy() {
-            self.portable_error("Wait for Sidekick to finish, then save the project again.");
-            return;
-        }
         let Some(series) = self.selected.clone() else {
             return;
         };
@@ -898,7 +896,7 @@ impl crate::Studio {
                 .and_then(|store| save(&store, &series, &folder, expected.as_deref()))
                 .map(|_| None)
                 .map_err(|e| {
-                    format!("Could not save portable project: {e}. Local work is preserved.")
+                    format!("Could not save the project folder: {e}. Local edits are preserved.")
                 });
             let _ = sender.send(result);
         });
@@ -956,7 +954,7 @@ impl crate::Studio {
                     }
                     Ok(None) => {
                         self.cloud_projects = Default::default();
-                        self.message = "Project and media saved to folder. Let iCloud finish syncing before switching Macs.".into();
+                        self.message = "Project saved".into();
                         self.project_save_notice =
                             Some((true, self.message.clone(), std::time::Instant::now()));
                     }
@@ -1174,6 +1172,7 @@ mod tests {
         let release = crate::publish::ReleaseDraft {
             title: "Pilot release".into(),
             cover_png: vec![1, 2, 3],
+            tiktok_cover_png: vec![4, 5, 6],
             destinations: [true, true, true],
             ..Default::default()
         };
@@ -1311,21 +1310,86 @@ mod tests {
         std::fs::remove_dir_all(temp).unwrap();
     }
     #[test]
-    fn portable_save_rejects_active_jobs_and_keeps_machine_settings_out() {
+    fn portable_save_preserves_only_this_series_buffer_receipts() {
+        let temp = tempfile::tempdir().unwrap();
+        let store = Store::open(temp.path().join("studio.sqlite")).unwrap();
+        let series = store.create_series("Series", "").unwrap();
+        let other = store.create_series("Other", "").unwrap();
+        let episode = store.create_episode(&series.id, "Episode").unwrap();
+        let other_episode = store.create_episode(&other.id, "Other episode").unwrap();
+        for id in [&episode.id, &other_episode.id] {
+            store.conn.execute("INSERT INTO buffer_submissions VALUES(?1,'hash','channel','confirmed-post-id')",[id]).unwrap();
+        }
+        let folder = temp.path().join("Project.dramafactory");
+        save(&store, &series.id, &folder, None).unwrap();
+        let imported = Store::open(open(&folder, &temp.path().join("other-mac")).unwrap()).unwrap();
+        let receipts: Vec<(String, String)> = imported
+            .conn
+            .prepare("SELECT episode,receipt FROM buffer_submissions")
+            .unwrap()
+            .query_map([], |r| Ok((r.get(0)?, r.get(1)?)))
+            .unwrap()
+            .collect::<rusqlite::Result<_>>()
+            .unwrap();
+        assert_eq!(receipts, vec![(episode.id, "confirmed-post-id".into())]);
+    }
+    #[test]
+    fn portable_save_snapshots_active_jobs_without_restarting_them() {
         let temp =
             std::env::temp_dir().join(format!("df-portable-active-{}", uuid::Uuid::new_v4()));
         let store = Store::open(temp.join("studio.sqlite")).unwrap();
-        let series = store.create_series("Series", "").unwrap();
-        store.conn.execute("INSERT INTO jobs(id,prompt,status,error,request) VALUES('active','prompt','running','',?1)",[serde_json::json!({"series_id":series.id}).to_string()]).unwrap();
+        let series = store.create_series("Series", "Before completion").unwrap();
+        for status in ["queued", "running", "blocked"] {
+            store
+                .conn
+                .execute(
+                    "INSERT INTO jobs(id,prompt,status,error,request) VALUES(?1,'prompt',?1,'',?2)",
+                    rusqlite::params![
+                        status,
+                        serde_json::json!({"series_id":series.id}).to_string()
+                    ],
+                )
+                .unwrap();
+        }
+        store.conn.execute("INSERT INTO remote_video_jobs(job_id,state,remote_id) VALUES('running','accepted','provider-job-123')", []).unwrap();
         let folder = temp.join("Project.dramafactory");
-        assert!(
-            save(&store, &series.id, &folder, None)
-                .unwrap_err()
-                .to_string()
-                .contains("finish")
-        );
-        assert!(head(&folder).unwrap().is_none());
-        assert_eq!(store.job("active").unwrap().status, "running");
+        let first = save(&store, &series.id, &folder, None).unwrap();
+        let imported = Store::open(open(&folder, &temp.join("other-mac")).unwrap()).unwrap();
+        for status in ["queued", "running", "blocked"] {
+            assert_eq!(store.job(status).unwrap().status, status);
+            let job = imported.job(status).unwrap();
+            assert_eq!(job.status, "failed");
+            assert!(job.error.contains("no remote cancellation"));
+            let request = |db: &Store| -> String {
+                db.conn
+                    .query_row("SELECT request FROM jobs WHERE id=?1", [status], |r| {
+                        r.get(0)
+                    })
+                    .unwrap()
+            };
+            assert_eq!(request(&imported), request(&store));
+        }
+        let remote: String = imported
+            .conn
+            .query_row(
+                "SELECT remote_id FROM remote_video_jobs WHERE job_id='running'",
+                [],
+                |r| r.get(0),
+            )
+            .unwrap();
+        assert_eq!(remote, "provider-job-123");
+        // Later saves capture source progress without changing the earlier revision.
+        store
+            .conn
+            .execute("UPDATE jobs SET status='completed' WHERE id='running'", [])
+            .unwrap();
+        let second = save(&store, &series.id, &folder, Some(&first.revision)).unwrap();
+        assert_ne!(first.revision, second.revision);
+        let latest = Store::open(open(&folder, &temp.join("third-mac")).unwrap()).unwrap();
+        assert_eq!(latest.job("running").unwrap().status, "completed");
+        assert_eq!(imported.job("running").unwrap().status, "failed");
+        drop(latest);
+        drop(imported);
         drop(store);
         std::fs::remove_dir_all(temp).unwrap();
     }

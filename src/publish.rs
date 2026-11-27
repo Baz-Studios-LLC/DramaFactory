@@ -14,6 +14,7 @@ pub struct ReleaseDraft {
     pub destinations: [bool; 3],
     // Embedded artwork travels with portable projects, without machine-specific paths.
     pub cover_png: Vec<u8>,
+    pub tiktok_cover_png: Vec<u8>,
 }
 impl Store {
     pub fn finished_episode_copy(

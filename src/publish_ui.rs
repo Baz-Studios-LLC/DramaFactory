@@ -7,8 +7,14 @@ use std::collections::HashMap;
 #[derive(Default)]
 pub struct Publisher {
     drafts: HashMap<String, Draft>,
-    hosting: Option<[String; 2]>,
-    jobs: HashMap<String, std::sync::mpsc::Receiver<String>>,
+    undo: HashMap<
+        String,
+        (
+            crate::sidekick_publish::Snapshot,
+            crate::sidekick_publish::Snapshot,
+        ),
+    >,
+    jobs: HashMap<String, std::sync::mpsc::Receiver<crate::buffer_publish::Event>>,
     results: HashMap<String, String>,
 }
 struct Draft {
@@ -18,6 +24,81 @@ struct Draft {
     error: String,
 }
 impl Publisher {
+    pub(crate) fn snapshot(
+        &mut self,
+        store: &Store,
+        episode: &str,
+    ) -> anyhow::Result<crate::sidekick_publish::Snapshot> {
+        let record = store.get_episode(episode)?;
+        let (mut value, saved) = store.release_draft(episode)?;
+        if !self.drafts.contains_key(episode) {
+            if saved.is_none() {
+                value.title = record.title.clone();
+                value.destinations = [true; 3];
+            }
+            if value.asset_id.is_none() {
+                value.asset_id = store
+                    .episode_release_exports(episode)?
+                    .first()
+                    .map(|a| a.id.clone());
+            }
+            self.drafts.insert(
+                episode.into(),
+                Draft {
+                    persisted: value.clone(),
+                    value,
+                    expected: saved.clone(),
+                    error: String::new(),
+                },
+            );
+        }
+        Ok(crate::sidekick_publish::Snapshot {
+            episode_id: episode.into(),
+            source: serde_json::to_string(&record)?,
+            saved,
+            draft: self.drafts[episode].value.clone(),
+        })
+    }
+    pub(crate) fn apply_sidekick(
+        &mut self,
+        store: &Store,
+        expected: &crate::sidekick_publish::Snapshot,
+        edit: &crate::sidekick_publish::Edit,
+    ) -> anyhow::Result<()> {
+        let current = self.snapshot(store, &edit.episode_id)?;
+        let value = crate::sidekick_publish::apply(&current, expected, edit)?;
+        self.drafts.get_mut(&edit.episode_id).unwrap().value = value;
+        let after = self.snapshot(store, &edit.episode_id)?;
+        self.undo.insert(edit.episode_id.clone(), (current, after));
+        Ok(())
+    }
+    pub(crate) fn undo_sidekick(&mut self, store: &Store, episode: &str) -> anyhow::Result<()> {
+        let (before, after) = self
+            .undo
+            .get(episode)
+            .cloned()
+            .ok_or_else(|| anyhow::anyhow!("No publishing edit to undo"))?;
+        anyhow::ensure!(
+            self.snapshot(store, episode)? == after,
+            "Publishing draft changed after Sidekick's edit. Undo would overwrite newer work."
+        );
+        self.drafts.get_mut(episode).unwrap().value = before.draft;
+        self.undo.remove(episode);
+        Ok(())
+    }
+    pub(crate) fn snapshot_drafts(&self, store: &Store) -> anyhow::Result<()> {
+        let directory = store.root().join("drafts");
+        std::fs::create_dir_all(&directory)?;
+        for (episode, draft) in &self.drafts {
+            if draft.value != draft.persisted {
+                std::fs::write(
+                    directory.join(format!("publish-{episode}-{}.json", uuid::Uuid::new_v4())),
+                    serde_json::to_vec_pretty(&draft.value)?,
+                )?;
+            }
+        }
+        Ok(())
+    }
     pub fn save_for_series(&mut self, store: &Store, series: &str) -> anyhow::Result<()> {
         for episode in store.episodes(series)? {
             if let Some(draft) = self.drafts.get_mut(&episode.id) {
@@ -55,28 +136,15 @@ impl Studio {
         if self.selected.as_deref() != Some(&record.series_id) {
             return;
         }
-        if !self.publisher.drafts.contains_key(&episode) {
-            match self.store.release_draft(&episode) {
-                Ok((mut value, expected)) => {
-                    if expected.is_none() {
-                        value.title = record.title;
-                        value.destinations = [true; 3];
-                    }
-                    self.publisher.drafts.insert(
-                        episode.clone(),
-                        Draft {
-                            persisted: value.clone(),
-                            value,
-                            expected,
-                            error: String::new(),
-                        },
-                    );
-                }
-                Err(error) => {
-                    ui.label(error.to_string());
-                    return;
-                }
-            }
+        if let Err(error) = self.publisher.snapshot(&self.store, &episode) {
+            ui.label(error.to_string());
+            return;
+        }
+        if self.publisher.undo.contains_key(&episode)
+            && ui.button("Undo Sidekick publishing edit").clicked()
+            && let Err(error) = self.publisher.undo_sidekick(&self.store, &episode)
+        {
+            self.publisher.drafts.get_mut(&episode).unwrap().error = error.to_string();
         }
         let exports = match self.store.episode_release_exports(&episode) {
             Ok(exports) => exports,
@@ -172,75 +240,73 @@ impl Studio {
                     ui.checkbox(&mut draft.value.destinations[index], *name);
                 }
             });
-            ui.add(
-                egui::TextEdit::multiline(&mut draft.value.captions[0])
-                    .hint_text("Caption for all selected channels")
-                    .desired_rows(3)
-                    .desired_width(f32::INFINITY),
-            );
+            for (index, platform) in PLATFORMS.iter().enumerate() {
+                if draft.value.destinations[index] {
+                    ui.label(*platform);
+                    ui.add(
+                        egui::TextEdit::multiline(&mut draft.value.captions[index])
+                            .hint_text("Caption, description and hashtags")
+                            .desired_rows(3)
+                            .desired_width(f32::INFINITY),
+                    );
+                }
+            }
         });
         ui.add_space(6.);
-        card().show(ui, |ui| {
-            ui.set_width(ui.available_width());
-            ui.strong("Cover artwork");
-            ui.horizontal(|ui| {
-                if !draft.value.cover_png.is_empty() {
-                    let uri = format!("bytes://release-cover/{}/{}", episode, { use std::hash::{Hash, Hasher}; let mut hash = std::hash::DefaultHasher::new(); draft.value.cover_png.hash(&mut hash); hash.finish() });
-                    ui.add(egui::Image::from_bytes(uri, draft.value.cover_png.clone()).max_size(egui::vec2(100., 150.)));
+        if draft.value.destinations[0] {
+            card().show(ui, |ui| {
+                ui.strong("TikTok cover");
+                ui.label("Adds 0.2 seconds of artwork before the TikTok video and uses it as the cover. Other platforms use the original episode.");
+                if !draft.value.tiktok_cover_png.is_empty() {
+                    use std::hash::{Hash, Hasher};
+                    let mut hash = std::collections::hash_map::DefaultHasher::new();
+                    draft.value.tiktok_cover_png.hash(&mut hash);
+                    ui.add(egui::Image::from_bytes(format!("bytes://tiktok-cover/{episode}/{}", hash.finish()), draft.value.tiktok_cover_png.clone()).max_size(egui::vec2(120., 180.)));
                 }
-                ui.vertical(|ui| {
-                    if ui.button(if draft.value.cover_png.is_empty() { "Choose image…" } else { "Replace image…" }).clicked()
-                        && let Some(path) = rfd::FileDialog::new().add_filter("Image", &["png", "jpg", "jpeg"]).pick_file() {
+                ui.horizontal(|ui| {
+                    if ui.button("Choose cover…").clicked()
+                        && let Some(path) = rfd::FileDialog::new().add_filter("Cover image", &["png", "jpg", "jpeg"]).pick_file() {
                         let result = (|| -> anyhow::Result<Vec<u8>> {
-                            anyhow::ensure!(std::fs::metadata(&path)?.len() <= 20 * 1024 * 1024, "Choose an image smaller than 20 MB.");
-                            let img = image::open(path)?.thumbnail(1080, 1920);
+                            anyhow::ensure!(std::fs::metadata(&path)?.len() <= 20 * 1024 * 1024, "Choose an image smaller than 20 MB");
+                            let mut reader = image::ImageReader::open(path)?.with_guessed_format()?;
+                            reader.limits(image::Limits::default());
+                            let image = reader.decode()?.thumbnail(1080, 1920);
                             let mut bytes = std::io::Cursor::new(Vec::new());
-                            img.write_to(&mut bytes, image::ImageFormat::Png)?;
+                            image.write_to(&mut bytes, image::ImageFormat::Png)?;
                             Ok(bytes.into_inner())
                         })();
-                        match result { Ok(bytes) => { draft.value.cover_png = bytes; draft.error.clear(); }, Err(error) => draft.error = error.to_string() }
+                        match result {
+                            Ok(bytes) => { draft.value.tiktok_cover_png = bytes; draft.error.clear(); }
+                            Err(error) => draft.error = error.to_string(),
+                        }
                     }
-                    if !draft.value.cover_png.is_empty() && ui.small_button("Remove cover").clicked() { draft.value.cover_png.clear(); }
-                    ui.label(RichText::new("Artwork is saved with the project. Video-frame cover selection will be added with publishing.").small().color(MUTED));
+                    if !draft.value.tiktok_cover_png.is_empty() && ui.button("Remove cover").clicked() {
+                        draft.value.tiktok_cover_png.clear();
+                    }
                 });
             });
-        });
-        if let Err(error) = save(&self.store, &episode, draft) {
+        }
+        if ui.button("Save publishing draft").clicked()
+            && let Err(error) = save(&self.store, &episode, draft)
+        {
             draft.error = error.to_string();
         }
-        let hosting = self.publisher.hosting.get_or_insert_with(|| {
-            self.store
-                .conn
-                .query_row(
-                    "SELECT value FROM settings WHERE key='buffer-hosting'",
-                    [],
-                    |r| r.get::<_, String>(0),
-                )
-                .ok()
-                .and_then(|s| serde_json::from_str(&s).ok())
-                .unwrap_or_default()
-        });
-        egui::CollapsingHeader::new("Video hosting")
-            .default_open(hosting[0].is_empty())
-            .show(ui, |ui| {
-                ui.label("Set up Cloudinary once to upload episode videos directly from this Mac.");
-                let cloud =
-                    ui.add(egui::TextEdit::singleline(&mut hosting[0]).hint_text("Cloud name"));
-                let preset = ui.add(
-                    egui::TextEdit::singleline(&mut hosting[1]).hint_text("Unsigned upload preset"),
-                );
-                if (cloud.changed() || preset.changed())
-                    && let Err(e) = self.store.conn.execute(
-                        "INSERT OR REPLACE INTO settings(key,value) VALUES('buffer-hosting',?1)",
-                        [serde_json::to_string(hosting).unwrap()],
-                    )
-                {
-                    draft.error = e.to_string();
-                }
-            });
+        let credentials_ready = crate::credentials::Provider::Cloudinary.saved_locally()
+            && crate::credentials::Provider::Buffer.saved_locally();
+        if !credentials_ready {
+            ui.colored_label(
+                GOLD,
+                "Add Cloudinary and Buffer credentials in Settings before publishing.",
+            );
+        }
         if let Some(rx) = self.publisher.jobs.get(&episode) {
             match rx.try_recv() {
-                Ok(message) => {
+                Ok(crate::buffer_publish::Event::Progress(message)) => {
+                    self.publisher.results.insert(episode.clone(), message);
+                    ui.ctx()
+                        .request_repaint_after(std::time::Duration::from_millis(100));
+                }
+                Ok(crate::buffer_publish::Event::Finished(message)) => {
                     self.publisher.results.insert(episode.clone(), message);
                     self.publisher.jobs.remove(&episode);
                 }
@@ -263,47 +329,66 @@ impl Studio {
             .find(|a| Some(&a.id) == draft.value.asset_id.as_ref());
         let ready = asset.is_some_and(|a| a.path.is_file())
             && draft.value.destinations.contains(&true)
-            && !draft.value.captions[0].trim().is_empty()
-            && hosting.iter().all(|s| !s.trim().is_empty())
-            && !self.publisher.jobs.contains_key(&episode)
-            && draft.value == draft.persisted;
+            && draft
+                .value
+                .destinations
+                .iter()
+                .enumerate()
+                .all(|(i, enabled)| !enabled || !draft.value.captions[i].trim().is_empty())
+            && (!draft.value.destinations[1] || !draft.value.title.trim().is_empty())
+            && credentials_ready
+            && !self.publisher.jobs.contains_key(&episode);
         if ui
-            .add_enabled(ready, egui::Button::new("Publish to Buffer"))
-            .on_hover_text("Add to the next queue slot for each selected channel")
+            .add_enabled(ready, crate::theme::primary("Publish"))
+            .on_hover_text("Publish immediately to each selected platform")
             .clicked()
         {
+            if let Err(error) = save(&self.store, &episode, draft) {
+                draft.error = error.to_string();
+                return;
+            }
             let (tx, rx) = std::sync::mpsc::channel();
             self.publisher.jobs.insert(episode.clone(), rx);
             self.publisher.results.remove(&episode);
-            let (episode, db, asset, value, hosting) = (
+            let (episode, db, asset, value) = (
                 episode.clone(),
                 self.store.path.clone(),
                 asset.unwrap().clone(),
                 draft.value.clone(),
-                hosting.clone(),
             );
             std::thread::spawn(move || {
-                let result = crate::buffer_publish::queue(
-                    &db,
-                    &episode,
-                    &asset,
-                    &value,
-                    &hosting[0],
-                    &hosting[1],
-                );
-                let _ = tx.send(result.unwrap_or_else(|e| e.to_string()));
+                let result = crate::buffer_publish::publish(&db, &episode, &asset, &value, &tx);
+                let _ = tx.send(crate::buffer_publish::Event::Finished(
+                    result.unwrap_or_else(|e| format!("Publishing stopped: {e}")),
+                ));
             });
             ui.ctx().request_repaint();
         }
+        ui.weak("Uploads to Cloudinary, then sends every selected platform to Buffer for immediate publishing. Platform processing times may differ.");
+        if !self.publisher.results.contains_key(&episode)
+            && let Ok(report) = self.store.conn.query_row(
+                "SELECT value FROM settings WHERE key=?1",
+                [format!("episode-publish-result:{episode}")],
+                |r| r.get::<_, String>(0),
+            )
+        {
+            self.publisher.results.insert(episode.clone(), report);
+        }
         if let Some(status) = self.publisher.results.get(&episode) {
-            ui.label(status);
+            card().show(ui, |ui| {
+                ui.strong("Publishing status");
+                ui.label(status);
+                ui.hyperlink_to("Open Buffer", "https://publish.buffer.com/");
+            });
         }
         ui.add_space(8.);
         if draft.error.is_empty() {
             ui.label(
-                RichText::new(
-                    "Draft saved locally · Save project to sync it to your project folder",
-                )
+                RichText::new(if draft.value == draft.persisted {
+                    "Draft saved locally - Save project to sync"
+                } else {
+                    "Unsaved publishing changes"
+                })
                 .small()
                 .color(MUTED),
             );
@@ -313,5 +398,59 @@ impl Studio {
                 self.publisher.drafts.remove(&episode);
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod sidekick_tests {
+    use super::*;
+    #[test]
+    fn sidekick_edits_are_guarded_undoable_and_do_not_publish() {
+        let temp = tempfile::tempdir().unwrap();
+        let store = Store::open(temp.path().join("studio.sqlite")).unwrap();
+        let series = store.create_series("Series", "").unwrap();
+        let episode = store.create_episode(&series.id, "Episode").unwrap();
+        let mut publisher = Publisher::default();
+        let before = publisher.snapshot(&store, &episode.id).unwrap();
+        let edit = crate::sidekick_publish::Edit {
+            episode_id: episode.id.clone(),
+            title: Some("New title".into()),
+            tiktok: Some("TikTok text".into()),
+            youtube: Some("YouTube text".into()),
+            instagram: None,
+        };
+        publisher.apply_sidekick(&store, &before, &edit).unwrap();
+        assert!(store.release_draft(&episode.id).unwrap().1.is_none());
+        assert_eq!(
+            publisher.drafts[&episode.id].value.captions[1],
+            "YouTube text"
+        );
+        assert_eq!(
+            publisher.drafts[&episode.id].value.destinations,
+            before.draft.destinations
+        );
+        publisher.undo_sidekick(&store, &episode.id).unwrap();
+        assert!(publisher.drafts[&episode.id].value == before.draft);
+        publisher.drafts.get_mut(&episode.id).unwrap().value.title = "Manual change".into();
+        assert!(publisher.apply_sidekick(&store, &before, &edit).is_err());
+        let expected = publisher.snapshot(&store, &episode.id).unwrap();
+        publisher.apply_sidekick(&store, &expected, &edit).unwrap();
+        publisher
+            .drafts
+            .get_mut(&episode.id)
+            .unwrap()
+            .value
+            .captions[2] = "Newer manual text".into();
+        assert!(publisher.undo_sidekick(&store, &episode.id).is_err());
+        let expected = publisher.snapshot(&store, &episode.id).unwrap();
+        store
+            .save_release_draft(&episode.id, &ReleaseDraft::default(), None)
+            .unwrap();
+        assert!(publisher.apply_sidekick(&store, &expected, &edit).is_err());
+        let count: i64 = store
+            .conn
+            .query_row("SELECT count(*) FROM buffer_submissions", [], |r| r.get(0))
+            .unwrap();
+        assert_eq!(count, 0);
     }
 }

@@ -8,6 +8,20 @@ pub(crate) enum EpisodeSection {
     Continuity,
 }
 impl Studio {
+    fn screenplay_editor(&mut self, ui: &mut egui::Ui) {
+        // Grow with the document so the workspace owns vertical scrolling.
+        ui.add(
+            egui::TextEdit::multiline(&mut self.script)
+                .id_salt(("screenplay-document", &self.episode_id))
+                .font(egui::FontId::monospace(16.))
+                .desired_rows(24)
+                .desired_width(ui.available_width())
+                .margin(egui::vec2(16., 16.))
+                .hint_text(crate::theme::placeholder(
+                    "Scene headings, action, character names and dialogue…",
+                )),
+        );
+    }
     pub(crate) fn episode_navigation(&mut self, ui: &mut egui::Ui) {
         let Some(series) = self.selected.clone() else {
             ui.label("Choose the current series in the sidebar.");
@@ -136,8 +150,13 @@ impl Studio {
     fn save_episode_work(&mut self) -> bool {
         let result = (|| -> anyhow::Result<()> {
             let mut draft = self.episode_snapshot()?;
+            let saved_plan_revision = self.store.series_plan(&draft.series_id)?.revision;
             let revision = self.store.save_episode_draft(&draft)?;
-            draft.plan.revision = revision;
+            // A screenplay-only save may cross an unrelated external plot revision.
+            // Do not bless a stale overall-plot draft with that newer revision.
+            if draft.plan.revision == saved_plan_revision {
+                draft.plan.revision = revision;
+            }
             draft.expected_screenplay = draft.screenplay.clone();
             self.story_reports.remove(&draft.series_id);
             self.sidekick.episode_undo.remove(&draft.episode_id);
@@ -156,6 +175,49 @@ impl Studio {
         }
     }
     pub(crate) fn episode_workspace(&mut self, ui: &mut egui::Ui) {
+        let focus_id = egui::Id::new("episode-screenplay-focus");
+        let mut focused = ui
+            .ctx()
+            .data_mut(|data| data.get_temp::<bool>(focus_id).unwrap_or(false));
+        ui.horizontal(|ui| {
+            if ui
+                .selectable_label(
+                    focused,
+                    if focused {
+                        "← Back to episode plot"
+                    } else {
+                        "Read / edit screenplay"
+                    },
+                )
+                .clicked()
+            {
+                focused = !focused;
+                ui.ctx()
+                    .data_mut(|data| data.insert_temp(focus_id, focused));
+            }
+        });
+        if focused {
+            let Some(id) = self.episode_id.clone() else {
+                ui.label("Choose an episode in Episode plot first.");
+                return;
+            };
+            if let Ok(episode) = self.store.get_episode(&id) {
+                ui.heading(&episode.title);
+            }
+            ui.horizontal_wrapped(|ui| {
+                if ui.add(crate::theme::primary("Save episode")).clicked() {
+                    self.save_episode_work();
+                }
+                ui.label(if self.script != self.script_baseline {
+                    "Unsaved screenplay changes"
+                } else {
+                    "Screenplay saved"
+                });
+                ui.small(format!("{} words", self.script.split_whitespace().count()));
+            });
+            self.screenplay_editor(ui);
+            return;
+        }
         Self::title(
             ui,
             "EPISODE PLOT",
@@ -493,21 +555,7 @@ impl Studio {
         });
         if self.episode_section == EpisodeSection::Screenplay {
             ui.small(format!("{} words", self.script.split_whitespace().count()));
-            egui::ScrollArea::vertical()
-                .id_salt(("episode-script", &episode.id))
-                .max_height(600.)
-                .show(ui, |ui| {
-                    ui.add(
-                        egui::TextEdit::multiline(&mut self.script)
-                            .font(egui::FontId::monospace(14.))
-                            .desired_rows(22)
-                            .desired_width(ui.available_width())
-                            .margin(egui::vec2(12., 12.))
-                            .hint_text(crate::theme::placeholder(
-                                "Scene headings, action, character names and dialogue…",
-                            )),
-                    );
-                });
+            self.screenplay_editor(ui);
         } else {
             let existing = plan
                 .episodes

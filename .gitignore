@@ -25,3 +25,8 @@ __pycache__/
 # Private local credential storage (defense in depth)
 *.credential
 DramaFactory-Credentials/
+
+# Private series artwork, generated media, and story drafts
+/Cover Art/
+/branding/blockside/
+/output/

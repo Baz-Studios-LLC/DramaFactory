@@ -60,7 +60,7 @@ impl Store {
     }
 }
 impl Studio {
-    fn preserve_series_work(&mut self) -> bool {
+    pub(crate) fn preserve_series_work(&mut self) -> bool {
         if !self.save_script() {
             return false;
         }
@@ -111,7 +111,7 @@ impl Studio {
         }
         self.activate_series(id)
     }
-    fn activate_series(&mut self, id: &str) -> bool {
+    pub(crate) fn activate_series(&mut self, id: &str) -> bool {
         if let Err(error) = self.store.remember_gui_series(id) {
             self.message = error.to_string();
             return false;

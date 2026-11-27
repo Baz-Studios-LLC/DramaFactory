@@ -22,6 +22,49 @@ pub enum Provider {
     ElevenLabs,
     Buffer,
     Fal,
+    Cloudinary,
+    Sogni,
+}
+/// Stored atomically as one private credential, never as project settings.
+#[derive(Default, serde::Serialize, serde::Deserialize)]
+pub(crate) struct CloudinaryCredentials {
+    pub cloud_name: String,
+    pub api_key: String,
+    pub api_secret: String,
+}
+impl CloudinaryCredentials {
+    fn encoded(&self) -> Result<String> {
+        let cloud_name = self.cloud_name.trim();
+        if cloud_name.is_empty()
+            || !cloud_name
+                .bytes()
+                .all(|c| c.is_ascii_alphanumeric() || c == b'-' || c == b'_')
+        {
+            bail!("Enter the Cloudinary cloud name, not a URL.");
+        }
+        for (label, value) in [("API key", &self.api_key), ("API secret", &self.api_secret)] {
+            if value.trim().is_empty() || value.trim().chars().any(char::is_whitespace) {
+                bail!("Enter a Cloudinary {label} without spaces.");
+            }
+        }
+        Ok(serde_json::to_string(&Self {
+            cloud_name: cloud_name.into(),
+            api_key: self.api_key.trim().into(),
+            api_secret: self.api_secret.trim().into(),
+        })?)
+    }
+    pub fn load() -> Result<Self> {
+        let stored = Provider::Cloudinary
+            .read()?
+            .ok_or_else(|| anyhow::anyhow!("Save Cloudinary credentials in Settings first."))?;
+        let credentials: Self = serde_json::from_str(&stored)
+            .map_err(|_| anyhow::anyhow!("Replace the Cloudinary credentials in Settings."))?;
+        credentials.encoded()?;
+        Ok(credentials)
+    }
+    pub fn save(&self) -> Result<()> {
+        Provider::Cloudinary.save(&self.encoded()?)
+    }
 }
 impl Provider {
     #[cfg(target_os = "macos")]
@@ -32,6 +75,8 @@ impl Provider {
             Self::ElevenLabs => "studio.bazstudios.dramafactory.elevenlabs",
             Self::OpenAi => "studio.bazstudios.dramafactory.openai",
             Self::Fal => "studio.bazstudios.dramafactory.fal",
+            Self::Cloudinary => "studio.bazstudios.dramafactory.cloudinary",
+            Self::Sogni => "studio.bazstudios.dramafactory.sogni",
         }
     }
     #[cfg(target_os = "macos")]
@@ -51,12 +96,16 @@ impl Provider {
         static BUFFER: std::sync::Mutex<SessionKey> = std::sync::Mutex::new(SessionKey(None));
         static MUSIC: std::sync::Mutex<SessionKey> = std::sync::Mutex::new(SessionKey(None));
         static FAL: std::sync::Mutex<SessionKey> = std::sync::Mutex::new(SessionKey(None));
+        static CLOUDINARY: std::sync::Mutex<SessionKey> = std::sync::Mutex::new(SessionKey(None));
+        static SOGNI: std::sync::Mutex<SessionKey> = std::sync::Mutex::new(SessionKey(None));
         let session = match self {
             Self::OpenRouter => &ROUTER,
             Self::OpenAi => &OPENAI,
             Self::Buffer => &BUFFER,
             Self::ElevenLabs => &MUSIC,
             Self::Fal => &FAL,
+            Self::Cloudinary => &CLOUDINARY,
+            Self::Sogni => &SOGNI,
         };
         session
             .lock()
@@ -281,6 +330,25 @@ mod tests {
         let router = Provider::OpenRouter.session().unwrap();
         let openai = Provider::OpenAi.session().unwrap();
         assert!(!std::ptr::eq(&*router, &*openai));
+    }
+    #[test]
+    fn cloudinary_credentials_validate_without_exposing_secrets() {
+        let mut credentials = CloudinaryCredentials {
+            cloud_name: " sample-cloud ".into(),
+            api_key: " 123456 ".into(),
+            api_secret: " private-fixture ".into(),
+        };
+        let encoded = credentials.encoded().unwrap();
+        assert!(!encoded.chars().any(char::is_whitespace));
+        let decoded: CloudinaryCredentials = serde_json::from_str(&encoded).unwrap();
+        assert_eq!(decoded.cloud_name, "sample-cloud");
+        assert_eq!(decoded.api_secret, "private-fixture");
+        credentials.api_secret = "private fixture".into();
+        let error = credentials.encoded().unwrap_err().to_string();
+        assert!(error.contains("API secret"));
+        assert!(!error.contains("private"));
+        credentials.cloud_name = "https://example.com".into();
+        assert!(credentials.encoded().is_err());
     }
     #[test]
     fn session_reuses_authorization_and_does_not_cache_failure() {
